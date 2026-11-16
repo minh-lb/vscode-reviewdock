@@ -64,6 +64,7 @@ Persist the credential only after authenticated-user validation succeeds. Store 
 ### 2.5. Request routing isolation
 
 - Resolve provider adapter and credential from connection ID, not from a display name or current global setting.
+- Before SecretStorage lookup or request construction, verify that the selected connection is enabled; otherwise return a local ConnectionDisabledError and send no HTTP request.
 - Attach only the selected provider's authentication header.
 - Validate every request URL against the selected connection's API origin and path prefix before attaching credentials.
 - Do not forward credentials across redirects to another origin.
