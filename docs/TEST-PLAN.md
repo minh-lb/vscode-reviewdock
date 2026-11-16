@@ -1,9 +1,17 @@
 # ReviewDock — Multi-provider Test Plan
 
-> **Document ID:** RVD-TEST-001  
-> **Version:** 0.2.0  
-> **Status:** Proposed  
+> **Document ID:** RVD-TEST-001
+> **Version:** 0.2.0
+> **Status:** Test design and acceptance scenarios; current execution evidence and open gates are summarized below.
 > **Related:** [SRS.md](./SRS.md), [SDS.md](./SDS.md), [API-SPEC.md](./API-SPEC.md), [UI-UX.md](./UI-UX.md)
+
+## Delivery evidence snapshot (2026-11-17)
+
+The local suite passed 87/87 tests across 12 files; typecheck and lint passed after the recovery regression fix. Formatting and traceability checks passed after the cosmetic test-file adjustment. The extension host activated and command/view metadata passed on macOS at VS Code 1.140 and stable 1.146 after the recovery fix. The production minified VSIX was built and packaged, then successfully installed into an isolated VS Code profile and confirmed by CLI listing as `reviewdock.reviewdock@0.1.0`.
+
+A browser preview of synthetic overview/diff data showed the UI without console errors. This is not a live-provider or actual VS Code Webview workflow test. No GitHub.com/GitLab.com mutation acceptance, GHES/Self-Managed compatibility, Windows/Linux smoke, or accessibility acceptance is recorded.
+
+`npm audit --omit=dev` reports zero production vulnerabilities. The full audit reports three moderate development-toolchain advisories through `@vscode/vsce` (`glob`/`minimatch`); no forced dependency override has been applied. The recovery fix passed its regression tests and the final scoped code re-review was clean. The post-fix VS Code host smoke passed on 1.140 and stable 1.146. Record external test environment, permissions, steps and results before closing the provider, compatibility, OS and accessibility scenarios.
 
 ## 1. Purpose
 

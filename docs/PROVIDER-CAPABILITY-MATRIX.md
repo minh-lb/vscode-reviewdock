@@ -1,10 +1,10 @@
 # Provider Capability Matrix
 
-This is the cross-provider product contract; endpoint details remain in [API-SPEC.md](./API-SPEC.md).
+This is the cross-provider product contract and local adapter capability snapshot; endpoint details remain in [API-SPEC.md](./API-SPEC.md). Mocked adapter tests do not establish live host acceptance.
 
 ## Support policy
 
-- Supported means endpoint and permission exist on the selected host. Conditional requires runtime detection of version, edition, repository settings or permission. Deferred is not promised in MVP.
+- Supported means implemented for the named API contract; actual endpoint permissions and host compatibility depend on the selected host, account and repository/project settings. Conditional requires runtime detection of version, edition, repository settings or permission. Deferred is not promised in MVP.
 - Never convert absent fields to false/empty. Distinguish Empty, Unsupported, Not authorized, Unknown and Not configured.
 - Stable identity is provider + connection ID + repository/project ID + native PR number/MR IID.
 - Shared services use provider-neutral ports. Adapters retain native IDs, URLs, comment types and diff-position semantics.
@@ -50,9 +50,9 @@ Retain provider, connection ID, server origin, repository/project ID, native req
 
 | Host | Minimum version | Evidence | Status |
 |---|---|---|---|
-| GitHub.com | Managed | Auth, list, detail, diff, comments, reply, merge | To verify |
-| GitHub Enterprise Server | TBD | P0 workflows + API header/version compatibility | Blocked: floor open |
-| GitLab.com | Managed | Auth, list, detail, diff, discussions, reply, merge | To verify |
-| GitLab Self-Managed | TBD | P0 workflows + diff/discussion compatibility | Blocked: floor open |
+| GitHub.com | Managed | Mocked adapter contracts; see `test/integration/githubAdapter.test.ts` | Live P0 workflows not run |
+| GitHub Enterprise Server | TBD | No host-version test | Blocked: floor open |
+| GitLab.com | Managed | Mocked adapter contracts; see `test/integration/gitlabAdapter.test.ts` | Live P0 workflows not run |
+| GitLab Self-Managed | TBD | No host-version test | Blocked: floor open |
 
 Marketplace claims must not exceed tested versions. Any endpoint/permission/edition/normalization change updates this matrix, API-SPEC, SRS traceability, SDS, TEST-PLAN and IMPLEMENTATION-PLAN in the same PR.

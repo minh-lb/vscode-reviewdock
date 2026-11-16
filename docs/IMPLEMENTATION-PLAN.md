@@ -1,15 +1,33 @@
 # ReviewDock — Implementation Plan
 
-> **Document ID:** RVD-PLAN-001  
-> **Version:** 0.2.0  
-> **Status:** Proposed plan — start after Product Owner approves the implementation baseline  
+> **Document ID:** RVD-PLAN-001
+> **Version:** 0.2.0
+> **Status:** Delivery snapshot plus original implementation/acceptance plan. See the delivery status below; the milestones and checklists remain the design baseline and are not a claim that their external gates have passed.
 > **Related:** [SRS.md](./SRS.md), [DECISIONS.md](./DECISIONS.md), [SDS.md](./SDS.md), [API-SPEC.md](./API-SPEC.md), [UI-UX.md](./UI-UX.md), [TEST-PLAN.md](./TEST-PLAN.md), [PROVIDER-CAPABILITY-MATRIX.md](./PROVIDER-CAPABILITY-MATRIX.md), [REQUIREMENT-TRACEABILITY.md](./REQUIREMENT-TRACEABILITY.md), [DEVELOPMENT-GUIDE.md](./DEVELOPMENT-GUIDE.md)
+
+## Delivery status snapshot (2026-11-17)
+
+The owner adopted the proposed decisions as the implementation baseline. Local P0/P1 implementation is delivered, with mocked/unit/provider contract tests and VS Code host activation evidence. This does not establish live provider acceptance or production readiness.
+
+| Work package | Local status | Remaining evidence / gate |
+|---|---|---|
+| Foundation and host | Implemented | Post-fix macOS VS Code 1.140 and stable 1.146 activation/manifest smoke passed. |
+| Connections and repository binding | Implemented | Mocked unit/transport coverage; validate real provider account and permission behavior. |
+| GitHub/GitLab discovery and review | Implemented locally | Mocked adapter and UI coverage; live P0 acceptance remains open. |
+| Diff and inline positioning | Implemented locally | Parser/mapping fixtures pass; validate positions on disposable resources for both providers. |
+| Conversations and merge | Implemented locally | Mocked mutation and orchestration checks; live comments/replies/merge acceptance remains open. |
+| P1 checks, jobs and approval/review state | Implemented locally | Mocked adapter coverage; live permission and edition/version behavior remains open. |
+| Package and installation | Locally verified | Production minified VSIX build/package and isolated install/list confirmation for the final artifact passed. |
+
+Next gates are live GitHub.com/GitLab.com acceptance using disposable resources; selecting and testing exact GHES and GitLab Self-Managed floors; Windows/macOS/Linux install and smoke checks; accessibility/high-contrast review; and final artifact/release review. OAuth, multiline inline comments, comment edit/delete, GitHub REST review-thread resolution, approval submission, automatic merge and merge queues remain deferred or unsupported. See [IMPLEMENTATION-STATUS.md](./IMPLEMENTATION-STATUS.md), [PROVIDER-CAPABILITY-MATRIX.md](./PROVIDER-CAPABILITY-MATRIX.md) and [REQUIREMENT-TRACEABILITY.md](./REQUIREMENT-TRACEABILITY.md).
+
+The detailed milestone checklists below retain the original sequence and acceptance criteria. Checkboxes are planned criteria, not current status; use the delivery snapshot and requirement matrix for current evidence.
 
 ## 1. Purpose
 
 This plan converts the ReviewDock requirements and design into implementation milestones, work packages, dependencies and exit criteria.
 
-It is a sequencing plan, not a delivery-date commitment. Estimate tasks after the first technical spike validates GitLab diff rendering and inline comment position mapping.
+It is a sequencing plan, not a delivery-date commitment. The work has now been implemented locally; the original milestone tasks below retain design intent and are not a live checklist. See the delivery snapshot above for current status and remaining acceptance gates.
 
 ## 2. Delivery strategy
 

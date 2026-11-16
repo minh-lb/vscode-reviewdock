@@ -52,18 +52,16 @@ function provider(overrides: Partial<ReviewProvider> = {}): ReviewProvider {
     getApprovalState: vi.fn().mockResolvedValue({ available: true }),
     submitReviewDecision: vi.fn(),
     merge: vi.fn().mockResolvedValue({ merged: true }),
-    getCapabilities: vi
-      .fn()
-      .mockReturnValue({
-        generalComments: { support: 'supported' },
-        inlineComments: { support: 'supported' },
-        replyByResource: { 'github-review-comment': { support: 'supported' } },
-        resolveThreads: { support: 'unsupported' },
-        checks: { support: 'supported' },
-        approvals: { support: 'supported' },
-        reviewDecisions: { support: 'supported' },
-        merge: { support: 'supported' },
-      }),
+    getCapabilities: vi.fn().mockReturnValue({
+      generalComments: { support: 'supported' },
+      inlineComments: { support: 'supported' },
+      replyByResource: { 'github-review-comment': { support: 'supported' } },
+      resolveThreads: { support: 'unsupported' },
+      checks: { support: 'supported' },
+      approvals: { support: 'supported' },
+      reviewDecisions: { support: 'supported' },
+      merge: { support: 'supported' },
+    }),
     ...overrides,
   } as ReviewProvider;
 }
@@ -159,19 +157,17 @@ describe('ReviewService', () => {
 
   it('rederives rename paths and refuses a line that is not in the parsed diff', async () => {
     const p = provider({
-      listChangedFiles: vi
-        .fn()
-        .mockResolvedValue({
-          ...files,
-          items: [
-            {
-              path: 'new.ts',
-              previousPath: 'old.ts',
-              change: 'renamed',
-              patch: '@@ -4,2 +4,2 @@\n keep\n-old\n+new',
-            },
-          ],
-        }),
+      listChangedFiles: vi.fn().mockResolvedValue({
+        ...files,
+        items: [
+          {
+            path: 'new.ts',
+            previousPath: 'old.ts',
+            change: 'renamed',
+            patch: '@@ -4,2 +4,2 @@\n keep\n-old\n+new',
+          },
+        ],
+      }),
     });
     const service = new ReviewService(p);
     await service.createInline(context, 'comment', { path: 'old.ts', side: 'new', line: 5 });
@@ -246,12 +242,10 @@ describe('ReviewService', () => {
       replies: [],
       ...extra,
     });
-    const listConversations = vi
-      .fn()
-      .mockResolvedValue({
-        items: [conversation('github-issue-comment')],
-        page: { page: 1, perPage: 100, hasNextPage: false },
-      });
+    const listConversations = vi.fn().mockResolvedValue({
+      items: [conversation('github-issue-comment')],
+      page: { page: 1, perPage: 100, hasNextPage: false },
+    });
     const p = provider({ listConversations });
     const service = new ReviewService(p);
     await expect(service.reply(context, 'conversation', 'reply')).rejects.toMatchObject({
