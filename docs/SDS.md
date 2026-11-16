@@ -334,7 +334,7 @@ type ProviderCapabilityDescriptor = {
 // provider-specific identifiers and source resource types needed by each adapter.
 ~~~
 
-A GitHub PR number and a GitLab MR IID are not globally unique. Every review request and cache entry must carry connection ID and repository ID. Missing provider fields must remain unknown rather than being coerced to false.
+A GitHub PR number and a GitLab PR number/MR IID are not globally unique. Every review request and cache entry must carry connection ID and repository ID. Missing provider fields must remain unknown rather than being coerced to false.
 
 
 ### 5.1. Provider-aware conversation model
@@ -407,7 +407,7 @@ Invariants:
 | Workspace repository binding | WorkspaceState | Workspace folder + connection ID + provider repository/project ID |
 | Default connection | GlobalState | One optional enabled default per provider; disabling the current default clears it |
 | UI preferences | GlobalState | Selected tab, list filters, panel preferences |
-| MR/diff/discussion cache | In-memory first | Persistent cache requires a separate decision |
+| PR/MR/diff/conversation cache | In-memory first | Persistent cache requires a separate decision |
 
 ### 6.2. Cache keys
 
@@ -469,7 +469,7 @@ A comment is disabled when any provider-required SHA/path/line value is unavaila
 ### 7.4. Stale diff handling
 
 Before submitting an inline comment:
-1. Refresh MR detail and latest diff version.
+1. Refresh PR detail/head SHA or MR detail/latest diff version.
 2. Compare the current version SHAs with the version displayed in the composer.
 3. If they differ, cancel submission and reload the diff.
 4. If the selected provider rejects the position, display the API validation error and reload.
@@ -571,8 +571,8 @@ sequenceDiagram
   actor User
   participant UI as MR Webview
   participant Merge as MergeService
-  participant API as GitLabApiClient
-  participant GL as GitLab
+  participant API as ProviderApiClient
+  participant Provider as GitHub or GitLab
 
   User->>UI: Click Merge
   UI-->>User: Confirm project, IID and branches
@@ -630,7 +630,7 @@ Each error should include operation, HTTP status if available, provider request 
 ## 12. Observability
 
 - Use structured, redacted logs.
-- Include operation name, connection ID, provider, repository/project ID, PR number/MR IID and provider request ID where safe.
+- Include operation name, connection ID, provider, repository/project ID, PR number/PR number/MR IID and provider request ID where safe.
 - Do not log tokens, raw authorization headers, full diff bodies or comment content.
 - Provide a user-accessible "Copy diagnostic info" action containing only sanitized metadata.
 
