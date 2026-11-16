@@ -1,4 +1,4 @@
-# ReviewDock — UI/UX Specification
+# ReviewDock — Multi-provider UI/UX Specification
 
 > **Document ID:** RVD-UX-001  
 > **Version:** 0.1.0  
@@ -7,7 +7,7 @@
 
 ## 1. UX goals
 
-ReviewDock should let a developer discover a Merge Request, understand its changes, discuss code and safely merge without leaving VS Code for routine work.
+ReviewDock should let a developer manage multiple GitHub/GitLab connections, discover a Pull Request or Merge Request, understand its changes, discuss code and safely merge without leaving VS Code for routine work.
 
 UX priorities:
 1. Make the current GitLab instance and project obvious.
@@ -21,32 +21,37 @@ UX priorities:
 
 ### 2.1. Activity Bar
 
-Add an Activity Bar container named **ReviewDock**.
+Add an Activity Bar container named **ReviewDock**. The connection manager is a first-class view; do not assume a single GitLab account.
 
 ### 2.2. Sidebar views
 
 ~~~text
 REVIEWDOCK
-  [GitLab instance / Project selector]
+  [Workspace repository / Connection selector]
 
-  MERGE REQUESTS
+  CONNECTIONS
+    Personal GitHub · @user · Connected
+    Company GitHub · @user · Connected
+    Personal GitLab · @user · Connected
+    Company GitLab · @user · Re-auth required
+    [+ Add Connection]
+
+  REVIEW REQUESTS
     Review requested
     Assigned to me
     Created by me
     Open
     Closed
     Merged
-
-  CONNECTIONS
-    GitLab.com
-    GitLab Self-Managed (if configured)
 ~~~
 
 Rules:
-- One active project per workspace folder in MVP.
-- A project selector shows the active project path and instance host.
-- MR groups use lazy loading and pagination.
-- Tree items show IID, title and concise state indicators.
+- Each workspace folder/repository has its own active connection + repository binding.
+- A selector shows provider, connection name, account login, host and repository/project path.
+- A workspace binding takes precedence over the default connection for its provider.
+- A default connection is maintained separately for GitHub and GitLab.
+- Review request groups use lazy loading and pagination.
+- Tree items show provider-native identifier (PR number or MR IID), title and concise state indicators.
 - Use VS Code badges/context values where supported; do not encode all status information only by color.
 - Empty views provide an action to connect GitLab or select a project.
 - Refresh is available from the view title and context menu.
@@ -55,24 +60,114 @@ Rules:
 
 | Command | Purpose | Availability |
 |---|---|---|
-| ReviewDock: Connect GitLab | Configure an instance and PAT | P0 |
-| ReviewDock: Disconnect GitLab | Remove stored credential | P0 |
-| ReviewDock: Select Project | Select or resolve project | P0 |
+| ReviewDock: Add Connection | Create a GitHub or GitLab connection | P0 |
+| ReviewDock: Manage Connections | Test, rename, re-authenticate, disconnect, delete, set default | P0 |
+| ReviewDock: Select Connection | Select the account for the active workspace repository | P0 |
+| ReviewDock: Select Repository | Select or resolve GitHub repository / GitLab project | P0 |
 | ReviewDock: Refresh | Refresh active view/MR | P0 |
-| ReviewDock: Open Merge Request | Open selected MR detail | P0 |
+| ReviewDock: Open Review Request | Open selected GitHub PR or GitLab MR detail | P0 |
 | ReviewDock: Open on GitLab | Open MR web URL | P1 |
 | ReviewDock: Merge Merge Request | Start confirmed merge workflow | P0 |
 | ReviewDock: Add Comment | Create general or inline comment from active review context | P0 |
 
-## 3. Merge Request detail surface
+
+
+## 3. Connection management
+
+### 3.1. Connection list
+
+~~~text
+┌─ CONNECTIONS ───────────────────────────────────────────────────────┐
+│ [+ Add Connection]                                      [Refresh]   │
+├────────────────────────────────────────────────────────────────────┤
+│ [GitHub] Personal GitHub                         ● Connected        │
+│         github.com · @minh-lb                    [⋯]                │
+│                                                                    │
+│ [GitHub] Company GitHub                          ● Connected        │
+│         github.company.com · @minh-lb            [⋯]                │
+│                                                                    │
+│ [GitLab] Personal GitLab                         ● Connected        │
+│         gitlab.com · @minh-lb                    [⋯]                │
+│                                                                    │
+│ [GitLab] Internal GitLab                         ! Re-auth required│
+│         git.internal.example · @developer        [⋯]                │
+└────────────────────────────────────────────────────────────────────┘
+~~~
+
+Each connection row shows provider icon, display name, server host, authenticated account login, status and default marker. The actions menu contains:
+- Test connection
+- Rename
+- Re-authenticate
+- Set as default for provider
+- Disconnect
+- Delete
+
+A duplicate display name is allowed, but the UI must show provider, host and account login to disambiguate.
+
+### 3.2. Add connection wizard
+
+~~~text
+┌─ Add Connection ────────────────────────────────────────────────────┐
+│ Provider type *                                                     │
+│ [ GitHub ▾ ]                                                        │
+│                                                                    │
+│ Connection name *                                                   │
+│ [ Personal GitHub                                               ]  │
+│                                                                    │
+│ Server URL *                                                        │
+│ [ https://github.com                                             ]  │
+│                                                                    │
+│ Authentication *                                                    │
+│ (●) Personal Access Token                                           │
+│ [ •••••••••••••••••••••••••••••••••••••                         ]  │
+│                                                                    │
+│ [Test Connection]                                                   │
+│                                                                    │
+│ Account: @minh-lb · Validation successful                           │
+│                                      [Cancel] [Save Connection]    │
+└────────────────────────────────────────────────────────────────────┘
+~~~
+
+Form behavior:
+1. Provider type is required: GitHub or GitLab.
+2. Connection name is required and user-defined.
+3. Server URL is pre-filled for GitHub.com/GitLab.com; custom HTTPS URL is available for Enterprise/Self-Managed.
+4. Authentication method and token guidance are provider-specific.
+5. Save is disabled until Test Connection succeeds.
+6. Show the resolved account login and server before saving.
+7. Invalid credentials are not saved. Preserve non-secret form fields after validation failure.
+8. Provider type and server URL are immutable after creation; changing server means creating a new connection.
+
+### 3.3. Connection defaults and workspace selection
+
+- Allow one optional default connection per provider.
+- The active workspace folder binding takes precedence over the provider default.
+- When multiple connections on the same host can access a remote, ask the user to select the account.
+- Different workspace folders may use different providers/accounts.
+- Switching a connection cancels requests for the previous connection and reloads repository/review request data.
+- If a connection is disconnected/deleted, show the affected workspace binding as unresolved; never silently switch accounts.
+
+### 3.4. Connection status
+
+| Status | UI behavior |
+|---|---|
+| Connected | Normal provider/account indicator |
+| Re-authentication required | Warning + Re-authenticate action |
+| Unreachable | Show last successful validation and Retry |
+| Configuration error | Explain invalid host/API base URL |
+| Disconnected | Keep connection record but disable API-backed actions |
+
+
+## 4. Pull Request / Merge Request detail surface
 
 ### 3.1. Layout
 
-The detail surface is a local React Webview panel. It has a compact header, tab navigation and a scrollable content area.
+The detail surface is a local React Webview panel. It has a compact header, tab navigation and a scrollable content area. The provider-native title is shown (Pull Request for GitHub, Merge Request for GitLab).
 
 ~~~text
 ┌────────────────────────────────────────────────────────────────────┐
-│ !42  Fix token refresh race condition                 [Open GitLab] │
+│ GitHub · Personal GitHub · owner/repo · #42       [Open on GitHub] │
+│ Fix token refresh race condition                                  │
 │ author · source-branch  →  main · updated 2h ago                    │
 │                                                                    │
 │ [Overview] [Changes 4] [Discussions 6] [Pipeline] [Approvals]      │
@@ -97,15 +192,16 @@ If a P1 capability is unsupported by the current GitLab edition/version, show a 
 ### 3.2. Header
 
 Display:
-- Project path and MR IID.
-- MR title and draft/open/closed/merged state.
+- Provider, connection name, account login and repository/project path.
+- Provider-native identifier (GitHub PR number or GitLab MR IID).
+- Review request title and draft/open/closed/merged state.
 - Author.
 - Source branch → target branch.
 - Updated timestamp.
 - Open on GitLab action.
 
 Primary action:
-- Merge button for eligible opened MRs.
+- Merge button for eligible open PRs/MRs.
 - Disabled state with a short reason when the current server state clearly blocks merge.
 - The button must not claim mergeability based only on stale or incomplete data.
 
@@ -134,7 +230,7 @@ Rules:
 - Distinguish "unknown/not available" from "none".
 - Show detailed_merge_status when available; do not rely on deprecated merge_status.
 
-## 4. Changes tab and diff viewer
+## 5. Changes tab and diff viewer
 
 ### 4.1. Layout
 
@@ -207,9 +303,9 @@ Only a line represented in the current GitLab diff can be selected. Hunk headers
 - Provide Resolve/Reopen only in a later approved phase.
 - Distinguish system notes from user-authored comments.
 
-## 5. Discussions tab
+## 6. Discussions tab
 
-The Discussions tab provides a chronological/threaded view of all MR discussions, including general comments and diff discussions.
+The Discussions tab provides a chronological/threaded view of provider-supported review conversations, including general comments and diff comments. GitHub issue comments and review comments remain distinct API resources even when presented in a shared view.
 
 ~~~text
 ┌─ Discussions ───────────────────────────────────────────────────────┐
@@ -238,16 +334,16 @@ Behavior:
 - Refresh the thread after successful mutation.
 - Do not retry a timed-out POST automatically.
 
-## 6. Pipeline and Approvals tabs — P1
+## 7. Checks/Pipeline and Approvals tabs — P1
 
-### Pipeline
+### Checks / Pipeline
 
-Display:
-- Latest MR pipeline.
-- Pipeline status and SHA.
-- Pipeline web link.
-- Jobs and status summaries when available.
-- A warning when pipeline SHA does not match current MR HEAD SHA.
+Display provider-specific data:
+- GitHub: Check Runs and GitHub Actions workflow runs.
+- GitLab: MR pipelines and jobs.
+- Status, commit SHA and web link.
+- A warning when the check/pipeline SHA does not match the current PR/MR HEAD SHA.
+- Do not imply that GitHub Checks and GitLab Pipelines have identical lifecycle semantics.
 
 ### Approvals
 
@@ -259,7 +355,7 @@ Display:
 
 MVP does not expose approve/unapprove actions.
 
-## 7. Merge interaction
+## 8. Merge interaction
 
 ### 7.1. Confirmation dialog
 
@@ -280,7 +376,7 @@ MVP does not expose approve/unapprove actions.
 
 ### 7.2. Safety behavior
 
-- Show project, MR IID, source and target branches.
+- Show provider, connection name, repository/project, PR number or MR IID, source and target branches.
 - Require explicit confirmation.
 - Refresh MR immediately before submission.
 - Send the current source HEAD SHA.
@@ -290,7 +386,7 @@ MVP does not expose approve/unapprove actions.
 - Show server error on rejection and refresh the MR state.
 - On timeout, do not repeat merge automatically; first query MR state.
 
-## 8. Global UX states
+## 9. Global UX states
 
 Every data-driven view must support:
 
@@ -308,7 +404,7 @@ Every data-driven view must support:
 | Mutation success | Confirmation and refreshed data |
 | Mutation outcome unknown | Refresh server state before allowing another attempt |
 
-## 9. Accessibility and interaction
+## 10. Accessibility and interaction
 
 - All primary actions must be reachable by keyboard.
 - Provide accessible labels for icon-only controls.
@@ -319,7 +415,7 @@ Every data-driven view must support:
 - Provide tooltips for abbreviated status labels.
 - Respect reduced-motion preferences.
 
-## 10. Webview security requirements
+## 11. Webview security requirements
 
 - Use local bundled assets only; no CDN scripts or remote stylesheets.
 - Configure a restrictive Content Security Policy.
@@ -332,9 +428,12 @@ Every data-driven view must support:
 - Render Markdown with raw HTML disabled and sanitize links.
 - Open external links only after URL validation and through the extension host.
 
-## 11. UX acceptance checklist
+## 12. UX acceptance checklist
 
-- [ ] User can identify the active GitLab instance and project.
+- [ ] User can identify provider, connection name, account and active repository/project.
+- [ ] User can create multiple GitHub/GitLab connections and manage each independently.
+- [ ] User can bind different workspace folders to different connections.
+- [ ] User is prompted when multiple accounts on one host can access a remote.
 - [ ] User can navigate MR groups and open a selected MR.
 - [ ] User can read overview, branches and MR state.
 - [ ] User can navigate changed files and read diff.
