@@ -7,29 +7,29 @@
 
 ## 1. Purpose and design scope
 
-This document describes the proposed software structure for implementing the ReviewDock VS Code extension. It translates the SRS into components, responsibilities, data contracts, runtime workflows and design constraints.
+This document describes the proposed multi-provider software structure for implementing ReviewDock with GitHub and GitLab. It translates the SRS into components, responsibilities, data contracts, runtime workflows and design constraints.
 
 The design is based on the proposed MVP decisions in DECISIONS.md:
 - TypeScript extension host.
 - Native VS Code Tree Views for navigation.
-- React + TypeScript Webview for MR detail, diff and discussions.
-- GitLab REST API v4 through a single API client.
-- PAT authentication for MVP, stored in SecretStorage.
-- One active GitLab project per workspace folder.
-- Single-line inline comments in MVP.
-- Pipeline and approval UI are P1.
+- React + TypeScript Webview for PR/MR detail, diff and review conversations.
+- Separate GitHub REST API v3 and GitLab REST API v4 provider adapters behind a common application contract.
+- Multiple PAT-backed connections, each stored independently in SecretStorage.
+- One active connection + repository binding per workspace folder; one default connection per provider.
+- Single-line inline comments in MVP where supported by the provider.
+- GitHub Checks/Actions and GitLab Pipeline/Jobs panels are P1.
 
 If a decision is changed, update this SDS and the affected API/UI/test documents before implementation.
 
 ## 2. Design goals
 
-1. Keep GitLab transport, business rules and UI independent.
+1. Keep provider-specific transport, business rules and UI independent.
 2. Make API behavior testable without launching VS Code.
 3. Keep credentials inside the extension host.
 4. Ensure Webview messages are typed, validated and least-privilege.
 5. Make diff line mapping deterministic and testable.
 6. Prevent stale data from being used for comments or merge.
-7. Support GitLab.com and Self-Managed instances through configurable base URLs.
+7. Support GitHub.com/GitHub Enterprise Server and GitLab.com/Self-Managed through configurable server URLs.
 8. Avoid blocking extension activation or the VS Code UI thread.
 
 ## 3. High-level architecture
@@ -55,13 +55,13 @@ flowchart TB
       State[Workspace State / Cache]
     end
     subgraph Infra[Infrastructure]
-      Api[GitLab API Client]
+      Providers[Provider Adapter Registry]
       Secret[SecretStorage Adapter]
       Git[Git Remote Resolver]
       Logger[Redacting Logger]
     end
   end
-  GitLab[GitLab REST API v4]
+  ProviderAPI[GitHub REST API v3 / GitLab REST API v4]
   User --> Tree
   User --> Panel
   User --> Commands
@@ -79,7 +79,7 @@ flowchart TB
   ReviewSvc --> Api
   MergeSvc --> Api
   App --> State
-  Api --> GitLab
+  Providers --> ProviderAPI
   Infra --> Logger
 ~~~
 
@@ -123,14 +123,24 @@ src/
       reviewService.ts
       mergeService.ts
     ports/
-      gitlabApi.ts
+      providerApi.ts
       secretStore.ts
       workspaceStore.ts
   infrastructure/
-    gitlab/
-      gitlabHttpClient.ts
-      gitlabApiAdapter.ts
-      dto/
+    providers/
+      providerRegistry.ts
+      github/
+        githubHttpClient.ts
+        githubAdapter.ts
+        dto/
+      gitlab/
+        gitlabHttpClient.ts
+        gitlabAdapter.ts
+        dto/
+    connections/
+      connectionRegistry.ts
+      connectionService.ts
+      credentialStore.ts
     storage/
       vscodeSecretStore.ts
       vscodeWorkspaceStore.ts
@@ -170,33 +180,34 @@ The exact filenames may change, but the dependency direction must remain: presen
 - Avoid network calls during activation.
 - Start data loading only after the user opens a relevant view or invokes a command.
 
-### 4.2. AuthenticationService
+### 4.2. ConnectionService and AuthenticationService
 
 Responsibilities:
-- Add/update/remove a GitLab instance configuration.
-- Save PAT using SecretStorage.
-- Validate a token using GET /user.
-- Return a non-secret identity summary.
-- Resolve a token for an instance only inside the extension host.
+- Create/list/rename/test/re-authenticate/disconnect/delete connections.
+- Maintain immutable connection ID, provider, server URL and stable provider account identity.
+- Validate credentials through the provider adapter's authenticated-user endpoint.
+- Store and retrieve one credential per connection ID through SecretStorage.
+- Track connection status and last validation/use timestamps.
+- Support one default connection per provider.
 
-Invariant: no method returns the raw token to presentation or domain consumers.
+Invariant: no method returns raw credential material to presentation, Webview or domain consumers. Provider and server URL are not silently changed on an existing connection.
 
-### 4.3. ProjectService
+### 4.3. RepositoryService
 
 Responsibilities:
-- Parse supported Git remote URL formats.
-- Match hostnames to configured GitLab instances.
-- Resolve namespace/project path or numeric project ID.
-- Persist workspace project mapping without secrets.
+- Parse supported GitHub and GitLab HTTPS/SSH remote URL formats.
+- Match remote host to configured provider servers and candidate connections.
+- Resolve GitHub repository or GitLab project through the selected adapter.
+- Persist workspace-folder binding as connection ID + repository/project ID without secrets.
+- Require an explicit account choice when multiple connections on the same host can access the remote.
 - Offer manual selection if auto-detection fails.
 
-### 4.4. MergeRequestService
+### 4.4. ReviewRequestService
 
 Responsibilities:
-- List MRs with filters and pagination.
-- Retrieve MR detail.
-- Retrieve diff versions and file diffs.
-- Normalize GitLab DTOs into domain models.
+- List GitHub Pull Requests or GitLab Merge Requests with provider-specific filters and pagination.
+- Retrieve review request detail and changed files.
+- Normalize provider DTOs into a shared ReviewRequest model while preserving provider-native IDs and fields.
 - Mark data as stale when refresh fails.
 
 ### 4.5. ReviewService
@@ -219,17 +230,16 @@ Responsibilities:
 - Normalize GitLab merge errors.
 - Never auto-retry an ambiguous mutation.
 
-### 4.7. GitLabApiClient
+### 4.7. Provider adapters and HTTP clients
 
 Responsibilities:
-- Build API v4 URLs from a validated instance base URL.
-- Attach PRIVATE-TOKEN only to requests for that exact instance origin.
-- Serialize query and body parameters.
-- Parse JSON and response headers.
-- Follow pagination links only when their origin matches the configured GitLab instance.
-- Apply request timeout and cancellation.
-- Retry safe GET requests only under defined conditions.
-- Map HTTP failures to typed application errors.
+- Select GitHubAdapter or GitLabAdapter from the immutable provider type on the connection.
+- Build provider API URLs (GitHub REST API v3; GitLab REST API v4) from the validated server configuration.
+- Apply provider-specific authentication headers; never reuse GitLab headers for GitHub or vice versa.
+- Map provider DTOs into shared domain contracts and expose provider capability descriptors.
+- Follow pagination links only when their origin and API path prefix match the configured connection.
+- Apply timeout, cancellation, rate-limit handling and provider-specific error mapping.
+- Retry safe GET requests only under defined conditions; never automatically retry ambiguous mutations.
 
 ### 4.8. Webview bridge
 
@@ -241,31 +251,41 @@ Responsibilities:
 
 ## 5. Domain model
 
-The following TypeScript shapes are logical contracts; exact optional fields should follow the normalized DTO mapper.
+The following TypeScript shapes are logical contracts. Provider-specific DTOs remain inside adapters; domain models preserve provider identity and do not erase meaningful differences.
 
 ~~~ts
-type GitLabInstance = {
-  id: string;
-  baseUrl: string;       // normalized origin + optional context path
+type ProviderType = "github" | "gitlab";
+
+type Connection = {
+  id: string; // immutable UUID
+  provider: ProviderType;
   displayName: string;
+  serverUrl: string;
+  accountId: string;
+  accountLogin: string;
+  status: "connected" | "reauthentication-required" | "unreachable" | "configuration-error" | "disconnected";
 };
 
-type ProjectRef = {
-  instanceId: string;
-  projectId: number;
-  pathWithNamespace: string;
+type RepositoryRef = {
+  connectionId: string;
+  provider: ProviderType;
+  repositoryId: string;
+  fullName: string;
   webUrl: string;
 };
 
-type MergeRequestSummary = {
-  projectId: number;
-  iid: number;
+type ReviewRequestSummary = {
+  connectionId: string;
+  provider: ProviderType;
+  repositoryId: string;
+  number: number;
   title: string;
-  state: "opened" | "closed" | "merged" | "locked";
+  state: "open" | "closed" | "merged";
   draft: boolean;
   author: UserSummary;
   sourceBranch: string;
   targetBranch: string;
+  headSha?: string;
   reviewers: UserSummary[];
   assignees: UserSummary[];
   labels: string[];
@@ -273,60 +293,20 @@ type MergeRequestSummary = {
   webUrl: string;
 };
 
-type DiffRefs = {
-  baseSha: string;
-  startSha: string;
-  headSha: string;
+type ProviderCapabilities = {
+  inlineComments: boolean;
+  threadedReplies: boolean;
+  resolveThreads: boolean;
+  reviewDecisions: boolean;
+  checksOrPipelines: boolean;
+  merge: boolean;
 };
 
-type FileDiff = {
-  oldPath: string;
-  newPath: string;
-  isNew: boolean;
-  isDeleted: boolean;
-  isRenamed: boolean;
-  isTooLarge: boolean;
-  isCollapsed: boolean;
-  unifiedDiff?: string;
-};
-
-type Discussion = {
-  id: string;
-  individualNote: boolean;
-  resolved: boolean;
-  notes: DiscussionNote[];
-  position?: DiffPosition;
-};
-
-type DiffPosition = {
-  baseSha: string;
-  startSha: string;
-  headSha: string;
-  oldPath: string;
-  newPath: string;
-  oldLine?: number;
-  newLine?: number;
-};
-
-type DiscussionNote = {
-  id: number;
-  body: string;
-  author: UserSummary;
-  createdAt: string;
-  updatedAt: string;
-  system: boolean;
-};
-
-type UserSummary = {
-  id: number;
-  username: string;
-  name: string;
-  avatarUrl?: string;
-  webUrl?: string;
-};
+// Shared DiffFile, ReviewConversation and ReviewComment models must retain
+// provider-specific identifiers and opaque metadata needed by each adapter.
 ~~~
 
-Domain models must not assume every API field exists. Missing, null, redacted and unsupported fields must remain distinguishable where they affect behavior.
+A GitHub PR number and a GitLab MR IID are not globally unique. Every review request and cache entry must carry connection ID and repository ID. Missing provider fields must remain unknown rather than being coerced to false.
 
 ## 6. State and persistence
 
@@ -334,26 +314,27 @@ Domain models must not assume every API field exists. Missing, null, redacted an
 
 | Data | Storage | Notes |
 |---|---|---|
-| PAT | SecretStorage | Keyed by instance ID; never mirrored elsewhere |
-| GitLab instance list | GlobalState or settings | Base URL and display name only |
-| Workspace project mapping | WorkspaceState | Instance ID + numeric project ID |
+| Provider credential (PAT) | SecretStorage | Keyed by immutable connection ID; never mirrored elsewhere |
+| Connection registry | GlobalState | Provider, display name, server URL, account identity and status; no secrets |
+| Workspace repository binding | WorkspaceState | Workspace folder + connection ID + provider repository/project ID |
+| Default connection | GlobalState | One optional default per provider |
 | UI preferences | GlobalState | Selected tab, list filters, panel preferences |
 | MR/diff/discussion cache | In-memory first | Persistent cache requires a separate decision |
 
 ### 6.2. Cache keys
 
 Cache keys must include:
-- Instance ID.
-- Project ID.
-- MR IID.
-- Resource type.
-- Diff version/head SHA where applicable.
+- Connection ID.
+- Provider and normalized server URL.
+- Provider repository/project ID.
+- Review request number/ID.
+- Resource type and diff version/head SHA where applicable.
 
-Never reuse cache entries across two GitLab instances even if project IDs match.
+Never reuse cache entries across two accounts or connections, even when host and repository path are identical.
 
 ### 6.3. Freshness rules
 
-- MR list/detail may be shown from cache with a visible stale indicator.
+- PR/MR list/detail may be shown from cache with a visible stale indicator.
 - Diff comments require a current diff version.
 - Merge always requires a fresh MR fetch and current SHA.
 - A failed refresh must not silently convert stale data into current data.
@@ -413,7 +394,7 @@ Before submitting an inline comment:
 
 ## 8. Runtime workflows
 
-### 8.1. Connect an instance
+### 8.1. Create and validate a connection
 
 ~~~mermaid
 sequenceDiagram
@@ -424,18 +405,18 @@ sequenceDiagram
   participant API as GitLabApiClient
   participant GL as GitLab
 
-  User->>UI: Add instance + PAT
-  UI->>Auth: connect(instance, PAT)
-  Auth->>API: GET /user
-  API->>GL: GET /api/v4/user
-  GL-->>API: 200 user profile
-  API-->>Auth: normalized identity
-  Auth->>Secret: store PAT
-  Auth-->>UI: connected identity (no token)
-  UI-->>User: Connection successful
+  User->>UI: Choose GitHub/GitLab, name, server and PAT
+  UI->>Auth: createConnection(provider, server, name, PAT)
+  Auth->>API: validate authenticated user
+  API->>GL: provider-specific GET /user
+  GL-->>API: 200 account profile
+  API-->>Auth: normalized account identity
+  Auth->>Secret: store credential by connection ID
+  Auth-->>UI: connection summary (no token)
+  UI-->>User: Connection saved
 ~~~
 
-Token persistence should occur only after validation succeeds, unless a separate explicit "save unverified token" flow is later approved.
+Credential persistence should occur only after validation succeeds. The connection registry may retain non-secret form values after a failed validation so the user can correct them.
 
 ### 8.2. Load MR and diff
 
@@ -564,11 +545,14 @@ Each error should include operation, HTTP status if available, GitLab request ID
 
 - [ ] No domain module imports VS Code API.
 - [ ] Webview has no credential or direct API access.
-- [ ] GitLab HTTP calls are centralized.
+- [ ] GitHub and GitLab HTTP calls are isolated behind provider adapters.
+- [ ] Credentials are stored and resolved by immutable connection ID.
+- [ ] Multiple accounts on the same host require explicit selection when ambiguous.
+- [ ] Workspace bindings and cache keys include connection ID.
 - [ ] All mutation methods require explicit user intent.
 - [ ] Diff parser and line mapper have deterministic unit tests.
 - [ ] Inline comment requests use latest diff version SHAs.
 - [ ] Merge requests include current source SHA.
-- [ ] Cache keys include GitLab instance identity.
+- [ ] Cache keys include provider, connection ID and repository identity.
 - [ ] API pagination links are origin-validated before following.
 - [ ] Secret and user content are excluded from logs.
