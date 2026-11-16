@@ -325,7 +325,7 @@ Minimum VS Code engine version và chính sách GitHub Enterprise Server/GitLab 
 |---|---|---|
 | APR-001 | P1 | Hệ thống NÊN hiển thị GitHub review decision và GitLab approval state; chỉ hiển thị approval rules/count khi provider/edition trả về các trường đó. |
 | APR-002 | P1 | Hệ thống NÊN hiển thị danh sách người đã approve/review và trạng thái tương ứng khi provider API cung cấp. |
-| APR-003 | P1 | Hệ thống CÓ THỂ cho phép approve/unapprove khi API và quyền cho phép. |
+| APR-003 | P1 | Hệ thống CÓ THỂ cho phép GitHub submit APPROVE/REQUEST_CHANGES hoặc GitLab approve/unapprove khi provider API và quyền cho phép. |
 | APR-004 | P0 | Hệ thống PHẢI phân biệt comment với approval; tạo comment không được xem là approve. |
 | APR-005 | P0 | Hệ thống KHÔNG ĐƯỢC tự kết luận PR/MR đủ approval nếu provider không xác nhận; thiếu field phải được coi là unknown/unavailable. |
 
