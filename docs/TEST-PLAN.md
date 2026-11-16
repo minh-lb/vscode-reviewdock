@@ -7,11 +7,11 @@
 
 ## Delivery evidence snapshot (2026-11-17)
 
-The local suite passed 87/87 tests across 12 files; typecheck and lint passed after the recovery regression fix. Formatting and traceability checks passed after the cosmetic test-file adjustment. The extension host activated and command/view metadata passed on macOS at VS Code 1.140 and stable 1.146 after the recovery fix. The production minified VSIX was built and packaged, then successfully installed into an isolated VS Code profile and confirmed by CLI listing as `reviewdock.reviewdock@0.1.0`.
+On 2026-11-17, `npm test` passed 88/88 tests across 12 files; typecheck, lint, format check, traceability check and build passed. Packaging succeeded and produced a 105.74 KB VSIX; the packager warned that package metadata declares `UNLICENSED`. Host activation smoke passed on macOS with VS Code 1.140.0 and stable 1.146.0. The inline comment modal focus trap, Escape dismissal and focus restoration are covered by a regression test.
 
-A browser preview of synthetic overview/diff data showed the UI without console errors. This is not a live-provider or actual VS Code Webview workflow test. No GitHub.com/GitLab.com mutation acceptance, GHES/Self-Managed compatibility, Windows/Linux smoke, or accessibility acceptance is recorded.
+The GitHub Actions workflow is configured for Ubuntu, macOS and Windows with VS Code 1.140.0 and stable. GitHub Actions has not run, and this repository has not been pushed, so there is no CI matrix result. No live-provider mutation acceptance, GHES/Self-Managed compatibility, non-macOS host smoke, or manual screen-reader/high-contrast/full keyboard workflow acceptance is recorded. PAT permission scopes are documented; the application does not inspect granted permissions.
 
-`npm audit --omit=dev` reports zero production vulnerabilities. The full audit reports three moderate development-toolchain advisories through `@vscode/vsce` (`glob`/`minimatch`); no forced dependency override has been applied. The recovery fix passed its regression tests and the final scoped code re-review was clean. The post-fix VS Code host smoke passed on 1.140 and stable 1.146. Record external test environment, permissions, steps and results before closing the provider, compatibility, OS and accessibility scenarios.
+Record external test environment, permissions, steps and results before closing the provider, compatibility, OS and accessibility scenarios. The current checks are local evidence only and do not establish release acceptance.
 
 ## 1. Purpose
 

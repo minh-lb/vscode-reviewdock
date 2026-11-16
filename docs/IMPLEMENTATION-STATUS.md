@@ -14,15 +14,16 @@ The repository provides `npm run build`, `npm run package`, `npm run test:extens
 
 ## Evidence snapshot
 
-The local test suite passed 87/87 tests across 12 files; typecheck and lint passed after the recovery regression fix. Formatting and traceability checks passed after the cosmetic test-file adjustment. The extension host activated and its contributed command/view metadata passed on macOS with VS Code 1.140 and stable 1.146 (which resolved to 1.146.0) after the recovery fix. The final production VSIX was built, packaged, installed into an isolated VS Code profile and listed by the CLI as `reviewdock.reviewdock@0.1.0`.
+On 2026-11-17, `npm test` passed 88/88 tests across 12 files; typecheck, lint, format check, traceability check and build passed. Packaging succeeded and produced a 105.74 KB VSIX, with a license warning because the package metadata declares `UNLICENSED`. Host activation smoke passed on macOS with VS Code 1.140.0 and stable 1.146.0. The inline comment modal now traps keyboard focus, closes on Escape and restores focus to its trigger; a regression test covers those behaviors.
 
-The production build emits minified bundles without source maps (extension bundle 85 KB; final VSIX 105.49 KB). A browser preview of synthetic review data showed the overview/diff UI without console errors; this is not a live-provider or VS Code Webview workflow test. The connection-recovery deadlock found in review was fixed and regression-tested. The final scoped code re-review was clean. Provider, compatibility and release acceptance gates remain open. `npm audit --omit=dev` reports zero production vulnerabilities. `npm audit` reports three moderate development-toolchain advisories through `@vscode/vsce` (`glob`/`minimatch`); no forced dependency override has been applied.
+The CI workflow is configured for an Ubuntu/macOS/Windows × VS Code 1.140.0/stable extension-host matrix. GitHub Actions has not run this matrix, and the repository has not been pushed; this configuration is not cross-platform test evidence. Provider, compatibility and release acceptance gates remain open.
 
 ## Open acceptance gates
 
 - Live GitHub.com and GitLab.com acceptance for connection permissions, diffs/inline positions, comments/replies, and disposable-resource merges.
 - Exact supported GHES and GitLab Self-Managed version/edition floors and compatibility checks.
-- Windows and Linux host/install smoke; macOS only is evidenced here.
-- Accessibility and high-contrast review, plus Marketplace/release readiness.
+- Ubuntu and Windows host/install smoke; only macOS is evidenced locally. The configured GitHub Actions matrix has not run.
+- Manual screen-reader, high-contrast and complete keyboard workflow review, plus Marketplace/release readiness. The inline modal keyboard regression is automated evidence only.
+- Live-provider permission behavior. PAT scope guidance is documented, but the application does not inspect granted permissions.
 
 OAuth, multiline inline comments, comment edit/delete, GitHub REST thread resolution, approval submission, auto-merge, merge queues and implicit source-branch deletion remain deferred or unsupported. See [Provider Capability Matrix](PROVIDER-CAPABILITY-MATRIX.md) and [Requirement Traceability](REQUIREMENT-TRACEABILITY.md).

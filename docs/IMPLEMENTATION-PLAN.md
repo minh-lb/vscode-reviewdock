@@ -7,7 +7,7 @@
 
 ## Delivery status snapshot (2026-11-17)
 
-The owner adopted the proposed decisions as the implementation baseline. Local P0/P1 implementation is delivered, with mocked/unit/provider contract tests and VS Code host activation evidence. This does not establish live provider acceptance or production readiness.
+The owner adopted the proposed decisions as the implementation baseline. On 2026-11-17, `npm test` passed 88/88 tests across 12 files; typecheck, lint, format check, traceability check and build passed. Packaging succeeded with a 105.74 KB VSIX; the packager emitted a license warning because package metadata declares `UNLICENSED`. macOS VS Code 1.140.0 and stable 1.146.0 host activation smoke passed. The inline comment modal has automated focus-trap, Escape and focus-restoration regression coverage. The configured Ubuntu/macOS/Windows × VS Code 1.140.0/stable GitHub Actions matrix has not run; the repository has not been pushed. These local checks do not establish live provider acceptance, cross-platform CI results or production readiness.
 
 | Work package | Local status | Remaining evidence / gate |
 |---|---|---|
@@ -19,7 +19,7 @@ The owner adopted the proposed decisions as the implementation baseline. Local P
 | P1 checks, jobs and approval/review state | Implemented locally | Mocked adapter coverage; live permission and edition/version behavior remains open. |
 | Package and installation | Locally verified | Production minified VSIX build/package and isolated install/list confirmation for the final artifact passed. |
 
-Next gates are live GitHub.com/GitLab.com acceptance using disposable resources; selecting and testing exact GHES and GitLab Self-Managed floors; Windows/macOS/Linux install and smoke checks; accessibility/high-contrast review; and final artifact/release review. OAuth, multiline inline comments, comment edit/delete, GitHub REST review-thread resolution, approval submission, automatic merge and merge queues remain deferred or unsupported. See [IMPLEMENTATION-STATUS.md](./IMPLEMENTATION-STATUS.md), [PROVIDER-CAPABILITY-MATRIX.md](./PROVIDER-CAPABILITY-MATRIX.md) and [REQUIREMENT-TRACEABILITY.md](./REQUIREMENT-TRACEABILITY.md).
+Next gates are live GitHub.com/GitLab.com acceptance using disposable resources; selecting and testing exact GHES and GitLab Self-Managed floors; running the configured GitHub Actions matrix and resolving any failures; manual screen-reader, high-contrast and complete keyboard workflow review; and final artifact/release review. PAT scope guidance is documented, but the app does not inspect granted permissions. OAuth, multiline inline comments, comment edit/delete, GitHub REST review-thread resolution, approval submission, automatic merge and merge queues remain deferred or unsupported. See [IMPLEMENTATION-STATUS.md](./IMPLEMENTATION-STATUS.md), [PROVIDER-CAPABILITY-MATRIX.md](./PROVIDER-CAPABILITY-MATRIX.md) and [REQUIREMENT-TRACEABILITY.md](./REQUIREMENT-TRACEABILITY.md).
 
 The detailed milestone checklists below retain the original sequence and acceptance criteria. Checkboxes are planned criteria, not current status; use the delivery snapshot and requirement matrix for current evidence.
 

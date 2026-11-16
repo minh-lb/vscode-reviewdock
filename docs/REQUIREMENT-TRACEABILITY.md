@@ -12,6 +12,10 @@
 
 ## Requirement-level mapping
 
+### Current evidence (2026-11-17)
+
+`npm test` passed 88/88 tests across 12 files; typecheck, lint, format check, traceability check and build passed. Local macOS VS Code 1.140.0 and stable 1.146.0 host activation smoke passed. The GitHub Actions host matrix is configured for Ubuntu/macOS/Windows × 1.140.0/stable but has not run; the repository has not been pushed. The inline comment modal has regression coverage for keyboard focus trapping, Escape dismissal and restoring focus. Manual screen-reader, high-contrast and complete keyboard workflow acceptance remains open. Provider scope guidance is documented in `CONNECTION-MANAGEMENT.md`; the application does not inspect granted PAT permissions. These facts do not satisfy live-provider or cross-platform acceptance gates.
+
 | ID | Primary design owner | Implementation / verification mapping | Status |
 |---|---|---|---|
 | APR-001 | ApprovalService; capability adapter | `src/infrastructure/providers/github/githubAdapter.ts; src/infrastructure/providers/gitlab/gitlabAdapter.ts; test/integration/githubAdapter.test.ts; test/integration/gitlabAdapter.test.ts` | Implemented |
@@ -139,7 +143,7 @@
 | MERGE-008 | MergeService; confirmation UI; provider mutation adapters | `src/application/reviewService.ts; src/infrastructure/providers/github/githubAdapter.ts; src/infrastructure/providers/gitlab/gitlabAdapter.ts; test/unit/reviewService.test.ts; test/integration/githubAdapter.test.ts; test/integration/gitlabAdapter.test.ts` | In progress |
 | MERGE-009 | MergeService; confirmation UI; provider mutation adapters | `src/application/reviewService.ts; src/infrastructure/providers/github/githubAdapter.ts; src/infrastructure/providers/gitlab/gitlabAdapter.ts; test/unit/reviewService.test.ts; test/integration/githubAdapter.test.ts; test/integration/gitlabAdapter.test.ts` | In progress |
 | MERGE-010 | MergeService; confirmation UI; provider mutation adapters | `src/application/reviewService.ts; src/infrastructure/providers/github/githubAdapter.ts; src/infrastructure/providers/gitlab/gitlabAdapter.ts; test/unit/reviewService.test.ts; test/integration/githubAdapter.test.ts; test/integration/gitlabAdapter.test.ts` | In progress |
-| NFR-COMP-001 | Runtime and packaging compatibility | `package.json; .github/workflows/ci.yml; test/extension/index.ts` | In progress |
+| NFR-COMP-001 | Runtime and packaging compatibility | `package.json; .github/workflows/ci.yml; test/extension/index.ts`; local macOS host smoke passed on VS Code 1.140.0 and 1.146.0; configured CI matrix not run | In progress |
 | NFR-COMP-002 | Runtime and packaging compatibility | `package.json; .github/workflows/ci.yml; test/extension/index.ts` | In progress |
 | NFR-COMP-003 | Runtime and packaging compatibility | `package.json; .github/workflows/ci.yml; test/extension/index.ts` | In progress |
 | NFR-COMP-004 | Runtime and packaging compatibility | `package.json; .github/workflows/ci.yml; test/extension/index.ts` | In progress |
@@ -204,15 +208,15 @@
 | UI-008 | Commands, Tree Views, Webview components | `src/presentation/tree/; src/presentation/webview/; webview-ui/src/; test/webview/main.test.tsx` | In progress |
 | UI-009 | Commands, Tree Views, Webview components | `src/presentation/tree/; src/presentation/webview/; webview-ui/src/; test/webview/main.test.tsx` | In progress |
 | UI-010 | Commands, Tree Views, Webview components | `src/presentation/tree/; src/presentation/webview/; webview-ui/src/; test/webview/main.test.tsx` | In progress |
-| NFR-UX-001 | VS Code interaction and accessibility | `src/presentation/; webview-ui/src/; test/webview/main.test.tsx` | In progress |
+| NFR-UX-001 | VS Code interaction and accessibility | `src/presentation/; webview-ui/src/main.tsx; test/webview/main.test.tsx`; inline composer focus-trap/Escape/focus-restore regression covered; full keyboard workflow manual check remains open | In progress |
 | NFR-UX-002 | VS Code interaction and accessibility | `src/presentation/; webview-ui/src/; test/webview/main.test.tsx` | In progress |
 | NFR-UX-003 | VS Code interaction and accessibility | `src/presentation/; webview-ui/src/; test/webview/main.test.tsx` | In progress |
-| NFR-UX-004 | VS Code interaction and accessibility | `src/presentation/; webview-ui/src/; test/webview/main.test.tsx` | In progress |
+| NFR-UX-004 | VS Code interaction and accessibility | `src/presentation/; webview-ui/src/; test/webview/main.test.tsx`; screen-reader and high-contrast inspection remains open | In progress |
 | NFR-UX-005 | VS Code interaction and accessibility | `src/presentation/; webview-ui/src/; test/webview/main.test.tsx` | In progress |
 
 ## Verification evidence
 
-Do not move a row to Verified until named tests pass or manual records capture environment, steps and results. Provider mutations require test instances; security, cancellation, stale-data and error paths require evidence; no P0/P1 defect may block acceptance. No implementation row is marked Verified solely from mocked tests. Live provider mutation, compatibility, OS and accessibility acceptance remain open.
+Do not move a row to Verified until named tests pass or manual records capture environment, steps and results. Provider mutations require test instances; security, cancellation, stale-data and error paths require evidence; no P0/P1 defect may block acceptance. No implementation row is marked Verified solely from mocked tests. Live provider mutation, compatibility, cross-platform CI/host smoke and manual accessibility acceptance remain open.
 
 ## Maintenance gate
 
@@ -225,6 +229,6 @@ CI compares declared SRS requirement and decision IDs against this table, includ
 |---|---|---|---|
 | DEC-020 | Compatibility owner | Select and test exact GHES release floor; external evidence pending | Blocked |
 | DEC-021 | Compatibility owner | Select and test exact GitLab Self-Managed release floor; external evidence pending | Blocked |
-| DEC-022 | Security / provider adapters | Least-privilege PAT guidance and live endpoint permission tests pending | In progress |
+| DEC-022 | Security / provider adapters | PAT permission/scope guidance in `docs/CONNECTION-MANAGEMENT.md`; app does not inspect grants; live endpoint permission tests pending | In progress |
 | DEC-023 | QA / provider adapters | Independent GitHub.com/GitLab.com P0 acceptance remains an external gate | In progress |
 | DEC-024 | Developer / CI | `scripts/check-traceability.mjs` and CI ID comparison | Implemented |
