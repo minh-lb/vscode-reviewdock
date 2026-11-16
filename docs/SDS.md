@@ -183,8 +183,10 @@ The exact filenames may change, but the dependency direction must remain: presen
 ### 4.2. ConnectionService and AuthenticationService
 
 Responsibilities:
-- Create/list/rename/test/re-authenticate/disconnect/delete connections.
+- Create/list/rename/test/re-authenticate/disconnect/delete and enable/disable connections.
 - Maintain immutable connection ID, provider, server URL and stable provider account identity.
+- Persist the user-controlled enabled flag independently from connection health/status.
+- Reject selection, default resolution and API operations for disabled connections before credential lookup.
 - Validate credentials through the provider adapter's authenticated-user endpoint.
 - Store and retrieve one credential per connection ID through SecretStorage.
 - Track connection status and last validation/use timestamps.
@@ -263,7 +265,8 @@ type Connection = {
   serverUrl: string;
   accountId: string;
   accountLogin: string;
-  status: "connected" | "reauthentication-required" | "unreachable" | "configuration-error" | "disconnected";
+  enabled: boolean; // user-controlled; defaults to true
+  status: "connected" | "reauthentication-required" | "unreachable" | "configuration-error" | "disconnected"; // last-known provider health, independent of enabled
 };
 
 type RepositoryRef = {
@@ -315,9 +318,9 @@ A GitHub PR number and a GitLab MR IID are not globally unique. Every review req
 | Data | Storage | Notes |
 |---|---|---|
 | Provider credential (PAT) | SecretStorage | Keyed by immutable connection ID; never mirrored elsewhere |
-| Connection registry | GlobalState | Provider, display name, server URL, account identity and status; no secrets |
+| Connection registry | GlobalState | Provider, display name, server URL, account identity, enabled flag and last-known status; no secrets |
 | Workspace repository binding | WorkspaceState | Workspace folder + connection ID + provider repository/project ID |
-| Default connection | GlobalState | One optional default per provider |
+| Default connection | GlobalState | One optional enabled default per provider; disabling the current default clears it |
 | UI preferences | GlobalState | Selected tab, list filters, panel preferences |
 | MR/diff/discussion cache | In-memory first | Persistent cache requires a separate decision |
 
@@ -417,6 +420,16 @@ sequenceDiagram
 ~~~
 
 Credential persistence should occur only after validation succeeds. The connection registry may retain non-secret form values after a failed validation so the user can correct them.
+
+### 8.1.1. Enable and disable a connection
+
+- The ConnectionService persists the enabled flag in the non-secret connection registry.
+- All connection resolution paths (workspace binding, provider default, remote discovery and explicit selection) must reject a disabled connection.
+- The provider request pipeline performs a final enabled check before SecretStorage lookup and before attaching authentication headers.
+- A disabled connection returns a local ConnectionDisabledError; it must not reach the network.
+- Disabling the provider default clears that provider's default. Workspace bindings are retained and surfaced as blocked; no implicit fallback is allowed.
+- Re-enabling restores eligibility but does not change the last-known status or perform an implicit validation request.
+- Pending read requests should be cancelled where possible. For an already-submitted write, the result is not assumed to be rolled back; refresh/reconcile after re-enabling before allowing a retry.
 
 ### 8.2. Load MR and diff
 
