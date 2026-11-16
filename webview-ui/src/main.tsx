@@ -60,6 +60,9 @@ function App() {
     hasNextPage: false,
   });
   const latestResults = useRef<Record<string, number>>({});
+  const inlineTrigger = useRef<HTMLElement | null>(null);
+  const inlineEditor = useRef<HTMLTextAreaElement>(null);
+  const inlineDialog = useRef<HTMLFormElement>(null);
   const contextId = init?.contextId ?? window.reviewDockContextId;
   const post = (message: Record<string, unknown>) =>
     vscode.postMessage({ ...message, contextId } as WebviewRequest);
@@ -152,6 +155,11 @@ function App() {
     setBusy(type);
   };
   const groups = useMemo(() => conversations, [conversations]);
+
+  useEffect(() => {
+    if (inline) inlineEditor.current?.focus();
+    else inlineTrigger.current?.focus();
+  }, [inline]);
 
   if (!init || !detail)
     return (
@@ -373,6 +381,7 @@ function App() {
                 )}
                 replyCapabilities={init.capabilities.replyByResource}
                 onComment={(position) => {
+                  inlineTrigger.current = document.activeElement as HTMLElement;
                   setInline(position);
                   setNeedsReanchor(false);
                 }}
@@ -546,8 +555,36 @@ function App() {
       )}
       {inline && (
         <div className="modal-backdrop" role="presentation">
-          <form className="modal composer" onSubmit={(e) => submit(e, 'addInlineComment')}>
-            <h2>
+          <form
+            ref={inlineDialog}
+            className="modal composer"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="inline-comment-title"
+            onKeyDown={(event) => {
+              if (event.key === 'Escape') {
+                event.preventDefault();
+                setInline(undefined);
+                setNeedsReanchor(false);
+              } else if (event.key === 'Tab') {
+                const controls = inlineDialog.current?.querySelectorAll<HTMLElement>(
+                  'button:not(:disabled), textarea:not(:disabled)',
+                );
+                if (!controls?.length) return;
+                const first = controls[0]!;
+                const last = controls[controls.length - 1]!;
+                if (event.shiftKey && document.activeElement === first) {
+                  event.preventDefault();
+                  last.focus();
+                } else if (!event.shiftKey && document.activeElement === last) {
+                  event.preventDefault();
+                  first.focus();
+                }
+              }
+            }}
+            onSubmit={(e) => submit(e, 'addInlineComment')}
+          >
+            <h2 id="inline-comment-title">
               Comment on {inline.path}:{inline.line}
             </h2>
             <p className="muted">
@@ -556,7 +593,7 @@ function App() {
                 : 'Review position on the current diff'}
             </p>
             <textarea
-              autoFocus
+              ref={inlineEditor}
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
               aria-label="Inline comment"

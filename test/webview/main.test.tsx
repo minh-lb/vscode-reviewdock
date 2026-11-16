@@ -221,6 +221,38 @@ describe('ReviewDock webview entry point', () => {
     expect(button('Send comment').disabled).toBe(false);
   });
 
+  it('gives the inline composer dialog semantics, traps tab focus, and restores focus on Escape', () => {
+    send(initialize);
+    act(() => button('Changes').click());
+    send(files);
+    const trigger = document.querySelector<HTMLButtonElement>(
+      '.diff-row.added [aria-label="Comment on src/example.ts line 2"]',
+    )!;
+    act(() => trigger.focus());
+    act(() => trigger.click());
+
+    const dialog = document.querySelector<HTMLFormElement>('[role="dialog"]')!;
+    expect(dialog.getAttribute('aria-modal')).toBe('true');
+    expect(dialog.getAttribute('aria-labelledby')).toBe('inline-comment-title');
+    expect(document.activeElement).toBe(
+      document.querySelector('textarea[aria-label="Inline comment"]'),
+    );
+
+    const last = button('Send comment');
+    act(() => last.focus());
+    act(() => last.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true })));
+    expect(document.activeElement).toBe(
+      document.querySelector('textarea[aria-label="Inline comment"]'),
+    );
+    act(() =>
+      document.activeElement!.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }),
+      ),
+    );
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+    expect(document.activeElement).toBe(trigger);
+  });
+
   it('submits general comments and replies with their supported native request kinds', () => {
     send(initialize);
     act(() => button('Conversations').click());
