@@ -106,27 +106,33 @@ Exit criteria:
 
 ### M1 — Connection and project selection
 
-**Goal:** connect to GitLab and bind the current workspace to a project.
+**Goal:** manage multiple independent GitHub/GitLab connections and bind each workspace repository to the correct provider account and repository.
 
 Tasks:
-- [ ] Implement GitLab instance configuration.
-- [ ] Implement SecretStorage adapter.
-- [ ] Implement PAT validation using GET /user.
-- [ ] Implement disconnect/replace-token flows.
-- [ ] Implement typed GitLab HTTP client.
-- [ ] Implement URL normalization and host validation.
-- [ ] Implement Git remote parser for HTTPS and SSH forms.
-- [ ] Implement project lookup and manual project picker.
-- [ ] Implement connection and project empty/error states.
-- [ ] Add unit and API integration tests.
+- [ ] Implement provider registry for GitHub and GitLab.
+- [ ] Implement connection CRUD with immutable UUID, provider, display name, server URL and account identity.
+- [ ] Implement per-connection SecretStorage keys; never key secrets by mutable display name.
+- [ ] Implement GitHub PAT validation using the authenticated-user endpoint and GitLab PAT validation using GET /user.
+- [ ] Implement test, rename, re-authenticate, disconnect and delete actions independently per connection.
+- [ ] Implement one optional default connection per provider and per-workspace repository binding.
+- [ ] Implement separate typed GitHub REST API v3 and GitLab REST API v4 clients behind provider adapters.
+- [ ] Implement server URL normalization, API-origin validation and credential redirect/pagination isolation.
+- [ ] Implement Git remote parser for GitHub/GitLab HTTPS and SSH forms.
+- [ ] Implement repository lookup and manual connection/repository picker; require user choice when multiple accounts match.
+- [ ] Implement connection and repository empty/error/permission states.
+- [ ] Add unit and provider API integration tests for multi-account isolation.
 
-Dependencies: M0 and approval of DEC-001/DEC-004/DEC-006.
+Dependencies: M0 and approval of DEC-001/DEC-004/DEC-006/DEC-013/DEC-014/DEC-015.
 
 Exit criteria:
-- Valid PAT connects; invalid PAT gives actionable error.
-- PAT exists only in SecretStorage.
-- A project is resolved from a supported Git remote or manual selection.
-- Project mapping survives restart without storing credentials.
+- User can create multiple GitHub and GitLab connections, including multiple accounts on the same host.
+- Every connection has its own immutable ID, user-defined display name and independently validated account identity.
+- Credentials are stored only in connection-scoped SecretStorage entries.
+- Test, rename, re-authenticate, disconnect and delete affect only the selected connection.
+- Each provider has at most one optional default; each workspace folder has its own active repository binding.
+- Ambiguous remote/account matches require an explicit user choice.
+- No token is sent to another provider, connection or host.
+- Repository bindings survive restart without storing credentials.
 
 ### M2 — Merge Request discovery and detail
 
