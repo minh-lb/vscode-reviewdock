@@ -138,7 +138,6 @@ export function activate(context: vscode.ExtensionContext): void {
     connectionId: string,
     summary: ReviewRequestSummary,
     repositoryId?: string,
-    fromConnectionTree = false,
   ): Promise<void> {
     const connection = connections.getConnection(connectionId);
     if (!connection.enabled)
@@ -180,7 +179,7 @@ export function activate(context: vscode.ExtensionContext): void {
       review: reviewFor(connection),
       onDidMutate: () => {
         requestsTree.refresh();
-        if (fromConnectionTree) connectionTree.invalidate(connectionId, repository.id);
+        connectionTree.invalidate(connectionId, repository.id);
       },
     });
     panels.add(panel);
@@ -219,7 +218,7 @@ export function activate(context: vscode.ExtensionContext): void {
       async (node?: ConnectionNode) => {
         if (node?.kind === 'request') {
           try {
-            await openRequest(node.connection.id, node.summary, node.repository.id, true);
+            await openRequest(node.connection.id, node.summary, node.repository.id);
           } catch (error) {
             showError(error);
           }

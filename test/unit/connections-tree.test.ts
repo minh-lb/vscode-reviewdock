@@ -99,6 +99,20 @@ describe('connection hierarchy', () => {
     expect(requests.find((node) => node.kind === 'request')?.summary).toEqual(request);
   });
 
+  it('reloads repository requests after a panel mutation invalidates that connection cache', async () => {
+    const { tree, provider } = fixture();
+    const roots = await tree.getChildren();
+    const repos = await loadTree(tree, roots[0]!);
+    const repoNode = repos.find((node) => node.kind === 'repository')!;
+    await loadTree(tree, repoNode);
+    expect(provider.listReviewRequests).toHaveBeenCalledTimes(1);
+
+    tree.invalidate(connection.id, repository.id);
+    await loadTree(tree, repoNode);
+
+    expect(provider.listReviewRequests).toHaveBeenCalledTimes(2);
+  });
+
   it('keeps each connection scoped to its own provider and retryable errors', async () => {
     const failed = { ...connection, id: 'account-b', displayName: 'Other' };
     const provider = {
