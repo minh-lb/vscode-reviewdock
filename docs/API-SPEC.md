@@ -1,8 +1,8 @@
 # ReviewDock — GitHub and GitLab API Specification
 
 > **Document ID:** RVD-API-001  
-> **Version:** 0.1.0  
- > **Status:** Proposed — verify against the GitHub/GitLab compatibility matrix  
+> **Version:** 0.2.0  
+**Status:** Proposed — verify against the GitHub/GitLab compatibility matrix  
 > **API:** GitHub REST API v3 + GitLab REST API v4  
 > **Related:** [SRS.md](./SRS.md), [SDS.md](./SDS.md), [DECISIONS.md](./DECISIONS.md), [CONNECTION-MANAGEMENT.md](./CONNECTION-MANAGEMENT.md)
 
@@ -80,15 +80,17 @@ Persist the credential only after authenticated-user validation succeeds. Store 
 - Set an explicit request timeout (proposed: 30 seconds).
 - Support AbortSignal/cancellation.
 - Do not send an Authorization header to an untrusted host.
-- Never follow a pagination URL unless its origin and API path prefix match the configured GitLab instance.
+- Never follow a pagination URL unless its origin and API path prefix match the selected provider connection.
 
 ### 3.2. Pagination
 
-Use offset pagination where the endpoint supports it:
+Use the pagination contract documented by the selected provider. GitHub REST commonly uses Link headers with page/per_page; GitLab REST commonly uses page/per_page and may omit some pagination headers.
+
+For GitHub:
 - page: starts at 1.
 - per_page: default 20; maximum 100 unless endpoint documentation specifies otherwise.
 
-Prefer the response Link header with rel="next" when present. Do not construct a next URL if GitLab provides one. GitLab.com may omit some pagination headers; treat an absent next link as end-of-list unless the endpoint response provides another supported cursor.
+Prefer the response Link header with rel="next" when present. Do not construct a next URL if the provider supplies one. GitLab.com may omit some pagination headers; treat an absent next link as end-of-list unless the endpoint response provides another supported cursor. GitHub search endpoints have a maximum of 1,000 results per query and a separate search rate limit; do not present capped results as exhaustive.
 
 For MR diffs and discussions, support pagination even if the UI initially loads only the first page.
 
@@ -113,10 +115,10 @@ For MR diffs and discussions, support pagination even if the UI initially loads 
 | 409 | ConflictError | Refresh resource; for merge/comment position, require user action again |
 | 422 | ValidationError / MergeRejected | Show server reason; do not claim success |
 | 429 | RateLimitError | Respect Retry-After and let user retry |
-| 5xx | GitLabServerError | Show temporary server failure; keep extension responsive |
+| 5xx | ProviderServerError | Show temporary server failure; keep extension responsive |
 | No HTTP response | NetworkError / TimeoutError | Show connection failure and safe retry option |
 
-Capture GitLab request ID headers where available for diagnostics, but never capture credentials or comment/diff contents.
+Capture provider request ID headers where available for diagnostics, but never capture credentials or comment/diff contents.
 
 ## 4. GitLab Project API
 
@@ -153,6 +155,15 @@ Rules:
 4. URL-encode namespace path for project lookup.
 5. Do not match a remote to a different host based only on repository name.
 6. If parsing or lookup is ambiguous, request manual selection.
+
+### 4.4. GitHub repository discovery and remote matching
+
+~~~http
+GET /user/repos?visibility=all&affiliation=owner,collaborator,organization_member&sort=updated&per_page=100
+GET /repos/{owner}/{repo}
+~~~
+
+Use the authenticated connection's repository list only. Normalize numeric repository ID, owner, full_name, private, archived, default_branch and html_url. GitHub HTTPS and SSH remotes must be parsed independently of GitLab remote formats. Match host first, then repository owner/name; require an explicit account choice when multiple connections on the same host can access the repository.
 
 ## 5. GitLab Merge Request API
 
@@ -359,10 +370,12 @@ Use fields when present:
 - approvals_required / approvals_left where supported
 - approval_rules_left where supported
 
-Important compatibility rule:
-- GitLab Community Edition returns a reduced field set.
-- Approval rules and detailed approval state may require Premium/Ultimate.
-- Missing fields mean "not available from this instance/tier", not zero approvals and not failed approval.
+Important compatibility rule (verified against the current GitLab API documentation):
+- The basic Merge Request approval-state endpoint is available on all tiers.
+- GitLab Community Edition returns only a reduced field set, including `approved`, `approved_by`, `user_can_approve` and `user_has_approved`.
+- GitLab Enterprise Edition can return additional fields such as `approvals_required`, `approvals_left`, `approval_rules_left` and other rule metadata; these fields are edition-dependent.
+- The meaning of `approved` differs by edition when no approval rules apply. Do not infer a rule count or approval policy from a CE response.
+- Missing fields mean unavailable/not returned, not zero approvals and not failed approval. Feature-detect detailed rule state and preserve the provider's explicit `approved` value when present.
 
 ### 7.2. Retrieve detailed approval state
 
@@ -370,7 +383,7 @@ Important compatibility rule:
 GET /projects/:project_id/merge_requests/:iid/approval_state
 ~~~
 
-Use only when supported by the instance/edition. A 403 or unsupported response should degrade the panel to the basic approvals response; it must not fail the MR detail page.
+Use only when supported by the instance/edition. A 403, 404 or unsupported response should degrade the panel to the basic approval-state response; it must not fail the MR detail page. Do not assume that every detailed rule field is available on every edition.
 
 ### 7.3. Approve/unapprove
 
@@ -459,35 +472,71 @@ Client-side checks improve UX only; GitLab enforces all approvals, pipelines, br
 
 ## 10. API-to-feature matrix
 
-| Feature | Endpoint group | Priority |
-|---|---|---|
-| Validate token / identity | GET /user | P0 |
-| Project lookup/search | Projects API | P0 |
-| MR list/filter/search | Project Merge Requests API | P0 |
-| MR detail | Single Merge Request API | P0 |
-| File diff | Merge Request Diffs API | P0 |
-| Diff version SHAs | Merge Request Versions API | P0 |
-| General comment | Discussions API | P0 |
-| Inline comment | Discussions API with position | P0 |
-| Discussion reply | Discussion Notes API | P0 |
-| Resolve discussion | Discussions API | P1 |
-| Approval state | Merge Request Approvals API | P1 |
-| Approve/unapprove | Merge Request Approvals API | P1 |
-| Pipeline/job status | MR Pipelines + Jobs APIs | P1 |
-| Merge | Merge Requests API | P0 |
+| Feature | GitLab endpoint group | GitHub endpoint group | Priority |
+|---|---|---|---|
+| Validate token / identity | GET /user | GET /user | P0 |
+| Repository/project lookup | Projects API | User Repositories + Repositories API | P0 |
+| PR/MR list and state filters | Merge Requests API | Pull Requests API | P0 |
+| Created/assigned/review-requested scopes | MR list scope | Search Issues API qualifiers | P0 |
+| PR/MR title search | MR list search | Search Issues API | P0 |
+| PR/MR detail | Single Merge Request API | Single Pull Request API | P0 |
+| Changed files and diff | MR Diffs API | PR Files API (max 3,000 files) | P0 |
+| Diff version / comment position | MR Versions API | Current PR head SHA + diff line/side | P0 |
+| General timeline comment | Discussions API | Issues Comments API | P0 |
+| General comment reply | Discussion Notes API | Not supported by selected REST workflow | Conditional / unavailable |
+| Inline comment | Discussions API with position | Pull Request Review Comments API | P0 |
+| Inline thread reply | Discussion Notes API | Review Comment Replies API (top-level only) | P0 |
+| Thread resolve/reopen | Discussions API | Not supported by selected REST adapter | GitLab P1 only |
+| Edit/delete own comment | Discussion Notes API | Issue Comments + Review Comments APIs | P1 |
+| Approval/review state | Merge Request Approvals API | Pull Request Reviews API | P1 |
+| Pipeline/check status | MR Pipelines + Jobs APIs | Commit Status + Check Runs + Actions APIs | P1 |
+| Merge | Merge Requests API | Pull Requests Merge API | P0 |
 
 ## 11. Compatibility and feature detection
 
-- API version remains v4.
-- Proposed technical floor is GitLab 17.0+; see DEC-005.
-- Avoid deprecated fields such as merge_status and approvals_before_merge.
-- Use detailed_merge_status for merge-state presentation.
-- The diff response fields collapsed and too_large were introduced in GitLab 18.4; handle them when present but do not require them for the 17.0 compatibility floor.
-- The MR list draft filter was introduced in GitLab 19.0; do not use it as a required filter. Filter draft state client-side if needed.
-- Approval response shape depends on GitLab edition/tier.
-- Maintain contract fixtures for the oldest supported version and a current version.
+- GitLab API root remains v4; GitHub uses REST API v3 with a supported `X-GitHub-Api-Version` header where the target host supports it.
+- Do not use GitLab 17.0 as a permanent compatibility floor. Follow the vendor-maintained release policy in DEC-005 and PROVIDER-CAPABILITY-MATRIX.md.
+- Avoid deprecated fields such as GitLab `merge_status` and `approvals_before_merge`; use `detailed_merge_status` for merge-state presentation.
+- GitLab diff response fields `collapsed` and `too_large` were introduced in GitLab 18.4; handle them when present, but do not assume older supported instances return them.
+- The GitLab MR list `draft` filter was introduced in GitLab 19.0; use it only when supported, otherwise filter returned draft state client-side.
+- GitLab approval response shape depends on edition; the basic approval state is available on CE with reduced fields.
+- GitHub PR files are capped at 3,000 files per PR. Missing pages or a capped result must be marked partial.
+- GitHub Search API is rate-limited separately and capped at 1,000 results per query. Show a limited state when the cap is reached.
+- GHES may not support the same API version header or optional fields as GitHub.com; test the declared GHES matrix.
+- Maintain contract fixtures for the oldest and newest supported GitHub/GitLab versions and for GitLab CE/EE response shapes.
 
 
+
+
+## 12. Provider-neutral application contract
+
+The application layer may use common interfaces, but the contract must retain provider-specific operations and capability metadata. The adapter is responsible for translating the common request into the provider-native API.
+
+Minimum conceptual operations:
+
+~~~ts
+type ProviderType = "github" | "gitlab";
+
+interface ReviewProvider {
+  readonly provider: ProviderType;
+  getCurrentUser(): Promise<ProviderUser>;
+  listRepositories(query: RepositoryQuery): Promise<Page<RepositoryRef>>;
+  getRepository(repositoryId: string): Promise<RepositoryRef>;
+  listReviewRequests(query: ReviewRequestQuery): Promise<Page<ReviewRequestSummary>>;
+  getReviewRequest(repositoryId: string, reviewRequestId: string): Promise<ReviewRequestDetail>;
+  listChangedFiles(repositoryId: string, reviewRequestId: string): Promise<DiffFilePage>;
+  listConversations(context: ReviewRequestContext): Promise<Page<ReviewConversation>>;
+  createGeneralComment(input: CreateGeneralCommentInput): Promise<ReviewComment>;
+  createInlineComment(input: CreateInlineCommentInput): Promise<ReviewComment>;
+  replyToConversation(input: ReplyInput): Promise<ReviewComment>;
+  merge(input: MergeInput): Promise<MergeResult>;
+  getCapabilities(context: ReviewRequestContext): ProviderCapabilityDescriptor;
+}
+~~~
+
+The interface above is a conceptual port, not a promise that every operation is supported by every adapter. Unsupported operations return a typed `UnsupportedCapabilityError` before network mutation. A provider adapter must not silently emulate an unsupported operation using a different resource type.
+
+Every provider request is scoped by immutable connection ID and validated API origin. The common contract must preserve provider-native identifiers, server URL, repository/project identity, review request identity, conversation resource type and diff position metadata.
 
 ## 13. GitHub REST API v3
 
@@ -525,7 +574,27 @@ Normalize these fields where available:
 - html_url
 - changed file fields: filename, previous_filename, status, additions, deletions, changes, patch, blob_url/raw_url when returned
 
-GitHub Pull Request numbers are repository-scoped. Store connection ID and repository ID with every PR. The files endpoint can be paginated and may omit patch text for binary or large files; show an explicit unavailable diff state.
+GitHub Pull Request numbers are repository-scoped. Store connection ID and repository ID with every PR. The files endpoint can be paginated and may omit patch text for binary or large files. It returns a maximum of 3,000 files per PR; if the result reaches that cap, show a partial/limited state rather than claiming the file list is complete.
+
+
+### 13.2A. Search and user-scoped PR filters
+
+Use the Search Issues API for title search and account-scoped filters that are not available as query parameters on the repository PR list endpoint:
+
+~~~http
+GET /search/issues?q=repo:{owner}/{repo}+is:pr+author:@me
+GET /search/issues?q=repo:{owner}/{repo}+is:pr+assignee:@me
+GET /search/issues?q=repo:{owner}/{repo}+is:pr+user-review-requested:@me
+GET /search/issues?q=repo:{owner}/{repo}+is:pr+in:title+{encoded_text}
+~~~
+
+Rules:
+- Use `is:pr` and scope the query to the selected repository.
+- `author:@me`, `assignee:@me` and `user-review-requested:@me` implement Created by me, Assigned to me and direct Review requested from me.
+- Team review requests are not claimed in MVP unless team-aware discovery is separately implemented and tested.
+- Search results are discovery summaries; fetch PR detail before relying on full metadata.
+- Search API has a separate rate limit and returns at most 1,000 results per query. Show a limited-result state if the cap is reached; do not silently treat the result as exhaustive.
+- Use repository PR list endpoint for ordinary state sorting and pagination; use Search Issues API only for search/scoped filters.
 
 ### 13.3. General comments and review conversations
 
@@ -566,7 +635,7 @@ Content-Type: application/json
 }
 ~~~
 
-For a removed line use the LEFT side. For an added line use RIGHT. The line number is the line in the diff, not the line number inferred from a rendered row index. Use the current PR head commit SHA. Multi-line comments using start_line/start_side are deferred until separately approved.
+For a removed line use the LEFT side; for an added or context line use the RIGHT side. The line number is the line in the diff's file/blob side, not the line number inferred from a rendered row index. Use the current PR head commit SHA. Multi-line comments using start_line/start_side are deferred until separately approved.
 
 Reply to an inline review comment:
 
@@ -577,7 +646,65 @@ Content-Type: application/json
 { "body": "<reply text>" }
 ~~~
 
-GitHub general issue comments and inline review comments are different resource types. The domain adapter may normalize them into a common review-conversation view, but must preserve provider IDs and semantics. Do not assume GitLab-style resolve/reopen behavior exists for every GitHub review thread through REST API.
+GitHub general issue comments and inline review comments are different resource types. The domain adapter may normalize them into a common review-conversation view, but must preserve provider IDs and semantics. General issue comments cannot be replied to through this REST workflow; inline review replies are limited to top-level comments; GitHub-style thread resolution is not exposed by this REST adapter.
+
+
+### 13.3A. Provider-specific conversation behavior
+
+GitHub PR conversations contain different resource types:
+
+| Resource | Endpoint / behavior | Reply behavior |
+|---|---|---|
+| General timeline comment | Issues Comments API | No reply-thread operation in this REST workflow |
+| Inline review comment | Pull Request Review Comments API | One-level reply to a top-level review comment |
+| Review submission | Pull Request Reviews API | A review event, not a general comment |
+| Review thread resolution | Not exposed by the selected REST adapter | Do not show resolve/reopen |
+
+The UI and domain mapper must preserve these distinctions. A GitHub issue comment must never be converted into a synthetic review-comment thread.
+
+Create an inline review comment using `line` and `side`, not the deprecated diff `position` field:
+
+~~~http
+POST /repos/{owner}/{repo}/pulls/{pull_number}/comments
+Content-Type: application/json
+
+{
+  "body": "<comment text>",
+  "commit_id": "<current PR head SHA>",
+  "path": "src/file.ts",
+  "line": 42,
+  "side": "RIGHT"
+}
+~~~
+
+Line mapping:
+- Added line: new-side line number and `side=RIGHT`.
+- Removed line: old-side line number and `side=LEFT`.
+- Context line: new-side line number and `side=RIGHT`.
+- The `line` value is the line in the diff's file/blob side, not the unified-diff row index and not the deprecated `position` offset.
+- Use the current PR head SHA. The `position` parameter is closing down; do not introduce new dependencies on it.
+
+Reply only to a top-level inline review comment:
+
+~~~http
+POST /repos/{owner}/{repo}/pulls/{pull_number}/comments/{comment_id}/replies
+Content-Type: application/json
+
+{ "body": "<reply text>" }
+~~~
+
+The endpoint does not support replies to replies. A general issue comment cannot be replied to through the selected REST workflow.
+
+P1 edit/delete endpoints, only for comments owned by the authenticated user and when permissions allow:
+
+~~~http
+PATCH /repos/{owner}/{repo}/issues/comments/{comment_id}
+DELETE /repos/{owner}/{repo}/issues/comments/{comment_id}
+PATCH /repos/{owner}/{repo}/pulls/comments/{comment_id}
+DELETE /repos/{owner}/{repo}/pulls/comments/{comment_id}
+~~~
+
+GitHub REST thread resolution is not included. Do not simulate it or infer resolved state from missing data.
 
 ### 13.4. Review decision — P1
 
@@ -647,6 +774,10 @@ GitHub also documents an asynchronous merge endpoint for merge queues and stacke
 - [GitHub pull request review comments API](https://docs.github.com/en/rest/pulls/comments)
 - [GitHub pull request reviews API](https://docs.github.com/en/rest/pulls/reviews)
 - [GitHub fine-grained PAT permissions](https://docs.github.com/en/rest/authentication/permissions-required-for-fine-grained-personal-access-tokens)
+- [GitHub Search Issues and Pull Requests](https://docs.github.com/en/rest/search/search)
+- [GitHub Enterprise Server releases](https://docs.github.com/en/enterprise-server@latest/admin/all-releases)
+- [GitLab maintenance policy](https://docs.gitlab.com/policy/maintenance/)
+- [VS Code Webview security](https://code.visualstudio.com/api/extension-guides/webview#security)
 - [GitHub Checks API](https://docs.github.com/en/rest/checks/runs)
 - [GitHub Actions workflow runs API](https://docs.github.com/en/rest/actions/workflow-runs)
 - [REST API overview, authentication and pagination](https://docs.gitlab.com/api/rest/)
