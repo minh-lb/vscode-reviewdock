@@ -102,6 +102,18 @@ export class ProviderHttpClient {
     return this.send<T>(connection, credential, pathOrUrl, options, connection.id);
   }
 
+  /** Revalidate the saved credential against the provider identity endpoint; ignores stored health only. */
+  async validateCurrentUser<T>(connection: Connection): Promise<HttpResponse<T>> {
+    await this.assertUsable(connection, true);
+    const path = 'user';
+    this.validateUrl(connection, path);
+    const credential = await this.secrets.get(connection.id);
+    if (!credential)
+      throw new AppError('This connection has no saved credential', 'authentication');
+    await this.assertUsable(connection, true);
+    return this.send<T>(connection, credential, path, { method: 'GET' }, connection.id, true);
+  }
+
   /** For validating a token before a connection and its secret have been persisted. */
   requestWithCredential<T>(
     connection: Pick<Connection, 'provider' | 'serverUrl'>,
@@ -119,6 +131,7 @@ export class ProviderHttpClient {
     pathOrUrl: string,
     options: HttpRequestOptions,
     connectionId?: string,
+    allowUnhealthy = false,
   ): Promise<HttpResponse<T>> {
     const url = this.validateUrl(connection, pathOrUrl);
     const headers = new Headers(options.headers);
@@ -157,7 +170,10 @@ export class ProviderHttpClient {
     }
     try {
       if (connectionId)
-        await this.assertUsable({ id: connectionId, enabled: true, status: 'connected' });
+        await this.assertUsable(
+          { id: connectionId, enabled: true, status: 'connected' },
+          allowUnhealthy,
+        );
       const init: RequestInit = {
         method: options.method ?? 'GET',
         headers,
@@ -233,11 +249,12 @@ export class ProviderHttpClient {
 
   private async assertUsable(
     connection: Pick<Connection, 'id' | 'enabled' | 'status'>,
+    allowUnhealthy = false,
   ): Promise<void> {
     const live = this.getLiveState ? await this.getLiveState(connection.id) : connection;
     if (!live) throw new AppError('Connection was not found', 'not-found');
     if (!live.enabled) throw new ConnectionDisabledError(connection.id);
-    if (live.status !== 'connected')
+    if (!allowUnhealthy && live.status !== 'connected')
       throw new AppError(
         'Connection must be tested or re-authenticated before use',
         'authentication',

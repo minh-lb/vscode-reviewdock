@@ -139,6 +139,7 @@ export class ConnectionService {
         updatedAt: this.now().toISOString(),
       }));
     } catch (error) {
+      if (error instanceof ConnectionDisabledError) throw error;
       await this.updateConnection(id, (item) => ({
         ...item,
         status:
@@ -173,7 +174,10 @@ export class ConnectionService {
       }
       const updated = { ...item, enabled, updatedAt: this.now().toISOString() };
       await this.replace(updated);
-      if (!enabled) this.cancelReads?.(id);
+      if (!enabled) {
+        this.http.cancelConnection(id);
+        this.cancelReads?.(id);
+      }
       return updated;
     });
   }
@@ -332,7 +336,7 @@ export class ConnectionService {
   }
 
   private async validateStoredWithHttp(connection: Connection): Promise<ValidatedIdentity> {
-    const response = await this.http.request<unknown>(connection, 'user');
+    const response = await this.http.validateCurrentUser<unknown>(connection);
     return this.mapIdentity(connection.provider, response.data);
   }
 
