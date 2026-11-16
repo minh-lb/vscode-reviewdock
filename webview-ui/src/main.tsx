@@ -726,26 +726,29 @@ function App() {
                   <article className="card commit" key={commit.id}>
                     <div className="commit-heading">
                       <strong>
-                        {commit.message.split('\n')[0] || 'Commit message unavailable'}
+                        {commit.message.split(/\r?\n/, 1)[0]?.trim() ||
+                          'Commit message unavailable'}
                       </strong>
                       <button
                         aria-label={`Open commit ${shortSha} on provider`}
                         onClick={() => post({ type: 'openCommit', commitId: commit.id })}
                       >
-                        Open commit {shortSha}
+                        Open on provider
                       </button>
                     </div>
-                    <p className="commit-message">{commit.message}</p>
                     <p className="muted commit-meta">
-                      {commit.author?.name ||
+                      {commit.committer?.name ||
+                        commit.committerName ||
+                        commit.committer?.login ||
+                        commit.author?.name ||
                         commit.author?.login ||
                         commit.authorName ||
-                        'Author unavailable'}
-                      {commit.authoredAt || commit.committedAt
-                        ? ` · ${new Date(commit.authoredAt ?? commit.committedAt!).toLocaleString()}`
+                        'Committer unavailable'}
+                      {commit.committedAt || commit.authoredAt
+                        ? ` · ${new Date(commit.committedAt ?? commit.authoredAt!).toLocaleString()}`
                         : ' · Date unavailable'}
                       {' · '}
-                      {commit.sha}
+                      <code className="commit-sha">{shortSha}</code>
                     </p>
                   </article>
                 );

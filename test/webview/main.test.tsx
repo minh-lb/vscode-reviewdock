@@ -554,18 +554,26 @@ describe('ReviewDock webview entry point', () => {
             id: 'commit-id-1',
             sha: '123456789abcdef',
             message: 'Add feature title\nFull commit body',
-            author: { id: 'author-1', login: 'minh', name: 'Minh Luu' },
+            author: { id: 'author-1', login: 'author', name: 'Author Name' },
+            committer: { id: 'committer-1', login: 'committer', name: 'Committer Name' },
+            committerName: 'Committer Git Name',
             authoredAt: '2026-11-02T00:00:00.000Z',
+            committedAt: '2026-11-04T00:00:00.000Z',
           },
         ],
         page: { page: 1, perPage: 50, hasNextPage: true },
       },
     });
     expect(document.body.textContent).toContain('Add feature title');
-    expect(document.body.textContent).toContain('Full commit body');
-    expect(document.body.textContent).toContain('Minh Luu');
-    expect(button('Open commit 1234567')).not.toBeNull();
-    act(() => button('Open commit 1234567').click());
+    expect(document.body.textContent).not.toContain('Full commit body');
+    expect(document.body.textContent).toContain('Committer Name');
+    expect(document.body.textContent).not.toContain('Author Name');
+    expect(document.body.textContent).toContain('1234567');
+    expect(document.body.textContent).not.toContain('123456789abcdef');
+    expect(document.querySelector('.commit-meta')?.textContent).toContain(
+      new Date('2026-11-04T00:00:00.000Z').toLocaleString(),
+    );
+    act(() => document.querySelector<HTMLButtonElement>('.commit button')!.click());
     expect(messages.at(-1)).toMatchObject({ type: 'openCommit', commitId: 'commit-id-1' });
     act(() => button('Load more commits').click());
     expect(messages.at(-1)).toMatchObject({ type: 'loadMoreCommits' });
@@ -578,8 +586,11 @@ describe('ReviewDock webview entry point', () => {
             id: 'commit-id-1',
             sha: '123456789abcdef',
             message: 'Add feature title\nFull commit body',
-            author: { id: 'author-1', login: 'minh', name: 'Minh Luu' },
+            author: { id: 'author-1', login: 'author', name: 'Author Name' },
+            committer: { id: 'committer-1', login: 'committer', name: 'Committer Name' },
+            committerName: 'Committer Git Name',
             authoredAt: '2026-11-02T00:00:00.000Z',
+            committedAt: '2026-11-04T00:00:00.000Z',
           },
           {
             id: 'commit-id-2',
@@ -595,7 +606,7 @@ describe('ReviewDock webview entry point', () => {
     expect(document.querySelectorAll('.commit')).toHaveLength(2);
     expect(
       [...document.querySelectorAll('.commit')].filter((item) =>
-        item.textContent?.includes('123456789abcdef'),
+        item.textContent?.includes('1234567'),
       ),
     ).toHaveLength(1);
     expect(document.body.textContent).toContain('Fix follow-up');
@@ -641,8 +652,28 @@ describe('ReviewDock webview entry point', () => {
         page: { page: 1, perPage: 50, hasNextPage: false },
       },
     });
-    act(() => button('Rich').click());
-    expect(button('Rich').getAttribute('aria-pressed')).toBe('true');
+    act(() => {
+      document.querySelector<HTMLButtonElement>('button[aria-label="Changes settings"]')!.click();
+    });
+    expect(document.querySelector('[role="radiogroup"][aria-label="Layout"]')).not.toBeNull();
+    const split = document.querySelector<HTMLButtonElement>(
+      '[role="radiogroup"][aria-label="Layout"] [role="radio"][aria-checked="false"]',
+    );
+    expect(split?.textContent).toContain('Split');
+    act(() => split!.click());
+    act(() => {
+      document.querySelector<HTMLButtonElement>('button[aria-label="Changes settings"]')!.click();
+    });
+    expect(
+      document.querySelector('[role="radiogroup"][aria-label="Layout"] [aria-checked="true"]')
+        ?.textContent,
+    ).toContain('Split');
+    const richButton = document.querySelector<HTMLButtonElement>(
+      'button[aria-label="Display the rich diff"]',
+    );
+    expect(richButton).not.toBeNull();
+    act(() => richButton!.click());
+    expect(richButton!.getAttribute('aria-pressed')).toBe('true');
     expect(document.body.textContent).toContain('Loading full file content…');
     expect(messages.at(-1)).toMatchObject({ type: 'loadMarkdownContent', path: 'README.md' });
     send({
@@ -651,7 +682,11 @@ describe('ReviewDock webview entry point', () => {
       oldContent: '# Before',
       newContent: '# After',
     });
-    expect(button('Rich').getAttribute('aria-pressed')).toBe('true');
+    expect(
+      document
+        .querySelector<HTMLButtonElement>('button[aria-label="Display the rich diff"]')
+        ?.getAttribute('aria-pressed'),
+    ).toBe('true');
     expect(document.querySelector('.rich-diff')?.textContent).toContain('Before');
     expect(document.querySelector('.rich-diff')?.textContent).toContain('After');
     expect(document.querySelector('.unified-diff')).toBeNull();

@@ -493,9 +493,6 @@ dd {
   align-items: flex-start;
   gap: 12px;
 }
-.commit-message {
-  white-space: pre-wrap;
-}
 .commit-meta {
   overflow-wrap: anywhere;
 }
