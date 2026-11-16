@@ -14,13 +14,19 @@ export type AppErrorCode =
   | 'unknown';
 
 export class AppError extends Error {
+  readonly status?: number;
+  readonly requestId?: string;
+  readonly retryAfterMs?: number;
   constructor(
     message: string,
     readonly code: AppErrorCode,
-    options?: { cause?: unknown },
+    options?: { cause?: unknown; status?: number; requestId?: string; retryAfterMs?: number },
   ) {
     super(message, options);
     this.name = new.target.name;
+    if (options?.status !== undefined) this.status = options.status;
+    if (options?.requestId !== undefined) this.requestId = options.requestId;
+    if (options?.retryAfterMs !== undefined) this.retryAfterMs = options.retryAfterMs;
   }
 }
 export class UnsupportedCapabilityError extends AppError {
