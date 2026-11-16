@@ -82,7 +82,7 @@ For MR diffs and discussions, support pagination even if the UI initially loads 
 | HTTP status | Application category | Required behavior |
 |---|---|---|
 | 400 | ValidationError | Show actionable API validation message |
-| 401 | AuthenticationError | Ask user to reconnect/replace token |
+| 401 | AuthenticationError or endpoint-specific authorization failure | Validate with GET /user first; some mutation endpoints (including merge) can use 401 for insufficient permission, so do not automatically ask for a new token when the token is valid |
 | 403 | AuthorizationError | Explain insufficient permission or tier limitation |
 | 404 | NotFoundError | Project/MR/resource is unavailable or not visible |
 | 405 | OperationNotAllowed | MR cannot currently be merged or operation is unsupported |
@@ -207,7 +207,7 @@ Response fields per file:
 Rules:
 - Do not use GET /changes for new implementation; it is deprecated.
 - Handle pagination.
-- If collapsed is true, request the specific file/version detail if supported; otherwise show an unavailable diff state.
+- If collapsed is true, retry retrieval through the specific diff-version endpoint when available; if the patch remains unavailable, show an unavailable diff state. Do not invent or synthesize patch content.
 - If too_large is true, do not attempt to render missing patch content.
 - Diff limits can restrict the returned result set; never assume an empty diff means no changes if the API reports overflow/limits.
 
