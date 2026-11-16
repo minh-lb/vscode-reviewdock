@@ -1,7 +1,7 @@
 # ReviewDock — Proposed Technical Decisions
 
 > **Document ID:** RVD-DEC-001  
-> **Version:** 0.1.0  
+> **Version:** 0.2.0  
 > **Status:** Proposed — Product Owner approval required  
 > **Applies to:** MVP implementation baseline
 
@@ -15,7 +15,7 @@ This document records recommended defaults needed to turn the SRS into an implem
 | DEC-002 | UI architecture | Hybrid: native VS Code Tree View + React Webview for MR detail/diff/discussions | Native navigation with a custom review surface |
 | DEC-003 | Inline comments | Single-line diff comments in MVP; multi-line comments later | Reduces initial diff-position complexity |
 | DEC-004 | Repository discovery | Auto-detect GitHub/GitLab remotes and allow manual selection | Host identifies a server, not necessarily the account; multiple matching connections require a picker |
-| DEC-005 | Provider compatibility | GitLab 17.0+ REST API v4 target; GitHub.com + a tested GitHub Enterprise Server target using REST API v3 | Validate exact server versions; feature-detect optional capabilities |
+| DEC-005 | Provider compatibility | GitLab current + previous two maintained minor releases; latest and oldest still-supported GHES at release; current Stable and approved minimum VS Code engine | Dynamic vendor-maintained compatibility floor; publish exact tested versions |
 | DEC-006 | Multi-connection workspace model | Multiple GitHub/GitLab connections; one active repository binding per workspace folder; one default per provider | Supports multiple accounts/hosts without a global active-account collision |
 | DEC-007 | Review decision | General comments, inline comments and replies in MVP; approve/request-changes actions deferred | Commenting is not approval |
 | DEC-008 | Pipeline and approval UI | P1 after core review workflow | Merge remains server-authoritative even without a local pipeline/approval panel |
@@ -24,6 +24,9 @@ This document records recommended defaults needed to turn the SRS into an implem
 | DEC-011 | Webview framework | React + TypeScript, bundled locally | Typed component UI; no remote scripts or runtime CDN |
 | DEC-012 | Diff rendering | Normalize GitHub/GitLab file diffs into a shared diff model; provider adapters map comment positions | Comment positions must use provider-specific current commit/diff metadata, never guessed |
 | DEC-016 | Connection enablement | Each connection has an independent enabled flag, default true; disabled connections are excluded from selection and all API requests | Preserve credentials/status/bindings; clear disabled defaults; no automatic failover |
+| DEC-017 | Review conversation semantics | Preserve GitHub issue comments, inline review comments and review submissions as distinct resources; expose only provider-supported reply/resolve actions | No false cross-provider parity; GitHub general comments are not replyable and GitHub REST thread resolution is unavailable |
+| DEC-018 | Review request discovery | Use provider-native filters; GitHub uses Search Issues API for user-scoped filters and GitLab uses MR list scopes | Disclose GitHub search rate limit/result cap; never claim incomplete search is exhaustive |
+| DEC-019 | VS Code engine | Proposed minimum VS Code engine is 1.140.0; test minimum and current Stable | Confirm extension API usage and approve before M0 locks package.json |
 
 ## Detailed decisions
 
@@ -56,7 +59,8 @@ This document records recommended defaults needed to turn the SRS into an implem
 
 - MVP supports a single changed line per inline comment.
 - Added lines map to `new_line`; removed lines map to `old_line`; context lines map to both old and new line numbers.
-- A line is commentable only if it is part of a GitLab-provided diff and its diff version metadata is available.
+- A line is commentable only if it is part of the provider-provided diff and all provider-required current commit/diff-version metadata is available.
+- GitHub maps the added/context side to RIGHT and removed lines to LEFT using the current PR head SHA; GitLab maps old/new line fields using the selected diff version SHAs.
 - Multi-line comments, image diffs and file-level comments are deferred until the single-line mapping is verified.
 
 ### DEC-004 — Project discovery
@@ -100,10 +104,10 @@ GitLab 17.0 is a proposed technical floor, not a statement that this version rem
 
 **Decision proposed:**
 
-- MVP includes general comments, inline review comments and replies for both GitHub PRs and GitLab MRs where the provider supports the operation.
+- MVP includes general comments and single-line inline comments on both providers, plus replies only for provider-supported thread types. GitHub general issue comments cannot be replied to through the selected REST workflow; GitHub inline review replies are limited to one reply level; GitLab discussion notes support replies.
 - MVP does not expose Approve/Request changes or GitLab Approve/Unapprove actions.
 - GitHub Checks/Actions and GitLab Pipeline/Jobs panels are P1.
-- Approval/review capabilities are provider-specific; missing fields mean unavailable/unknown, not zero or false.
+- Approval/review capabilities are provider-specific; missing fields mean unavailable/unknown, not zero or false. GitLab's basic approval-state endpoint is available on Community Edition with a reduced field set; detailed rule fields are edition-dependent.
 - Merge is sent to the selected provider and can be rejected by repository/project rules. The client must not infer approval or check status from missing API data.
 
 ### DEC-009 — Merge safety
@@ -123,10 +127,10 @@ GitLab 17.0 is a proposed technical floor, not a statement that this version rem
 ### DEC-013 — Multi-provider adapter architecture
 
 **Decision proposed:**
-- Implement GitHub and GitLab as separate provider adapters behind a common application contract.
-- Normalize shared concepts such as repository, review request, diff file, review conversation, check status and merge result.
-- Preserve provider-specific IDs, fields and capabilities in adapter DTOs.
-- Do not force GitHub review threads and GitLab discussions into identical semantics where the APIs differ.
+- Implement GitHub and GitLab as separate provider adapters behind a provider-neutral application contract.
+- Normalize repository, review request, diff file, user, check/pipeline summary and merge result while preserving provider-native identifiers.
+- Model conversations as provider-aware resource types; a general issue comment, inline review comment, GitLab discussion note and review submission are not interchangeable.
+- Expose reply, resolve, edit and delete operations only when the adapter capability descriptor supports them.
 - Display provider-native terminology: Pull Request for GitHub and Merge Request for GitLab.
 
 ### DEC-014 — Connection identity and lifecycle
@@ -143,7 +147,8 @@ GitLab 17.0 is a proposed technical floor, not a statement that this version rem
 ### DEC-015 — Provider capabilities
 
 **Decision proposed:**
-- Each adapter exposes a capability descriptor for inline comments, replies, thread resolution, review/approval actions, checks/pipelines and merge options.
+- Each adapter exposes a capability descriptor for general comments, inline comments, reply by conversation type, thread resolution, edit/delete, review/approval actions, checks/pipelines and merge options.
+- Capability values distinguish supported, unsupported, conditional and unknown; they are not inferred from absent response fields.
 - The UI renders only supported actions and uses a clear unavailable state for unsupported capabilities.
 - Shared UI must not imply identical behavior across providers.
 
@@ -160,6 +165,43 @@ GitLab 17.0 is a proposed technical floor, not a statement that this version rem
 - Pending reads are cancelled where possible. A mutation already submitted may still complete and must be reconciled after re-enabling rather than assumed rolled back.
 
 **Rationale:** allow users to temporarily suspend an account without deleting credentials or losing repository configuration, while preventing accidental use of the wrong account.
+
+
+
+### DEC-017 — Review conversation semantics
+
+**Decision proposed:**
+
+- Keep GitHub issue comments, GitHub inline review comments, GitHub review submissions and GitLab discussions/notes as distinct provider-native resource types.
+- GitHub general issue comments are standalone timeline comments; do not render a Reply action for them.
+- GitHub inline review comments support a reply to a top-level comment only. Do not allow a reply to a reply.
+- GitHub REST adapter does not expose GitLab-style resolve/reopen for review threads; do not show that action.
+- GitLab general and inline discussions can receive reply notes. Resolve/reopen is exposed only when the endpoint and current user's permission allow it.
+- Preserve thread IDs, note/comment IDs, parent relationships, system-note flags and resolution state without synthesizing missing values.
+
+**Rationale:** a common timeline is useful, but flattening provider-specific conversation semantics would expose actions that cannot be fulfilled or would misrepresent review history.
+
+### DEC-018 — Review request discovery and search
+
+**Decision proposed:**
+
+- GitLab uses the Merge Requests list API with explicit scopes such as `created_by_me`, `assigned_to_me`, `reviews_for_me` and `all`.
+- GitHub uses the repository Pull Requests list API for ordinary state/pagination and the Search Issues API for title and user-scoped filters such as `author:@me`, `assignee:@me` and `user-review-requested:@me`.
+- GitHub Search API results are limited by the search rate limit and the 1,000-result cap. The UI must show a limited/incomplete state when the cap is reached.
+- Team review-request discovery is not claimed for MVP unless a team-aware query and membership behavior are implemented and tested.
+- Fetch full PR detail before displaying fields not supplied by search results.
+
+**Rationale:** provider-native query semantics are more accurate than downloading all requests and attempting to reconstruct account-level filters locally.
+
+### DEC-019 — Minimum VS Code engine
+
+**Decision proposed:** use VS Code `^1.140.0` as the initial minimum engine target, subject to a compatibility spike before M0 locks the extension manifest.
+
+- Test the minimum engine and the current Stable release.
+- If the implementation requires a newer API, either raise the minimum with an explicit decision or use a supported fallback.
+- Do not declare compatibility with versions that have not been tested.
+
+**Rationale:** a bounded minimum makes the extension manifest, CI matrix and release support statement implementable. The proposal is based on the 2026-11 compatibility review and must be rechecked before release.
 
 ## Approval checklist
 
@@ -178,5 +220,8 @@ GitLab 17.0 is a proposed technical floor, not a statement that this version rem
 - [ ] DEC-014 Connection identity and lifecycle approved.
 - [ ] DEC-015 Provider capability model approved.
 - [ ] DEC-016 Per-connection enabled/disabled behavior approved.
+- [ ] DEC-017 Review conversation semantics approved.
+- [ ] DEC-018 Review request discovery and search approved.
+- [ ] DEC-019 Minimum VS Code engine approved.
 
 **Implementation rule:** begin work on a feature only after its relevant proposed decisions are approved. Foundation work that does not depend on unresolved decisions may proceed independently.
