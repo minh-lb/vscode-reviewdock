@@ -100,7 +100,7 @@ Tasks:
 - [ ] Configure esbuild for extension host and Webview bundles.
 - [ ] Configure ESLint and Prettier.
 - [ ] Configure Vitest and @vscode/test-electron.
-- [ ] Add CI for lint, typecheck, unit tests and build.
+- [ ] Add CI for lint, formatting, typecheck, unit tests, mocked provider contract tests and build.
 - [ ] Add contribution/development instructions and F5 Extension Development Host launch configuration.
 
 Dependencies: none.
@@ -165,7 +165,7 @@ Dependencies: M1.
 Exit criteria:
 - User can browse, filter, search and open PR/MR on both providers.
 - PR/MR detail reflects the selected provider response without leaking provider DTOs into the domain.
-- Switching project/MR does not show results from the previous selection.
+- Switching repository/project or PR/MR does not show results from the previous selection.
 
 ### M3 — Provider-aware diff viewer and inline comments
 
@@ -177,7 +177,7 @@ Tasks:
 - [ ] Implement unified diff parser.
 - [ ] Implement shared unified-diff row parsing plus GitHub line/side mapping and GitLab old/new position mapping.
 - [ ] Build Webview file navigator and diff renderer.
-- [ ] Display existing diff discussions at line anchors.
+- [ ] Display existing GitHub review comments and GitLab discussions at line anchors.
 - [ ] Implement single-line inline comment composer.
 - [ ] Implement GitHub PR head-SHA and GitLab diff-version SHA revalidation before comment submission.
 - [ ] Handle binary, collapsed, oversized and missing patches.
@@ -202,7 +202,7 @@ Tasks:
 - [ ] Implement replies only for supported conversation kinds: GitHub top-level inline review comments; GitLab discussion notes.
 - [ ] Render provider-native resource kind, thread grouping, parent IDs, author, timestamps, system notes and resolution state.
 - [ ] Implement submit-pending and duplicate-submit protection.
-- [ ] Implement ambiguous timeout recovery by refreshing discussions.
+- [ ] Implement ambiguous timeout recovery by refreshing the relevant provider conversation collections (issue comments/review comments or discussions).
 - [ ] Add GitHub/GitLab API and provider-specific E2E tests, including negative tests for unsupported reply/resolve actions.
 
 Dependencies: M2 and M3 plus approval of DEC-017.
@@ -219,10 +219,10 @@ Exit criteria:
 Tasks:
 - [ ] Implement merge eligibility presentation from fresh PR/MR data while keeping provider status values distinct.
 - [ ] Implement merge confirmation dialog.
-- [ ] Re-fetch MR immediately before merge.
+- [ ] Re-fetch PR/MR immediately before merge.
 - [ ] Send current PR head SHA or GitLab source HEAD SHA according to the selected provider endpoint.
 - [ ] Implement typed handling for 401/403/405/409/422 and timeout.
-- [ ] Refresh MR list/detail after success or rejection.
+- [ ] Refresh PR/MR list/detail after success or rejection.
 - [ ] Add tests for merge success, SHA mismatch, policy rejection and ambiguous timeout.
 - [ ] Verify against non-production GitHub and GitLab test repositories/projects.
 
@@ -242,7 +242,7 @@ Exit criteria:
 Tasks:
 - [ ] Implement GitLab MR pipeline list and GitHub Check Runs/commit status list.
 - [ ] Implement GitLab pipeline jobs and GitHub Actions workflow run summaries.
-- [ ] Match pipeline SHA to MR head SHA.
+- [ ] Match check/pipeline SHA to PR/MR head SHA.
 - [ ] Implement GitLab basic approval state and GitHub review decision state.
 - [ ] Feature-detect GitLab CE/EE approval fields and GitHub review permission/capability limitations.
 - [ ] Add unsupported-capability states.
@@ -251,8 +251,8 @@ Tasks:
 Dependencies: M5 and API compatibility verification.
 
 Exit criteria:
-- Pipeline and approval state are shown only when returned by GitLab.
-- Missing edition-specific fields are not interpreted as failed approval.
+- Checks/pipeline and review/approval state are shown only when returned by the selected provider.
+- Missing edition-specific or provider-specific fields are not interpreted as failed approval.
 - P1 panels do not break MR overview or review workflows.
 
 ### M7 — Hardening and release
@@ -304,10 +304,10 @@ Keep PRs small and independently reviewable:
 
 1. M0: project scaffold and CI.
 2. M1: authentication and project mapping.
-3. M2: MR list and detail.
+3. M2: PR/MR list and detail.
 4. M3a: diff parser and line mapper.
 5. M3b: diff UI and inline comment.
-6. M4: general comments and discussions.
+6. M4: provider-aware general comments, inline review comments and discussions.
 7. M5: merge workflow.
 8. M6: pipeline and approvals.
 9. M7: release hardening.
@@ -327,9 +327,9 @@ Every PR should:
 | Incorrect inline line mapping | Comment lands on wrong code | Separate GitHub/GitLab mappers, parser fixtures, current SHAs and real provider integration tests |
 | Provider version/edition differences | Feature unavailable on some instances | Vendor-maintained compatibility policy, contract tests, feature detection and graceful degradation |
 | PAT api scope is broad | Credential impact if compromised | SecretStorage, no Webview exposure, clear scope disclosure, recommend expiring token |
-| MR changes while being reviewed | Stale comments or merge | Revalidate diff SHAs and merge SHA |
+| PR/MR changes while being reviewed | Stale comments or merge | Revalidate diff SHAs and merge SHA |
 | Webview injection | Arbitrary script execution | CSP, local assets, safe Markdown rendering, validated messages |
-| Large MR impacts responsiveness | Slow or unresponsive UI | Pagination, lazy loading, bounded concurrency, render virtualization if needed |
+| Large PR/MR impacts responsiveness | Slow or unresponsive UI | Pagination, lazy loading, bounded concurrency, render virtualization if needed |
 | Ambiguous mutation timeout | Duplicate comment or merge | No automatic mutation retry; refresh server state first |
 
 ## 9. Definition of Ready
