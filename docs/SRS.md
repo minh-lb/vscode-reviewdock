@@ -317,7 +317,7 @@ Minimum VS Code engine version và minimum GitLab version là các quyết đị
 | ID | Ưu tiên | Yêu cầu |
 |---|---|---|
 | MERGE-001 | P0 | Hệ thống PHẢI hiển thị trạng thái mergeability/merge status do GitLab cung cấp. |
-| MERGE-002 | P0 | Hệ thống PHẢI chỉ cho phép bắt đầu thao tác merge khi user có quyền và trạng thái hiện tại không cho thấy thao tác chắc chắn bị chặn. |
+| MERGE-002 | P0 | Hệ thống PHẢI chỉ cho phép bắt đầu thao tác merge với MR đang mở và không bị client xác định chắc chắn là đã đóng/đã merge; GitLab server là nơi quyết định cuối cùng về quyền và merge eligibility. |
 | MERGE-003 | P0 | Hệ thống PHẢI yêu cầu xác nhận rõ ràng trước khi gửi merge request. |
 | MERGE-004 | P0 | Trước khi merge, hệ thống PHẢI refresh dữ liệu cần thiết và gửi expected source/head SHA nếu GitLab endpoint hỗ trợ. |
 | MERGE-005 | P1 | Hệ thống NÊN hỗ trợ squash hoặc merge options theo cấu hình project và API. |
