@@ -1,0 +1,269 @@
+import { describe, expect, it, vi } from 'vitest';
+import type { ReviewProvider } from '../../src/application/ports';
+import { ReviewService } from '../../src/application/reviewService';
+import { AppError } from '../../src/domain/errors';
+import type {
+  DiffFilePage,
+  ReviewConversation,
+  ReviewRequestContext,
+  ReviewRequestDetail,
+} from '../../src/domain/models';
+
+const context: ReviewRequestContext = {
+  repositoryId: 'repo',
+  reviewRequestId: '17',
+  headSha: 'head-1',
+};
+const detail: ReviewRequestDetail = {
+  id: '17',
+  number: '17',
+  repositoryId: 'repo',
+  title: 'Change',
+  state: 'open',
+  author: { id: 'u1', login: 'reviewer' },
+  sourceBranch: 'feature',
+  targetBranch: 'main',
+  createdAt: '',
+  updatedAt: '',
+  webUrl: '',
+  headSha: 'head-1',
+};
+const files: DiffFilePage = {
+  items: [{ path: 'src/a.ts', change: 'modified', patch: '@@ -1 +1 @@\n-old\n+new' }],
+  page: { page: 1, perPage: 100, hasNextPage: false },
+};
+
+function provider(overrides: Partial<ReviewProvider> = {}): ReviewProvider {
+  return {
+    provider: 'github',
+    getCurrentUser: vi.fn(),
+    listRepositories: vi.fn(),
+    getRepository: vi.fn(),
+    listReviewRequests: vi.fn(),
+    getReviewRequest: vi.fn().mockResolvedValue(detail),
+    listChangedFiles: vi.fn().mockResolvedValue(files),
+    listConversations: vi
+      .fn()
+      .mockResolvedValue({ items: [], page: { page: 1, perPage: 100, hasNextPage: false } }),
+    createGeneralComment: vi.fn(),
+    createInlineComment: vi.fn(),
+    replyToConversation: vi.fn(),
+    getChecks: vi.fn().mockResolvedValue([]),
+    getApprovalState: vi.fn().mockResolvedValue({ available: true }),
+    submitReviewDecision: vi.fn(),
+    merge: vi.fn().mockResolvedValue({ merged: true }),
+    getCapabilities: vi
+      .fn()
+      .mockReturnValue({
+        generalComments: { support: 'supported' },
+        inlineComments: { support: 'supported' },
+        replyByResource: { 'github-review-comment': { support: 'supported' } },
+        resolveThreads: { support: 'unsupported' },
+        checks: { support: 'supported' },
+        approvals: { support: 'supported' },
+        reviewDecisions: { support: 'supported' },
+        merge: { support: 'supported' },
+      }),
+    ...overrides,
+  } as ReviewProvider;
+}
+
+describe('ReviewService', () => {
+  it('refreshes detail and all diff pages and rejects an inline anchor from an obsolete head', async () => {
+    const p = provider({
+      getReviewRequest: vi.fn().mockResolvedValue({ ...detail, headSha: 'head-2' }),
+    });
+    const service = new ReviewService(p);
+    await expect(
+      service.createInline(context, 'comment', { path: 'src/a.ts', side: 'new', line: 1 }),
+    ).rejects.toMatchObject({ code: 'conflict' });
+    expect(p.createInlineComment).not.toHaveBeenCalled();
+    expect(p.listChangedFiles).toHaveBeenCalled();
+  });
+
+  it('shares a pending identical mutation instead of sending it twice', async () => {
+    let release!: (value: { id: string }) => void;
+    const createGeneralComment = vi.fn(
+      () =>
+        new Promise<{ id: string }>((resolve) => {
+          release = resolve;
+        }),
+    );
+    const service = new ReviewService(provider({ createGeneralComment }));
+    const first = service.createGeneral(context, 'hello');
+    const second = service.createGeneral(context, 'hello');
+    await Promise.resolve();
+    expect(createGeneralComment).toHaveBeenCalledTimes(1);
+    release({ id: 'comment' });
+    await expect(Promise.all([first, second])).resolves.toHaveLength(2);
+  });
+
+  it('refreshes conversations after an ambiguous mutation and does not retry automatically', async () => {
+    const createGeneralComment = vi.fn().mockRejectedValue(new AppError('timed out', 'timeout'));
+    const listConversations = vi
+      .fn()
+      .mockResolvedValue({ items: [], page: { page: 1, perPage: 100, hasNextPage: false } });
+    const service = new ReviewService(provider({ createGeneralComment, listConversations }));
+    await expect(service.createGeneral(context, 'hello')).rejects.toMatchObject({
+      code: 'unknown',
+    });
+    expect(createGeneralComment).toHaveBeenCalledTimes(1);
+    expect(listConversations).toHaveBeenCalled();
+    await expect(service.createGeneral(context, 'hello')).rejects.toMatchObject({
+      code: 'operation-not-allowed',
+    });
+    expect(createGeneralComment).toHaveBeenCalledTimes(1);
+    await service.reconcile(context);
+    createGeneralComment.mockResolvedValue({ id: 'comment-2' } as never);
+    await service.createGeneral(context, 'hello');
+    expect(createGeneralComment).toHaveBeenCalledTimes(2);
+  });
+
+  it('requires explicit confirmation and a matching fresh head before merging', async () => {
+    const p = provider();
+    const service = new ReviewService(p);
+    await expect(
+      Promise.resolve().then(() => service.merge(context, 'head-1', false)),
+    ).rejects.toMatchObject({ code: 'operation-not-allowed' });
+    await expect(service.merge(context, 'old-head', true)).rejects.toMatchObject({
+      code: 'conflict',
+    });
+    expect(p.merge).not.toHaveBeenCalled();
+    await expect(service.merge(context, 'head-1', true)).resolves.toMatchObject({ merged: true });
+  });
+
+  it.each(['baseSha', 'startSha', 'headSha'] as const)(
+    'rejects GitLab inline comments when refreshed %s changed',
+    async (changed) => {
+      const displayed = {
+        repositoryId: 'repo',
+        reviewRequestId: '17',
+        headSha: 'head-1',
+        diffVersion: { baseSha: 'base-1', startSha: 'start-1', headSha: 'head-1' },
+      };
+      const freshVersion = {
+        ...displayed.diffVersion,
+        [changed]: `${displayed.diffVersion[changed]}-new`,
+      };
+      const p = provider({
+        provider: 'gitlab',
+        listChangedFiles: vi.fn().mockResolvedValue({ ...files, diffVersion: freshVersion }),
+      });
+      const service = new ReviewService(p);
+      await expect(
+        service.createInline(displayed, 'comment', { path: 'src/a.ts', side: 'new', line: 1 }),
+      ).rejects.toMatchObject({ code: 'conflict' });
+      expect(p.createInlineComment).not.toHaveBeenCalled();
+    },
+  );
+
+  it('rederives rename paths and refuses a line that is not in the parsed diff', async () => {
+    const p = provider({
+      listChangedFiles: vi
+        .fn()
+        .mockResolvedValue({
+          ...files,
+          items: [
+            {
+              path: 'new.ts',
+              previousPath: 'old.ts',
+              change: 'renamed',
+              patch: '@@ -4,2 +4,2 @@\n keep\n-old\n+new',
+            },
+          ],
+        }),
+    });
+    const service = new ReviewService(p);
+    await service.createInline(context, 'comment', { path: 'old.ts', side: 'new', line: 5 });
+    expect(p.createInlineComment).toHaveBeenCalledWith(
+      expect.objectContaining({
+        position: expect.objectContaining({
+          path: 'new.ts',
+          oldPath: 'old.ts',
+          newPath: 'new.ts',
+          line: 5,
+          newLine: 5,
+        }),
+      }),
+    );
+    await service.createInline(context, 'context comment', {
+      path: 'old.ts',
+      side: 'new',
+      line: 4,
+    });
+    expect(p.createInlineComment).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        position: expect.objectContaining({ line: 4, oldLine: 4, newLine: 4 }),
+      }),
+    );
+    await expect(
+      service.createInline(context, 'comment', { path: 'old.ts', side: 'new', line: 99 }),
+    ).rejects.toMatchObject({ code: 'validation' });
+    expect(p.createInlineComment).toHaveBeenCalledTimes(2);
+  });
+
+  it('rejects files whose diff version changes between pages', async () => {
+    const displayed = {
+      repositoryId: 'repo',
+      reviewRequestId: '17',
+      headSha: 'head-1',
+      diffVersion: { baseSha: 'base', startSha: 'start', headSha: 'head-1' },
+    };
+    const listChangedFiles = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ...files,
+        page: { page: 1, perPage: 1, hasNextPage: true },
+        diffVersion: displayed.diffVersion,
+      })
+      .mockResolvedValueOnce({
+        ...files,
+        page: { page: 2, perPage: 1, hasNextPage: false },
+        diffVersion: { ...displayed.diffVersion, startSha: 'changed' },
+      });
+    const p = provider({ provider: 'gitlab', listChangedFiles });
+    await expect(
+      new ReviewService(p).createInline(displayed, 'comment', {
+        path: 'src/a.ts',
+        side: 'new',
+        line: 1,
+      }),
+    ).rejects.toMatchObject({ code: 'conflict' });
+    expect(p.createInlineComment).not.toHaveBeenCalled();
+  });
+
+  it('rejects replies to GitHub issue comments and replies to replies', async () => {
+    const conversation = (
+      resourceType: ReviewConversation['resourceType'],
+      extra: Partial<ReviewConversation> = {},
+    ): ReviewConversation => ({
+      id: 'conversation',
+      provider: 'github',
+      resourceType,
+      author: { id: 'u1', login: 'reviewer' },
+      body: 'body',
+      createdAt: '',
+      replies: [],
+      ...extra,
+    });
+    const listConversations = vi
+      .fn()
+      .mockResolvedValue({
+        items: [conversation('github-issue-comment')],
+        page: { page: 1, perPage: 100, hasNextPage: false },
+      });
+    const p = provider({ listConversations });
+    const service = new ReviewService(p);
+    await expect(service.reply(context, 'conversation', 'reply')).rejects.toMatchObject({
+      code: 'unsupported-capability',
+    });
+    listConversations.mockResolvedValue({
+      items: [conversation('github-review-comment', { replyToId: 'root' })],
+      page: { page: 1, perPage: 100, hasNextPage: false },
+    });
+    await expect(service.reply(context, 'conversation', 'reply')).rejects.toMatchObject({
+      code: 'unsupported-capability',
+    });
+    expect(p.replyToConversation).not.toHaveBeenCalled();
+  });
+});
