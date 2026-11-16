@@ -147,6 +147,13 @@ Fixtures must contain no real user secrets, private code or production project i
 | UNIT-CONN-013 | Two workspace folders use different connections | Each folder resolves its own provider/account/repository |
 | UNIT-CONN-014 | Multiple same-host connections can access remote | Explicit account picker is required |
 | UNIT-CONN-015 | Provider or server URL is changed on existing connection | Mutation is rejected; user must create a new connection |
+| UNIT-CONN-016 | Create a connection without specifying enabled | Connection is created with enabled=true |
+| UNIT-CONN-017 | Disable one connection | Only its enabled flag changes; credential, status and other connections remain unchanged |
+| UNIT-CONN-018 | Resolve a disabled connection by workspace binding/default/remote discovery | Resolution is blocked; no alternate account is silently selected |
+| UNIT-CONN-019 | Disable the current provider default | Provider default is cleared; no other connection is auto-promoted |
+| UNIT-CONN-020 | Attempt to set a disabled connection as default | Operation is rejected |
+| UNIT-CONN-021 | Re-enable a connection whose last-known status is re-authentication-required | It remains unusable for provider operations until re-authenticated |
+| UNIT-CONN-022 | Re-enable a previously connected connection | It becomes eligible without an automatic validation request |
 
 ### 7.3. Diff parsing and position mapping
 
@@ -256,6 +263,9 @@ Fixtures must contain no real user secrets, private code or production project i
 | EXT-012 | Submit comment twice quickly | Only one request is sent |
 | EXT-013 | Request result becomes ambiguous after timeout | UI refreshes state before retry |
 | EXT-014 | Theme changes | Webview updates to VS Code theme tokens |
+| EXT-015 | Execute a provider command using a disabled connection | Local ConnectionDisabledError; no credential lookup or outbound HTTP request |
+| EXT-016 | Disable a connection with pending reads | Pending reads are cancelled where possible; stale results are ignored |
+| EXT-017 | Disable a connection after a mutation was submitted | UI does not claim rollback; outcome is reconciled after re-enabling |
 
 ## 10. Manual end-to-end scenarios
 
@@ -267,13 +277,35 @@ Fixtures must contain no real user secrets, private code or production project i
 4. Add a second account on one of the same provider hosts.
 5. Bind two workspace folders to different connections and repositories.
 6. Restart VS Code and reopen ReviewDock.
-7. Disconnect one connection and verify the other remains usable.
+7. Disable one connection and verify it is excluded from selectors and API requests while its credential and workspace binding remain stored.
+8. Re-enable it and verify it becomes eligible without automatic credential validation.
+9. Disconnect one connection and verify the other remains usable.
 
 Expected:
 - All connection records and repository bindings remain available.
 - Each token is retrieved from its own SecretStorage key.
 - The account picker appears when more than one connection matches a remote.
+- Disabling a connection does not delete its credential, alter its last-known status or silently reassign its workspace binding.
+- A disabled connection cannot be selected or used for provider API requests.
+- Re-enabling does not silently validate or switch accounts.
 - Disconnecting one connection does not affect another.
+
+### E2E-008 — Disable and re-enable a connection
+
+1. Create and validate two connections for the same provider.
+2. Bind a workspace repository to the first connection and set it as the provider default.
+3. Disable the first connection.
+4. Attempt repository discovery and an API-backed command through the existing workspace binding.
+5. Inspect the provider default and connection registry.
+6. Re-enable the first connection and inspect its status.
+7. Explicitly test/re-authenticate only if its last-known status requires it.
+
+Expected:
+- The first connection is excluded from selection, discovery, default resolution and outbound requests while disabled.
+- Its credential, configuration, last-known status and workspace binding remain stored.
+- Disabling it clears the provider default and does not auto-promote the second connection.
+- The existing workspace binding is blocked rather than silently reassigned.
+- Re-enabling does not automatically validate the credential or switch accounts.
 
 ### E2E-002 — Discover and open MR
 
