@@ -3,7 +3,7 @@
 > **Mã tài liệu:** RVD-SRS-001  
 > **Sản phẩm:** ReviewDock  
 > **Loại tài liệu:** Software Requirements Specification  
-> **Phiên bản:** 1.0.1-draft  
+> **Phiên bản:** 1.0.2-draft  
 > **Trạng thái:** Draft — chờ Product Owner xác nhận  
 > **Repository:** [minh-lb/vscode-reviewdock](https://github.com/minh-lb/vscode-reviewdock)  
 > **Ngày:** 2026-11-16
@@ -18,7 +18,7 @@
 | Version | 1.0.1-draft |
 | Product | ReviewDock |
 | Target platform | Visual Studio Code Extension |
-| Primary integration | GitLab REST API v4 |
+| Primary integration | GitHub REST API v3 + GitLab REST API v4 |
 | Document owner | Project maintainer |
 | Implementation status | Not started |
 
@@ -29,12 +29,13 @@
 | 0.1.0 | 2026-11-16 | Bản yêu cầu sản phẩm ban đầu |
 | 1.0.0-draft | 2026-11-16 | Chuẩn hóa thành SRS |
 | 1.0.1-draft | 2026-11-16 | Đồng bộ scope inline comment MVP và liên kết bộ tài liệu thiết kế/kiểm thử |
+| 1.0.2-draft | 2026-11-16 | Mở rộng sang GitHub + GitLab và đặc tả multi-connection |
 
 ## 1. Giới thiệu
 
 ### 1.1. Mục đích
 
-Tài liệu này xác định các yêu cầu phần mềm cho ReviewDock — extension của Visual Studio Code dùng để quản lý GitLab Merge Request (MR) và thực hiện code review trong IDE.
+Tài liệu này xác định các yêu cầu phần mềm cho ReviewDock — extension của Visual Studio Code dùng để quản lý GitHub Pull Request (PR) và GitLab Merge Request (MR), đồng thời thực hiện code review trong IDE.
 
 SRS là cơ sở để:
 - Thiết kế kiến trúc và giao diện.
@@ -48,16 +49,17 @@ Tài liệu mô tả **phần mềm cần làm gì và các điều kiện cần
 ### 1.2. Phạm vi sản phẩm
 
 ReviewDock cung cấp giao diện trong VS Code để người dùng:
-1. Kết nối tới GitLab.com hoặc GitLab Self-Managed.
-2. Chọn hoặc nhận diện GitLab project từ Git remote của workspace.
-3. Tìm, lọc và xem Merge Request.
-4. Đọc thay đổi code trong diff viewer.
-5. Xem và tham gia discussions.
-6. Tạo comment chung, inline comment và reply.
-7. Theo dõi trạng thái pipeline và approval.
-8. Merge MR khi người dùng có quyền và GitLab cho phép.
+1. Tạo và quản lý nhiều connection GitHub/GitLab, bao gồm nhiều account trên cùng một server.
+2. Đặt tên, kiểm tra, chọn default, đổi account, disconnect và xóa từng connection độc lập.
+3. Chọn hoặc nhận diện repository/project từ Git remote của từng workspace folder.
+4. Tìm, lọc và xem GitHub Pull Request hoặc GitLab Merge Request.
+5. Đọc thay đổi code trong diff viewer.
+6. Xem và tham gia review comments/discussions.
+7. Tạo comment chung, inline comment và reply theo capability của provider.
+8. Theo dõi GitHub Checks/Actions hoặc GitLab Pipelines và approval/review state khi provider hỗ trợ.
+9. Merge PR/MR khi người dùng có quyền và provider server cho phép.
 
-GitLab là nguồn dữ liệu có thẩm quyền. ReviewDock không thay thế cơ chế authorization, branch protection, approval rules, merge checks hoặc chính sách của GitLab project.
+GitHub/GitLab server tương ứng là nguồn dữ liệu có thẩm quyền. ReviewDock không thay thế cơ chế authorization, branch protection, repository rules, approval rules, merge checks hoặc chính sách của repository/project.
 
 ### 1.3. Quy ước từ khóa
 
@@ -91,7 +93,7 @@ Mỗi yêu cầu có ID duy nhất để liên kết với thiết kế, impleme
 - [GitLab Merge Request Approvals API](https://docs.gitlab.com/api/merge_request_approvals/)
 - [GitLab Jobs API](https://docs.gitlab.com/api/jobs/)
 
-Tài liệu thiết kế và triển khai liên quan: [DECISIONS.md](./DECISIONS.md), [SDS.md](./SDS.md), [API-SPEC.md](./API-SPEC.md), [UI-UX.md](./UI-UX.md), [TEST-PLAN.md](./TEST-PLAN.md), [IMPLEMENTATION-PLAN.md](./IMPLEMENTATION-PLAN.md).
+Tài liệu thiết kế và triển khai liên quan: [DECISIONS.md](./DECISIONS.md), [CONNECTION-MANAGEMENT.md](./CONNECTION-MANAGEMENT.md), [SDS.md](./SDS.md), [API-SPEC.md](./API-SPEC.md), [UI-UX.md](./UI-UX.md), [TEST-PLAN.md](./TEST-PLAN.md), [IMPLEMENTATION-PLAN.md](./IMPLEMENTATION-PLAN.md).
 
 Các endpoint, field và capability cụ thể phải được đối chiếu với phiên bản GitLab tối thiểu được chọn trước khi implementation.
 
@@ -99,33 +101,33 @@ Các endpoint, field và capability cụ thể phải được đối chiếu v�
 
 ### 2.1. Bối cảnh hệ thống
 
-ReviewDock là một VS Code extension chạy trong Extension Host. Extension giao tiếp trực tiếp với GitLab instance do người dùng cấu hình thông qua HTTPS và GitLab REST API.
+ReviewDock là một VS Code extension chạy trong Extension Host. Extension giao tiếp trực tiếp với GitHub hoặc GitLab server do người dùng cấu hình thông qua HTTPS và provider REST API.
 
-ReviewDock không yêu cầu một backend riêng trong MVP. Token và cấu hình kết nối được quản lý trong phạm vi VS Code trên máy người dùng.
+ReviewDock không yêu cầu backend riêng trong MVP. Người dùng có thể cấu hình nhiều connection độc lập; metadata connection được lưu trong VS Code state và credential của từng connection được lưu riêng bằng SecretStorage.
 
 ### 2.2. Chức năng tổng quát
 
 | Nhóm | Chức năng |
 |---|---|
-| Connection | Kết nối, xác thực, ngắt kết nối GitLab |
-| Project | Nhận diện Git remote, chọn và cấu hình project |
-| MR discovery | Danh sách, tìm kiếm, lọc và phân trang MR |
-| MR detail | Metadata, trạng thái, branch, reviewer và mô tả |
+| Connection | Quản lý nhiều GitHub/GitLab connections và credential độc lập |
+| Repository | Nhận diện Git remote, chọn repository/project và gán connection |
+| Review request discovery | Danh sách, tìm kiếm, lọc và phân trang GitHub PR / GitLab MR |
+| Review request detail | Metadata, trạng thái, branch, reviewer và mô tả |
 | Code review | Danh sách file thay đổi, diff và điều hướng |
-| Discussions | Comment chung, inline comment, reply |
-| Approval | Xem approval; approve/unapprove nếu được bật và được phép |
-| Pipeline | Xem pipeline và job liên quan |
-| Merge | Kiểm tra trạng thái, xác nhận và yêu cầu GitLab merge |
-| Settings | Quản lý instance, project và tùy chọn extension |
+| Comments / Discussions | Comment chung, inline review comment, thread và reply theo provider |
+| Approval / Review | Xem approval/review state; thao tác nếu provider hỗ trợ và được phép |
+| Checks / Pipeline | Xem GitHub Checks/Actions hoặc GitLab Pipelines/Jobs |
+| Merge | Kiểm tra trạng thái, xác nhận và yêu cầu provider merge |
+| Settings | Quản lý connection, repository binding và tùy chọn extension |
 
 ### 2.3. Nhóm người dùng
 
 | Actor | Mô tả | Quyền phụ thuộc |
 |---|---|---|
-| Developer / Author | Người tạo hoặc đóng góp vào MR | Quyền GitLab của tài khoản |
-| Reviewer | Người được yêu cầu review hoặc được assign | Quyền đọc và review trên project |
-| Maintainer | Người quản lý project và quy trình merge | Quyền project và branch policy |
-| GitLab Instance | Hệ thống ngoài cung cấp API và thực thi policy | Phiên bản, cấu hình và trạng thái server |
+| Developer / Author | Người tạo hoặc đóng góp vào PR/MR | Quyền của tài khoản trên provider |
+| Reviewer | Người được yêu cầu review hoặc được assign | Quyền đọc và review trên repository/project |
+| Maintainer | Người quản lý repository/project và quy trình merge | Quyền và branch/repository policy |
+| GitHub / GitLab Server | Hệ thống ngoài cung cấp API và thực thi policy | Provider, phiên bản, cấu hình và trạng thái server |
 | VS Code | Host chạy extension và cung cấp UI/storage APIs | Phiên bản VS Code tương thích |
 
 ReviewDock PHẢI phản ánh quyền mà GitLab API cấp; không tự cấp thêm quyền cho bất kỳ actor nào.
@@ -133,8 +135,8 @@ ReviewDock PHẢI phản ánh quyền mà GitLab API cấp; không tự cấp th
 ### 2.4. Môi trường vận hành
 
 - Visual Studio Code Stable trên Windows, macOS và Linux.
-- GitLab.com.
-- GitLab Self-Managed trong phạm vi phiên bản được công bố.
+- GitHub.com và GitHub Enterprise Server trong phạm vi phiên bản được công bố.
+- GitLab.com và GitLab Self-Managed trong phạm vi phiên bản được công bố.
 - Kết nối mạng tới GitLab instance qua HTTPS.
 - Workspace có thể chứa một hoặc nhiều Git repository.
 
@@ -144,16 +146,18 @@ Minimum VS Code engine version và minimum GitLab version là các quyết đị
 
 - Sản phẩm PHẢI được phát hành dưới dạng VS Code extension.
 - Ngôn ngữ triển khai dự kiến là TypeScript.
-- GitLab integration PHẢI dùng API được GitLab công bố; không scrape giao diện GitLab Web.
-- Secret PHẢI được lưu bằng VS Code SecretStorage.
+- Provider integration PHẢI dùng API được GitHub/GitLab công bố; không scrape giao diện Web.
+- Mỗi connection PHẢI có provider, display name, server URL và account identity riêng.
+- Secret PHẢI được lưu bằng VS Code SecretStorage với key theo immutable connection ID.
 - UI PHẢI tuân thủ lifecycle và security model của VS Code Extension API.
 - Không có thao tác nào được bypass GitLab authorization hoặc project policy.
 
 ### 2.6. Giả định và phụ thuộc
 
-- Người dùng có GitLab account và quyền truy cập project tương ứng.
-- GitLab instance cho phép API access và token được cấp đủ scope.
-- Các API cần thiết tồn tại trong phiên bản GitLab được hỗ trợ.
+- Người dùng có GitHub/GitLab account và quyền truy cập repository/project tương ứng.
+- Provider server cho phép API access và token được cấp đủ permission/scope.
+- Các API cần thiết tồn tại trong phiên bản GitHub/GitLab được hỗ trợ.
+- Một workspace có thể chứa nhiều repository và mỗi repository có thể dùng connection khác nhau.
 - VS Code SecretStorage khả dụng trong môi trường vận hành.
 - Trạng thái MR có thể thay đổi bởi người dùng khác trong lúc ReviewDock đang mở; do đó dữ liệu hiển thị có thể stale.
 
@@ -207,29 +211,38 @@ Minimum VS Code engine version và minimum GitLab version là các quyết đị
 
 ## 4. Yêu cầu chức năng
 
-### 4.1. Kết nối và xác thực GitLab
+### 4.1. Connections và xác thực đa provider
 
 | ID | Ưu tiên | Yêu cầu |
 |---|---|---|
-| AUTH-001 | P0 | Hệ thống PHẢI cho phép cấu hình GitLab.com. |
-| AUTH-002 | P0 | Hệ thống PHẢI cho phép cấu hình base URL của GitLab Self-Managed. |
-| AUTH-003 | P0 | Hệ thống PHẢI xác thực request bằng phương thức được Product Owner chọn trước implementation (PAT hoặc OAuth 2.0). |
-| AUTH-004 | P0 | Hệ thống PHẢI lưu credential bằng VS Code SecretStorage. |
-| AUTH-005 | P0 | Hệ thống PHẢI kiểm tra credential bằng một API request phù hợp và hiển thị kết quả kết nối. |
-| AUTH-006 | P0 | Hệ thống PHẢI cho phép người dùng thay credential và disconnect GitLab instance. |
-| AUTH-007 | P0 | Hệ thống PHẢI xử lý token hết hạn, bị thu hồi hoặc không đủ scope bằng thông báo có hướng khắc phục. |
-| AUTH-008 | P0 | Hệ thống KHÔNG ĐƯỢC lưu credential trong settings.json, workspace file hoặc source code. |
+| AUTH-001 | P0 | Hệ thống PHẢI hỗ trợ provider type GitHub và GitLab. |
+| AUTH-002 | P0 | Hệ thống PHẢI cho phép tạo nhiều connection; không giới hạn một connection toàn cục. |
+| AUTH-003 | P0 | Mỗi connection PHẢI có display name do người dùng đặt. |
+| AUTH-004 | P0 | Mỗi connection PHẢI xác định provider và server URL; hỗ trợ GitHub.com, GitHub Enterprise Server, GitLab.com và GitLab Self-Managed trong compatibility matrix. |
+| AUTH-005 | P0 | Hệ thống PHẢI cho phép nhiều connection cùng provider/server nhưng khác account. |
+| AUTH-006 | P0 | Hệ thống PHẢI xác thực bằng phương thức được duyệt cho provider; đề xuất MVP là PAT cho cả hai provider. |
+| AUTH-007 | P0 | Hệ thống PHẢI lưu credential riêng trong VS Code SecretStorage, key theo immutable connection ID. |
+| AUTH-008 | P0 | Hệ thống PHẢI validate credential bằng authenticated-user endpoint của provider và hiển thị account identity. |
+| AUTH-009 | P0 | Người dùng PHẢI có thể test, rename, re-authenticate, disconnect và delete từng connection độc lập. |
+| AUTH-010 | P0 | Hệ thống PHẢI hỗ trợ một default connection cho mỗi provider; workspace binding được ưu tiên hơn default. |
+| AUTH-011 | P0 | Hệ thống PHẢI hiển thị status Connected, Re-authentication required, Unreachable, Configuration error hoặc Disconnected. |
+| AUTH-012 | P0 | Hệ thống KHÔNG ĐƯỢC lưu credential trong settings.json, workspace file, source code hoặc Webview state. |
+| AUTH-013 | P0 | Hệ thống KHÔNG ĐƯỢC gửi credential của connection tới provider/server khác với connection đã chọn. |
+| AUTH-014 | P0 | Nếu provider + server + account identity đã tồn tại, hệ thống NÊN cảnh báo duplicate nhưng vẫn cho phép nhiều account khác nhau trên cùng server. |
 
-### 4.2. Project và workspace
+### 4.2. Repository và workspace binding
 
 | ID | Ưu tiên | Yêu cầu |
 |---|---|---|
-| PROJ-001 | P0 | Người dùng PHẢI có thể chọn GitLab project mà họ có quyền truy cập. |
-| PROJ-002 | P0 | Hệ thống PHẢI đọc Git remote của workspace để đề xuất project tương ứng khi có thể nhận diện. |
-| PROJ-003 | P0 | Người dùng PHẢI có thể nhập/chọn project thủ công khi không nhận diện được remote. |
-| PROJ-004 | P0 | Hệ thống PHẢI hiển thị GitLab instance và project đang active. |
-| PROJ-005 | P1 | Hệ thống NÊN hỗ trợ nhiều GitLab instance và project trong một workspace hoặc profile người dùng. |
-| PROJ-006 | P0 | Hệ thống KHÔNG ĐƯỢC gửi repository URL hoặc workspace metadata tới dịch vụ bên thứ ba. |
+| PROJ-001 | P0 | Người dùng PHẢI có thể chọn GitHub repository hoặc GitLab project mà connection hiện tại có quyền truy cập. |
+| PROJ-002 | P0 | Hệ thống PHẢI đọc Git remote để nhận diện provider/server/repository path và đề xuất binding tương ứng. |
+| PROJ-003 | P0 | Người dùng PHẢI có thể tìm/chọn repository hoặc project thủ công. |
+| PROJ-004 | P0 | Mỗi workspace folder/repository PHẢI lưu connection ID và repository/project ID đang active. |
+| PROJ-005 | P0 | Nhiều workspace folder/repository CÓ THỂ sử dụng các connection khác nhau, kể cả khác provider. |
+| PROJ-006 | P0 | Nếu nhiều connection cùng host/account candidates có thể truy cập remote, hệ thống PHẢI yêu cầu người dùng chọn account; không suy đoán theo hostname. |
+| PROJ-007 | P0 | Hệ thống PHẢI hiển thị provider, connection name, account và repository/project đang active. |
+| PROJ-008 | P0 | Khi connection bị xóa hoặc mất credential, repository binding PHẢI được đánh dấu unresolved; không tự gán sang connection khác. |
+| PROJ-009 | P0 | Hệ thống KHÔNG ĐƯỢC gửi repository URL hoặc workspace metadata tới dịch vụ bên thứ ba. |
 
 ### 4.3. Danh sách và tìm kiếm Merge Request
 
@@ -331,8 +344,8 @@ Minimum VS Code engine version và minimum GitLab version là các quyết đị
 
 | ID | Quy tắc |
 |---|---|
-| BR-001 | GitLab là nguồn dữ liệu có thẩm quyền cho trạng thái MR, pipeline, approval và kết quả merge. |
-| BR-002 | Quyền thao tác phụ thuộc vào user token và quyền project trên GitLab. |
+| BR-001 | GitHub/GitLab server tương ứng là nguồn dữ liệu có thẩm quyền cho trạng thái PR/MR, checks/pipeline, review/approval và kết quả merge. |
+| BR-002 | Quyền thao tác phụ thuộc vào credential của connection đang chọn và quyền repository/project trên provider. |
 | BR-003 | Comment chung, inline comment, reply, resolve và approval là các hành động khác nhau; UI không được đánh đồng. |
 | BR-004 | Inline comment chỉ hợp lệ khi vị trí gắn với diff version mà GitLab chấp nhận. |
 | BR-005 | Client-side merge eligibility chỉ là thông tin hỗ trợ; quyết định cuối cùng thuộc GitLab server. |
@@ -346,12 +359,12 @@ Minimum VS Code engine version và minimum GitLab version là các quyết đị
 
 | Nhóm dữ liệu | Ví dụ | Xử lý |
 |---|---|---|
-| Connection | GitLab base URL, user identity | Lưu cấu hình không nhạy cảm; credential lưu riêng |
-| Project | Project ID, path, web URL, remote mapping | Lưu theo cấu hình workspace/user khi cần |
-| Merge Request | IID, title, branches, state, SHA, metadata | Tải từ GitLab; cache tạm thời nếu cần |
+| Connection | Provider, display name, server URL, account identity, status | Lưu cấu hình không nhạy cảm; credential lưu riêng theo connection ID |
+| Repository binding | Connection ID, provider repository/project ID, full name, web URL, remote mapping | Lưu theo workspace folder/user khi cần |
+| Review Request | GitHub PR number / GitLab MR IID, title, branches, state, SHA, metadata | Tải từ provider; cache tạm thời nếu cần |
 | Diff | File path, patch, line positions, diff SHAs | Tải khi người dùng mở Changes |
-| Discussion | Note ID, author, body, timestamp, position, resolution | Tải từ GitLab |
-| Pipeline | Pipeline ID, status, jobs, web URL | Tải khi người dùng mở khu vực pipeline |
+| Review conversation | Issue comments, review comments, GitLab discussions/notes, author, body, timestamp, position | Tải từ provider; normalize theo capability |
+| Checks / Pipeline | GitHub Check Runs/Actions hoặc GitLab Pipeline/Jobs | Tải khi người dùng mở khu vực checks/pipeline |
 | Approval | Rules, approvals, users | Tải khi người dùng mở khu vực approval |
 | Credential | PAT/OAuth secret | Chỉ lưu bằng SecretStorage |
 
@@ -363,11 +376,11 @@ Minimum VS Code engine version và minimum GitLab version là các quyết đị
 
 **DATA-003 (P0):** Dữ liệu MR, diff và discussion mặc định NÊN được giữ trong bộ nhớ; persistent cache phải có quyết định riêng.
 
-**DATA-004 (P0):** Khi disconnect, hệ thống PHẢI xóa credential tương ứng khỏi SecretStorage.
+**DATA-004 (P0):** Khi disconnect, hệ thống PHẢI xóa credential của đúng connection khỏi SecretStorage; các connection khác không bị ảnh hưởng.
 
 **DATA-005 (P0):** Hệ thống KHÔNG ĐƯỢC ghi token, private diff hoặc comment content vào diagnostic log.
 
-**DATA-006 (P0):** Hệ thống PHẢI tránh lưu dữ liệu GitLab của một instance vào cache key dùng chung với instance khác.
+**DATA-006 (P0):** Cache key PHẢI bao gồm connection ID, provider, server URL, repository/project ID và review request ID để cô lập dữ liệu giữa các account/host.
 
 ## 7. Yêu cầu phi chức năng
 
@@ -387,7 +400,7 @@ Minimum VS Code engine version và minimum GitLab version là các quyết đị
 |---|---|---|
 | NFR-SEC-001 | P0 | Token PHẢI được lưu bằng SecretStorage. |
 | NFR-SEC-002 | P0 | Token KHÔNG ĐƯỢC xuất hiện trong log, telemetry, exception message hoặc settings. |
-| NFR-SEC-003 | P0 | Token chỉ được gửi tới GitLab host do người dùng cấu hình/xác nhận. |
+| NFR-SEC-003 | P0 | Credential chỉ được gửi tới API host thuộc đúng connection đã chọn; redirect/pagination sang host khác không được mang theo credential. |
 | NFR-SEC-004 | P0 | Kết nối tới GitLab PHẢI dùng HTTPS và xác minh TLS theo trust store của môi trường. |
 | NFR-SEC-005 | P0 | Extension KHÔNG ĐƯỢC gửi source code, diff, comment hoặc credential tới dịch vụ bên thứ ba. |
 | NFR-SEC-006 | P0 | Extension PHẢI tôn trọng quyền API của tài khoản; không bypass authorization. |
@@ -410,17 +423,17 @@ Minimum VS Code engine version và minimum GitLab version là các quyết đị
 | ID | Ưu tiên | Yêu cầu |
 |---|---|---|
 | NFR-COMP-001 | P0 | Extension PHẢI hỗ trợ Windows, macOS và Linux trong phạm vi VS Code engine được công bố. |
-| NFR-COMP-002 | P0 | Extension PHẢI hỗ trợ GitLab.com. |
-| NFR-COMP-003 | P0 | Extension PHẢI hỗ trợ GitLab Self-Managed trong phạm vi phiên bản đã công bố. |
-| NFR-COMP-004 | P0 | Minimum VS Code engine version và minimum GitLab version PHẢI được công bố trước release MVP. |
+| NFR-COMP-002 | P0 | Extension PHẢI hỗ trợ GitHub.com và GitLab.com. |
+| NFR-COMP-003 | P0 | Extension PHẢI hỗ trợ GitHub Enterprise Server và GitLab Self-Managed trong phạm vi phiên bản đã công bố. |
+| NFR-COMP-004 | P0 | Minimum VS Code engine version, GitHub Enterprise Server target và minimum GitLab version PHẢI được công bố trước release MVP. |
 
 ### 7.5. Khả năng bảo trì và kiểm thử
 
 | ID | Ưu tiên | Yêu cầu |
 |---|---|---|
 | NFR-MAIN-001 | P0 | Codebase PHẢI sử dụng TypeScript strict mode. |
-| NFR-MAIN-002 | P0 | Domain/business logic PHẢI tách khỏi VS Code UI và GitLab HTTP transport đủ để unit test. |
-| NFR-MAIN-003 | P0 | GitLab response PHẢI được validate/map trước khi sử dụng trong domain/UI. |
+| NFR-MAIN-002 | P0 | Domain/business logic PHẢI tách khỏi VS Code UI và provider-specific HTTP transport đủ để unit test. |
+| NFR-MAIN-003 | P0 | GitHub/GitLab response PHẢI được validate/map qua provider adapter trước khi sử dụng trong domain/UI. |
 | NFR-MAIN-004 | P0 | Các module API quan trọng PHẢI có unit/integration tests. |
 | NFR-MAIN-005 | P0 | Lỗi log phải hữu ích cho chẩn đoán nhưng không chứa secret hoặc dữ liệu nhạy cảm. |
 
@@ -441,7 +454,7 @@ Minimum VS Code engine version và minimum GitLab version là các quyết đị
 | ERR-002 | HTTP 403 | Báo không đủ quyền; không đề xuất bypass |
 | ERR-003 | HTTP 404 | Báo project/MR/resource không còn khả dụng |
 | ERR-004 | HTTP 400/422 | Hiển thị validation error có thể hành động |
-| ERR-005 | HTTP 429 | Tôn trọng rate limit/retry guidance của GitLab |
+| ERR-005 | HTTP 429 | Tôn trọng rate limit/retry guidance của provider |
 | ERR-006 | Timeout/network failure | Báo lỗi kết nối; cho phép refresh/retry an toàn |
 | ERR-007 | Stale diff position | Bắt buộc reload diff trước khi tạo inline comment |
 | ERR-008 | Merge conflict / policy rejection | Hiển thị trạng thái và thông tin GitLab trả về; không giả lập merge thành công |
@@ -480,8 +493,8 @@ Mỗi requirement phải được xác minh bằng một hoặc nhiều phương
 
 MVP chỉ được chấp nhận khi tất cả tiêu chí sau được xác minh:
 
-1. Kết nối GitLab và quản lý credential an toàn.
-2. Chọn/nhận diện project.
+1. Tạo và quản lý nhiều connection GitHub/GitLab; credential được cô lập an toàn.
+2. Chọn/nhận diện repository/project theo connection.
 3. Hiển thị MR list có filter và pagination.
 4. Hiển thị MR detail.
 5. Hiển thị diff và file changes.
@@ -497,12 +510,12 @@ Approval và pipeline UI được xếp P1 trong baseline này; việc merge v�
 
 Các chức năng sau không thuộc baseline MVP:
 
-- Quản lý GitLab Issues, Epics và Milestones.
+- Quản lý GitHub Issues (ngoài issue comments gắn với PR), GitLab Issues, Epics và Milestones.
 - Tạo hoặc quản trị repository/project.
 - Thực hiện commit, push, rebase hoặc cherry-pick.
 - Cấu hình/chạy pipeline.
 - AI-powered code review hoặc tự động sửa code.
-- Tích hợp GitHub, Bitbucket hoặc nền tảng SCM khác.
+- Tích hợp Bitbucket hoặc nền tảng SCM khác.
 - Bypass protected branch hoặc approval policy.
 
 ## 11. Truy vết yêu cầu
@@ -519,7 +532,8 @@ Các nhóm ID chính:
 |---|---|
 | UI | User interface |
 | IF / COM | External software and communication interfaces |
-| AUTH | Authentication |
+| AUTH | Multi-provider connection and authentication |
+| PROJ | Repository/workspace binding |
 | PROJ | Project/workspace |
 | MR / DETAIL | Merge Request discovery and details |
 | DIFF | Diff and code review |
