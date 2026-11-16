@@ -315,7 +315,7 @@ Side-by-side display may be added after the unified renderer and line mapping ar
 
 Only a line represented in the current GitLab diff can be selected. Hunk headers and non-code metadata are not commentable. MVP supports single-line comments only.
 
-### 5.5. Discussion display
+### 5.5. Conversation display
 
 - Display thread root and replies together.
 - Show author, timestamp, body and resolved state.
@@ -324,9 +324,9 @@ Only a line represented in the current GitLab diff can be selected. Hunk headers
 - Provide Resolve/Reopen only in a later approved phase.
 - Distinguish system notes from user-authored comments.
 
-## 6. Discussions tab
+## 6. Conversations tab
 
-The Discussions tab provides a chronological/threaded view of provider-supported review conversations, including general comments and diff comments. GitHub issue comments and review comments remain distinct API resources even when presented in a shared view.
+The Conversations tab provides a chronological/threaded view of provider-supported review conversations, including general comments and diff comments. GitHub issue comments and review comments remain distinct API resources even when presented in a shared view.
 
 ~~~text
 ┌─ Discussions ───────────────────────────────────────────────────────┐
