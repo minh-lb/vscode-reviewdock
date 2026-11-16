@@ -12,7 +12,7 @@ This document records recommended defaults needed to turn the SRS into an implem
 | ID | Topic | Proposed MVP decision | Consequence |
 |---|---|---|---|
 | DEC-001 | Authentication | PAT for GitHub and GitLab in MVP; OAuth deferred | GitHub fine-grained permissions and GitLab `api` scope differ; store one secret per connection |
-| DEC-002 | UI architecture | Hybrid: native VS Code Tree View + React Webview for MR detail/diff/discussions | Native navigation with a custom review surface |
+| DEC-002 | UI architecture | Hybrid: native VS Code Tree View + React Webview for PR/MR detail/diff/conversations | Native navigation with a custom review surface |
 | DEC-003 | Inline comments | Single-line diff comments in MVP; multi-line comments later | Reduces initial diff-position complexity |
 | DEC-004 | Repository discovery | Auto-detect GitHub/GitLab remotes and allow manual selection | Host identifies a server, not necessarily the account; multiple matching connections require a picker |
 | DEC-005 | Provider compatibility | GitLab current + previous two maintained minor releases; latest and oldest still-supported GHES at release; current Stable and approved minimum VS Code engine | Dynamic vendor-maintained compatibility floor; publish exact tested versions |
