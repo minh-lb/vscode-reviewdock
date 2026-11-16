@@ -169,8 +169,9 @@
     ]
   },
   "files": [
-    "dist/**",
-    "webview-ui/dist/**",
+    "dist/**/*.js",
+    "webview-ui/dist/**/*.js",
+    "webview-ui/dist/**/*.css",
     "resources/**",
     "README.md"
   ]

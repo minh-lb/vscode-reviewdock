@@ -1,27 +1,33 @@
 import { build as esbuild, context } from 'esbuild';
 
-const extensionOptions = {
-  entryPoints: ['src/extension.ts'],
+const watch = process.argv.includes('--watch');
+const sharedOptions = {
   bundle: true,
+  minify: !watch,
+  sourcemap: watch,
+  define: { 'process.env.NODE_ENV': JSON.stringify(watch ? 'development' : 'production') },
+};
+const extensionOptions = {
+  ...sharedOptions,
+  entryPoints: ['src/extension.ts'],
   format: 'cjs',
   platform: 'node',
   target: 'node20',
   outfile: 'dist/extension.js',
   external: ['vscode'],
-  sourcemap: true,
 };
 const webviewOptions = {
+  ...sharedOptions,
   entryPoints: ['webview-ui/src/main.tsx'],
-  bundle: true,
   format: 'iife',
   platform: 'browser',
   target: ['chrome120'],
   outfile: 'webview-ui/dist/index.js',
-  sourcemap: true,
   loader: { '.tsx': 'tsx', '.css': 'css' },
   assetNames: 'assets/[name]-[hash]',
 };
-if (process.argv.includes('--watch')) {
+
+if (watch) {
   const contexts = await Promise.all([context(extensionOptions), context(webviewOptions)]);
   await Promise.all(contexts.map((item) => item.watch()));
 } else {
