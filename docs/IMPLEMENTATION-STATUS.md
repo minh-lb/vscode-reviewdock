@@ -18,6 +18,8 @@ On 2026-11-17, `npm test` passed 88/88 tests across 12 files; typecheck, lint, f
 
 The CI workflow is configured for an Ubuntu/macOS/Windows × VS Code 1.140.0/stable extension-host matrix. GitHub Actions has not run this matrix, and the repository has not been pushed; this configuration is not cross-platform test evidence. Provider, compatibility and release acceptance gates remain open.
 
+A bounded live read-only probe through the actual `GitHubAdapter` and `ProviderHttpClient` against `minh-lb/vscode-reviewdock` authenticated as the expected user and completed repository lookup, PR list/detail, and changed-files retrieval (13 files). Conversations and checks endpoints succeeded but returned zero items, so populated mappings remain unverified. The probe used the `gh` OAuth token in memory; it does not establish PAT, UI or write acceptance. Current environment blockers: the personal GitLab connector reports that its token is not configured, the Docker daemon is unavailable, and the cross-platform matrix has not run.
+
 ## Open acceptance gates
 
 - Live GitHub.com and GitLab.com acceptance for connection permissions, diffs/inline positions, comments/replies, and disposable-resource merges.
