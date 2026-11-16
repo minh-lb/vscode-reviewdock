@@ -540,7 +540,6 @@ function DiffFileView({
           file={file}
           canComment={canComment}
           onComment={addComment}
-          discussions={discussions}
           rowDiscussions={rowDiscussions}
           renderDiscussion={discussion}
         />
@@ -574,7 +573,6 @@ function SplitDiff({
   file,
   canComment,
   onComment,
-  discussions,
   rowDiscussions,
   renderDiscussion,
 }: {
@@ -582,7 +580,6 @@ function SplitDiff({
   file: DiffFile;
   canComment: boolean;
   onComment: (row: { oldLine?: number; newLine?: number }, side: 'old' | 'new') => void;
-  discussions: ReviewConversation[];
   rowDiscussions: (row: { oldLine?: number; newLine?: number }) => ReviewConversation[];
   renderDiscussion: (item: ReviewConversation) => React.ReactNode;
 }) {
