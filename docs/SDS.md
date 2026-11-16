@@ -511,7 +511,7 @@ Credential persistence should occur only after validation succeeds. The connecti
 - Re-enabling restores eligibility but does not change the last-known status or perform an implicit validation request.
 - Pending read requests should be cancelled where possible. For an already-submitted write, the result is not assumed to be rolled back; refresh/reconcile after re-enabling before allowing a retry.
 
-### 8.2. Load MR and diff
+### 8.2. Load PR/MR and diff
 
 ~~~mermaid
 sequenceDiagram
@@ -537,7 +537,7 @@ sequenceDiagram
   MR-->>Web: structured file diffs
 ~~~
 
-### 8.3. Create inline comment
+### 8.3. Create provider-specific inline comment
 
 ~~~mermaid
 sequenceDiagram
@@ -564,7 +564,7 @@ sequenceDiagram
   Review-->>Web: success + refresh thread
 ~~~
 
-### 8.4. Merge
+### 8.4. Merge PR/MR
 
 ~~~mermaid
 sequenceDiagram
