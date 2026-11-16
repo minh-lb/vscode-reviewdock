@@ -458,34 +458,42 @@ function App() {
       )}
       {tab === 'checks' && (
         <section className="content">
-          <Unavailable
-            message={unavailable(init.capabilities.checks.support, init.capabilities.checks.reason)}
-          />
-          {!unavailable(init.capabilities.checks.support, init.capabilities.checks.reason) &&
-            (checks ? (
-              checks.map((check) => (
-                <article className="card check" key={check.id}>
-                  <strong>{check.name}</strong>
-                  <span>
-                    {check.status}
-                    {check.conclusion ? ` · ${check.conclusion}` : ''}
-                  </span>
-                  <span className="muted">
-                    {check.source || 'Source unknown'}
-                    {check.headSha
-                      ? ` · ${check.headSha === detail.headSha ? 'current head' : 'stale head'}`
-                      : ' · commit unknown'}
-                  </span>
-                  {check.detailsUrl && (
-                    <button onClick={() => post({ type: 'openCheck', checkId: check.id })}>
-                      Open details
-                    </button>
-                  )}
-                </article>
-              ))
-            ) : (
-              <div className="empty card">Loading checks…</div>
-            ))}
+          {unavailable(init.capabilities.checks.support, init.capabilities.checks.reason) ? (
+            <Unavailable
+              message={unavailable(
+                init.capabilities.checks.support,
+                init.capabilities.checks.reason,
+              )}
+            />
+          ) : checks === undefined ? (
+            <div className="empty card">Loading checks…</div>
+          ) : checks.length === 0 ? (
+            <div className="empty card">
+              <h2>No checks reported</h2>
+              <p>No checks were returned for this review request’s current head.</p>
+            </div>
+          ) : (
+            checks.map((check) => (
+              <article className="card check" key={check.id}>
+                <strong>{check.name}</strong>
+                <span>
+                  {check.status}
+                  {check.conclusion ? ` · ${check.conclusion}` : ''}
+                </span>
+                <span className="muted">
+                  {check.source || 'Source unknown'}
+                  {check.headSha
+                    ? ` · ${check.headSha === detail.headSha ? 'current head' : 'stale head'}`
+                    : ' · commit unknown'}
+                </span>
+                {check.detailsUrl && (
+                  <button onClick={() => post({ type: 'openCheck', checkId: check.id })}>
+                    Open details
+                  </button>
+                )}
+              </article>
+            ))
+          )}
         </section>
       )}
       {tab === 'approvals' && (

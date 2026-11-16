@@ -20,6 +20,8 @@ The CI workflow is configured for an Ubuntu/macOS/Windows × VS Code 1.140.0/sta
 
 A bounded live read-only probe through the actual `GitHubAdapter` and `ProviderHttpClient` against `minh-lb/vscode-reviewdock` authenticated as the expected user and completed repository lookup, PR list/detail, and changed-files retrieval (13 files). Conversations and checks endpoints succeeded but returned zero items, so populated mappings remain unverified. The probe used the `gh` OAuth token in memory; it does not establish PAT, UI or write acceptance. Current environment blockers: the personal GitLab connector reports that its token is not configured, the Docker daemon is unavailable, and the cross-platform matrix has not run.
 
+On 2026-11-17, manual testing in the real macOS `/Applications` VS Code UI with a user-entered PAT verified the connection as Connected, detected and bound the remote to `minh-lb/vscode-reviewdock`, and opened merged PR #1. The UI showed 13 file diffs, the inline composer Tab trap/Escape/focus restore without submitting, and the Approvals unavailable message. The connection and repository binding survived Developer: Reload Window. Checks finished loading but rendered blank for the successful zero-result response; an explicit empty state was added with regression coverage. The rebuilt 105.88 KB VSIX was installed and reloaded; the live Checks tab then displayed “No checks reported”. The resulting local suite passed 90/90 tests; typecheck, lint and build passed. No external comment, reply or merge was attempted.
+
 ## Open acceptance gates
 
 - Live GitHub.com and GitLab.com acceptance for connection permissions, diffs/inline positions, comments/replies, and disposable-resource merges.

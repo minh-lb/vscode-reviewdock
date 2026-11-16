@@ -122,6 +122,33 @@ afterEach(() => {
 });
 
 describe('ReviewDock webview entry point', () => {
+  it('shows a truthful empty state after checks load successfully with no results', () => {
+    send({ ...initialize, capabilities: { ...capabilities, checks: { support: 'supported' } } });
+    act(() => button('Checks').click());
+    expect(document.body.textContent).toContain('Loading checks…');
+
+    send({ type: 'checks', requestId: 1, result: [] });
+
+    expect(document.body.textContent).toContain('No checks reported');
+    expect(document.body.textContent).not.toContain('Loading checks…');
+    expect(document.body.textContent).not.toContain('Passed');
+  });
+
+  it('keeps unsupported checks distinct from loading and empty results', () => {
+    send({
+      ...initialize,
+      capabilities: {
+        ...capabilities,
+        checks: { support: 'unsupported', reason: 'Checks are disabled by this provider.' },
+      },
+    });
+    act(() => button('Checks').click());
+
+    expect(document.body.textContent).toContain('Checks are disabled by this provider.');
+    expect(document.body.textContent).not.toContain('Loading checks…');
+    expect(document.body.textContent).not.toContain('No checks reported');
+  });
+
   it('renders optional overview fields as unavailable and escapes provider text as text', () => {
     const maliciousInitialize: WebviewMessage = {
       ...initialize,
