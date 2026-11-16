@@ -171,7 +171,7 @@ Fixtures must contain no real user secrets, private code or production project i
 | UNIT-DIFF-008 | Missing diff SHA | Inline comment disabled |
 | UNIT-DIFF-009 | Diff version changes | Existing composer context becomes stale |
 
-### 7.4A. Conversation capability and normalization
+### 7.4. Conversation capability and normalization
 
 | ID | Scenario | Expected result |
 |---|---|---|
@@ -181,7 +181,7 @@ Fixtures must contain no real user secrets, private code or production project i
 | UNIT-CONV-004 | Map GitLab discussion and notes | Discussion ID, note IDs, parent/thread grouping and resolution state are preserved |
 | UNIT-CONV-005 | Provider omits resolution or reply metadata | State is unknown/not-applicable; never coerced to false or resolved |
 
-### 7.4. Domain and error mapping
+### 7.5. Domain and error mapping
 
 | ID | Scenario | Expected result |
 |---|---|---|
@@ -558,7 +558,7 @@ MVP release is blocked until:
 | PERF-003 | Switch repository while multiple reads are pending | Obsolete requests are cancelled or ignored |
 | PERF-004 | Repeated rate-limit/network failures | Bounded retries; no request storm |
 
-## 17. Traceability
+## 14. Traceability
 
 Maintain a test-to-requirement mapping as implementation progresses:
 
