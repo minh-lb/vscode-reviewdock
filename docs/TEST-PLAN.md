@@ -9,9 +9,9 @@
 
 On 2026-11-17, `npm test` passed 88/88 tests across 12 files; typecheck, lint, format check, traceability check and build passed. Packaging succeeded and produced a 105.81 KB VSIX; the packager warned that package metadata declares `UNLICENSED`. Host activation smoke passed on macOS with VS Code 1.140.0 and stable 1.146.0. The inline comment modal focus trap, Escape dismissal and focus restoration are covered by a regression test.
 
-The GitHub Actions workflow is configured for Ubuntu, macOS and Windows with VS Code 1.140.0 and stable. GitHub Actions has not run, and this repository has not been pushed, so there is no CI matrix result. No live-provider mutation acceptance, GHES/Self-Managed compatibility, non-macOS host smoke, or manual screen-reader/high-contrast/full keyboard workflow acceptance is recorded. PAT permission scopes are documented; the application does not inspect granted permissions.
+GitHub Actions run [43929736927](https://github.com/minh-lb/vscode-reviewdock/actions/runs/43929736927) passed at `48f8d0b76492e0dccbd5c629581f7054387e7b5f`. All seven jobs succeeded: quality and extension-host on Linux x64 and Windows x64 with VS Code 1.140.0 and 1.146.0, plus macOS arm64 with both versions. This run predates the current local empty-state fix at `21bcd27`. The extension-host smoke checks activation and contributed metadata; it does not establish full cross-OS UI, SecretStorage, provider workflows or install acceptance. No live-provider mutation acceptance, GHES/Self-Managed compatibility, or manual screen-reader/high-contrast/full keyboard workflow acceptance is recorded. PAT permission scopes are documented; the application does not inspect granted permissions.
 
-Record external test environment, permissions, steps and results before closing the provider, compatibility, OS and accessibility scenarios. The current checks are local evidence only and do not establish release acceptance.
+Record external test environment, permissions, steps and results before closing the provider, compatibility, OS and accessibility scenarios. Current local and CI evidence does not establish release acceptance.
 
 ## 1. Purpose
 

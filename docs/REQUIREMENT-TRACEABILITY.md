@@ -14,7 +14,7 @@
 
 ### Current evidence (2026-11-17)
 
-`npm test` passed 88/88 tests across 12 files; typecheck, lint, format check, traceability check and build passed. Local macOS VS Code 1.140.0 and stable 1.146.0 host activation smoke passed. The GitHub Actions host matrix is configured for Ubuntu/macOS/Windows × 1.140.0/stable but has not run; the repository has not been pushed. The inline comment modal has regression coverage for keyboard focus trapping, Escape dismissal and restoring focus. Manual screen-reader, high-contrast and complete keyboard workflow acceptance remains open. Provider scope guidance is documented in `CONNECTION-MANAGEMENT.md`; the application does not inspect granted PAT permissions. These facts do not satisfy live-provider or cross-platform acceptance gates.
+`npm test` passed 88/88 tests across 12 files; typecheck, lint, format check, traceability check and build passed. Local macOS VS Code 1.140.0 and stable 1.146.0 host activation smoke passed. GitHub Actions run [43929736927](https://github.com/minh-lb/vscode-reviewdock/actions/runs/43929736927) passed all seven jobs at `48f8d0b76492e0dccbd5c629581f7054387e7b5f`: quality plus extension-host on Linux x64 and Windows x64 with VS Code 1.140.0/1.146.0, and macOS arm64 with both. It predates the current local empty-state fix at `21bcd27`; CI host smoke validates activation and contributed metadata only. The inline comment modal has regression coverage for keyboard focus trapping, Escape dismissal and restoring focus. Manual screen-reader, high-contrast and complete keyboard workflow acceptance remains open. Provider scope guidance is documented in `CONNECTION-MANAGEMENT.md`; the application does not inspect granted PAT permissions. These facts do not satisfy full cross-platform UI/SecretStorage/provider/install or live-provider acceptance gates.
 
 | ID | Primary design owner | Implementation / verification mapping | Status |
 |---|---|---|---|
@@ -143,7 +143,7 @@
 | MERGE-008 | MergeService; confirmation UI; provider mutation adapters | `src/application/reviewService.ts; src/infrastructure/providers/github/githubAdapter.ts; src/infrastructure/providers/gitlab/gitlabAdapter.ts; test/unit/reviewService.test.ts; test/integration/githubAdapter.test.ts; test/integration/gitlabAdapter.test.ts` | In progress |
 | MERGE-009 | MergeService; confirmation UI; provider mutation adapters | `src/application/reviewService.ts; src/infrastructure/providers/github/githubAdapter.ts; src/infrastructure/providers/gitlab/gitlabAdapter.ts; test/unit/reviewService.test.ts; test/integration/githubAdapter.test.ts; test/integration/gitlabAdapter.test.ts` | In progress |
 | MERGE-010 | MergeService; confirmation UI; provider mutation adapters | `src/application/reviewService.ts; src/infrastructure/providers/github/githubAdapter.ts; src/infrastructure/providers/gitlab/gitlabAdapter.ts; test/unit/reviewService.test.ts; test/integration/githubAdapter.test.ts; test/integration/gitlabAdapter.test.ts` | In progress |
-| NFR-COMP-001 | Runtime and packaging compatibility | `package.json; .github/workflows/ci.yml; test/extension/index.ts`; local macOS host smoke passed on VS Code 1.140.0 and 1.146.0; configured CI matrix not run | In progress |
+| NFR-COMP-001 | Runtime and packaging compatibility | `package.json; .github/workflows/ci.yml; test/extension/index.ts`; local macOS host smoke passed on VS Code 1.140.0 and 1.146.0; CI run 43929736927 passed activation/contributed-metadata host smoke on Linux x64 and Windows x64 × 1.140.0/1.146.0 and macOS arm64 × 1.140.0/1.146.0 at `48f8d0b76492e0dccbd5c629581f7054387e7b5f`; full UI/SecretStorage/provider/install matrix acceptance remains open | In progress |
 | NFR-COMP-002 | Runtime and packaging compatibility | `package.json; .github/workflows/ci.yml; test/extension/index.ts` | In progress |
 | NFR-COMP-003 | Runtime and packaging compatibility | `package.json; .github/workflows/ci.yml; test/extension/index.ts` | In progress |
 | NFR-COMP-004 | Runtime and packaging compatibility | `package.json; .github/workflows/ci.yml; test/extension/index.ts` | In progress |
@@ -216,7 +216,7 @@
 
 ## Verification evidence
 
-Do not move a row to Verified until named tests pass or manual records capture environment, steps and results. Provider mutations require test instances; security, cancellation, stale-data and error paths require evidence; no P0/P1 defect may block acceptance. No implementation row is marked Verified solely from mocked tests. Live provider mutation, compatibility, cross-platform CI/host smoke and manual accessibility acceptance remain open.
+Do not move a row to Verified until named tests pass or manual records capture environment, steps and results. Provider mutations require test instances; security, cancellation, stale-data and error paths require evidence; no P0/P1 defect may block acceptance. No implementation row is marked Verified solely from mocked tests. Live provider mutation, exact GHES/Self-Managed compatibility, full cross-platform UI/SecretStorage/provider/install acceptance and manual accessibility acceptance remain open.
 
 ## Maintenance gate
 
