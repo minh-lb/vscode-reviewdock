@@ -181,7 +181,7 @@ Enabled state is a user-controlled configuration, not a connection-health status
 
 ## 4. Pull Request / Merge Request detail surface
 
-### 5.1. Layout
+### 4.1. Layout
 
 The detail surface is a local React Webview panel. It has a compact header, tab navigation and a scrollable content area. The provider-native title is shown (Pull Request for GitHub, Merge Request for GitLab).
 
@@ -253,7 +253,7 @@ Rules:
 
 ## 5. Changes tab and diff viewer
 
-### 4.1. Layout
+### 5.1. Layout
 
 ~~~text
 ┌─ Changes ───────────────────────────────────────────────────────────┐
@@ -452,14 +452,14 @@ Every data-driven view must support:
 
 ## 12. Provider-specific interaction semantics
 
-### 13.1. Provider identity and terminology
+### 12.1. Provider identity and terminology
 
 - Always show provider, connection display name, authenticated account, repository/project and provider-native PR number or MR IID.
 - Use **Pull Request** and **PR #number** for GitHub; use **Merge Request** and **!IID** for GitLab.
 - The external navigation action label and destination are derived from the selected provider's `html_url` or `web_url`; do not hard-code "Open on GitLab".
 - A workspace switch must update provider identity, review request data and capability states together. Never leave stale controls from the previous provider visible.
 
-### 13.2. Conversation actions
+### 12.2. Conversation actions
 
 The common conversation view must render actions by both provider and resource kind.
 
@@ -473,14 +473,14 @@ The common conversation view must render actions by both provider and resource k
 
 Do not display a disabled-looking reply control for a GitHub general issue comment; omit the action because the operation is not supported by the selected REST workflow. Unsupported actions must not be sent to the server as a fallback mutation.
 
-### 13.3. Search and partial-result states
+### 12.3. Search and partial-result states
 
 - GitHub user-scoped filters use provider search qualifiers and may be subject to a separate rate limit and 1,000-result cap.
 - If the search result is capped or rate-limited, show a clear "Results may be incomplete" state and offer a safe refresh after the rate limit.
 - GitHub PR file discovery is capped at 3,000 files per PR. If the endpoint reaches this limit, show a partial file list warning.
 - GitLab pagination and missing pagination headers must follow the API adapter's documented end-of-list behavior.
 
-### 13.4. Approval and checks/pipeline states
+### 12.4. Approval and checks/pipeline states
 
 - Render GitHub review decisions separately from GitLab approval state.
 - GitLab Community Edition may return basic approval fields without detailed rule/count fields; do not show missing counts as zero.
@@ -488,7 +488,7 @@ Do not display a disabled-looking reply control for a GitHub general issue comme
 - GitLab pipelines/jobs must also match the current MR head SHA before being labelled current.
 - Missing or stale check/approval data must be shown as unknown, unavailable or stale, not as passing.
 
-### 13.5. Merge and unsupported workflows
+### 12.5. Merge and unsupported workflows
 
 - Use provider-native merge confirmation details and the current source/head SHA.
 - Do not silently enable auto-merge, merge queues, merge-when-pipeline-succeeds or source branch deletion.
