@@ -94,11 +94,12 @@ Rules:
 └────────────────────────────────────────────────────────────────────┘
 ~~~
 
-Each connection row shows provider icon, display name, server host, authenticated account login, status and default marker. The actions menu contains:
-- Test connection
+Each connection row shows provider icon, display name, server host, authenticated account login, a separate Enabled/Disabled toggle, last-known connection status and default marker. The actions menu contains:
+- Enable / Disable
+- Test connection (enabled connections only)
 - Rename
 - Re-authenticate
-- Set as default for provider
+- Set as default for provider (enabled connections only)
 - Disconnect
 - Delete
 
@@ -137,15 +138,18 @@ Form behavior:
 6. Show the resolved account login and server before saving.
 7. Invalid credentials are not saved. Preserve non-secret form fields after validation failure.
 8. Provider type and server URL are immutable after creation; changing server means creating a new connection.
+9. New connections are enabled by default; enablement can be changed independently after saving.
 
 ### 3.3. Connection defaults and workspace selection
 
-- Allow one optional default connection per provider.
-- The active workspace folder binding takes precedence over the provider default.
+- Allow one optional enabled default connection per provider.
+- Disabled connections cannot be set as default; disabling the current default clears it without promoting another connection.
+- The active workspace folder binding takes precedence over the provider default only while that connection is enabled.
 - When multiple connections on the same host can access a remote, ask the user to select the account.
 - Different workspace folders may use different providers/accounts.
 - Switching a connection cancels requests for the previous connection and reloads repository/review request data.
 - If a connection is disconnected/deleted, show the affected workspace binding as unresolved; never silently switch accounts.
+- If a connection is disabled, retain the workspace binding but block provider operations and show Enable or Choose another connection; never silently switch accounts.
 
 ### 3.4. Connection status
 
@@ -157,6 +161,23 @@ Form behavior:
 | Configuration error | Explain invalid host/API base URL |
 | Disconnected | Keep connection record but disable API-backed actions |
 
+
+### 3.5. Enabled / Disabled state
+
+Enabled state is a user-controlled configuration, not a connection-health status.
+
+| Enabled state | Connection status | UI behavior |
+|---|---|---|
+| Enabled | Connected | Connection can be selected and used |
+| Enabled | Re-authentication required | Connection is selectable for management, but provider operations require re-authentication |
+| Enabled | Unreachable | Show last validation and allow explicit retry |
+| Disabled | Any last-known status | Exclude from selectors, discovery, defaults and API requests; show disabled styling and preserve the last-known status |
+
+- Display the Enabled/Disabled toggle separately from the status label.
+- A disabled row may read "Disabled · last known Connected"; do not rewrite status to Disconnected.
+- Disable Test Connection and Set as Default while disabled.
+- Re-enabling does not trigger an automatic network request.
+- If the disabled connection is bound to the current workspace, show a blocking banner with explicit Enable or Select another connection actions.
 
 ## 4. Pull Request / Merge Request detail surface
 
