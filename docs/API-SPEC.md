@@ -118,7 +118,7 @@ For MR diffs and discussions, support pagination even if the UI initially loads 
 
 Capture provider request ID headers where available for diagnostics, but never capture credentials or comment/diff contents.
 
-## 4. GitLab Project API
+## 4. Repository and Project API
 
 ### 4.1. Resolve a project by path or ID
 
