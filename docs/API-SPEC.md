@@ -87,10 +87,8 @@ Persist the credential only after authenticated-user validation succeeds. Store 
 Use the pagination contract documented by the selected provider. GitHub REST commonly uses Link headers with page/per_page; GitLab REST commonly uses page/per_page and may omit some pagination headers.
 
 For GitHub:
-- page: starts at 1.
-- per_page: default 20; maximum 100 unless endpoint documentation specifies otherwise.
-
-Prefer the response Link header with rel="next" when present. Do not construct a next URL if the provider supplies one. GitLab.com may omit some pagination headers; treat an absent next link as end-of-list unless the endpoint response provides another supported cursor. GitHub search endpoints have a maximum of 1,000 results per query and a separate search rate limit; do not present capped results as exhaustive.
+- Use page-based pagination and follow the validated Link header with rel="next" when present.
+- Set `per_page` explicitly; do not rely on provider defaults. The maximum is generally 100, but the endpoint documentation is authoritative. Do not construct a next URL if the provider supplies one. GitLab.com may omit some pagination headers; treat an absent next link as end-of-list unless the endpoint response provides another supported cursor. GitHub search endpoints have a maximum of 1,000 results per query and a separate search rate limit; do not present capped results as exhaustive.
 
 For MR diffs and discussions, support pagination even if the UI initially loads only the first page.
 
@@ -502,6 +500,7 @@ Client-side checks improve UX only; GitLab enforces all approvals, pipelines, br
 - GitLab approval response shape depends on edition; the basic approval state is available on CE with reduced fields.
 - GitHub PR files are capped at 3,000 files per PR. Missing pages or a capped result must be marked partial.
 - GitHub Search API is rate-limited separately and capped at 1,000 results per query. Show a limited state when the cap is reached.
+- GitHub PR list uses `state=open|closed|all`; distinguish merged from closed with `merged`/`merged_at` fields.
 - GHES may not support the same API version header or optional fields as GitHub.com; test the declared GHES matrix.
 - Maintain contract fixtures for the oldest and newest supported GitHub/GitLab versions and for GitLab CE/EE response shapes.
 
@@ -564,6 +563,8 @@ GET /repos/{owner}/{repo}/pulls?state=open&sort=updated&direction=desc&per_page=
 GET /repos/{owner}/{repo}/pulls/{pull_number}
 GET /repos/{owner}/{repo}/pulls/{pull_number}/files?per_page=100
 ~~~
+
+GitHub PR list accepts `state=open|closed|all`; it does not expose a separate `state=merged` filter. For the UI's Merged filter, request closed PRs and classify with the returned `merged` / `merged_at` fields. For Closed, exclude PRs with `merged=true` or non-null `merged_at`. Do not treat every closed PR as merged. Numeric exact search input should use the repository-scoped detail endpoint rather than the Search API.
 
 Normalize these fields where available:
 - number, id, title, body, state, draft
@@ -754,7 +755,9 @@ Behavior:
 - On timeout, refresh PR state before allowing another attempt.
 - Do not automatically retry a merge mutation.
 
-GitHub also documents an asynchronous merge endpoint for merge queues and stacked PR workflows. It is not part of the immediate-merge MVP; evaluate it as a separate P1/P2 capability rather than silently changing merge semantics.
+GitHub's direct merge endpoint does not support merge queues or stacked PR workflows. The asynchronous merge endpoint is outside MVP. If a repository requires a merge queue, show the provider's rejection/requirement and link to GitHub Web; do not silently enqueue or switch merge semantics.
+
+For fine-grained PATs, the merge endpoint requires the repository `Contents: write` permission. This differs from the `Pull requests: write` permission used for review-comment creation. Verify endpoint-specific permissions for the target GHES version.
 
 ### 13.7. GitHub pagination, rate limits and permissions
 
