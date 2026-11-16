@@ -506,7 +506,7 @@ Mỗi requirement phải được xác minh bằng một hoặc nhiều phương
 | Authentication | Token hợp lệ/không hợp lệ; disconnect | Kết nối đúng trạng thái; secret không lộ |
 | Project | Remote match và remote không match | Đề xuất đúng hoặc cho phép chọn thủ công |
 | PR/MR list | Filter, search, pagination và giới hạn Search API | Kết quả khớp provider; kết quả bị giới hạn được báo rõ |
-| MR detail | MR open/closed/merged | Metadata hiển thị đúng |
+| PR/MR detail | PR/MR open/closed/merged | Metadata hiển thị đúng |
 | Diff | Added/modified/deleted/renamed/binary | Hiển thị đúng hoặc fallback có giải thích |
 | Comment | GitHub issue comment, inline review comment/reply; GitLab discussion/reply | Resource/thread semantics và nội dung hiển thị đúng trên provider |
 | Inline comment | Diff position hợp lệ và stale | Gửi đúng vị trí; stale bị từ chối an toàn |
@@ -522,8 +522,8 @@ MVP chỉ được chấp nhận khi tất cả tiêu chí sau được xác min
 
 1. Tạo và quản lý nhiều connection GitHub/GitLab; credential được cô lập an toàn.
 2. Chọn/nhận diện repository/project theo connection.
-3. Hiển thị MR list có filter và pagination.
-4. Hiển thị MR detail.
+3. Hiển thị PR/MR list có filter và pagination.
+4. Hiển thị PR/MR detail.
 5. Hiển thị diff và file changes.
 6. Tạo general comment, inline comment và reply discussion.
 7. Merge PR/MR khi provider cho phép và người dùng xác nhận.
@@ -609,7 +609,7 @@ Phân kỳ này chỉ nhằm định hướng lập kế hoạch, không thay th
 |---|---|
 | 0 — Requirements baseline | Chốt DEC items, provider capability/compatibility matrix và UX direction |
 | 1 — Foundation | Extension skeleton, authentication, project mapping, API client |
-| 2 — MR management | Tree views, MR list, filter, pagination, detail |
+| 2 — PR/MR management | Tree views, PR/MR list, filter, pagination, detail |
 | 3 — Review | Diff, general comment, inline comment, discussion/reply |
 | 4 — Merge readiness | Pipeline/approval views, merge validation và merge action |
 | 5 — Release readiness | Compatibility, accessibility, tests, packaging và documentation |
