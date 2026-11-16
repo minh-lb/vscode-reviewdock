@@ -156,7 +156,7 @@ Minimum VS Code engine version và chính sách GitHub Enterprise Server/GitLab 
 - Mỗi connection PHẢI có provider, display name, server URL và account identity riêng.
 - Secret PHẢI được lưu bằng VS Code SecretStorage với key theo immutable connection ID.
 - UI PHẢI tuân thủ lifecycle và security model của VS Code Extension API.
-- Không có thao tác nào được bypass GitHub repository rules, GitLab authorization, protected branches, approval rules hoặc merge policy.
+- Không có thao tác nào được bypass provider authorization, repository rules, protected branches, approval rules hoặc merge policy.
 
 ### 2.6. Giả định và phụ thuộc
 
