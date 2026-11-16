@@ -21,9 +21,9 @@ npm run test:extension
 npm run package
 ```
 
-`typecheck` checks both the extension-host TypeScript project (`tsconfig.json`) and Webview project (`tsconfig.webview.json`). `build` bundles the VS Code extension entry and React Webview entry with esbuild. `test:unit` runs `test/unit`; `test:integration` runs mocked provider adapter tests under `test/integration`; `test:extension` compiles `test/extension/index.ts` and launches the Extension Development Host via `@vscode/test-electron`. `package` creates a VSIX using `@vscode/vsce`.
+`typecheck` checks both the extension-host TypeScript project (`tsconfig.json`) and Webview project (`tsconfig.webview.json`). `build` bundles the VS Code extension entry and React Webview entry with esbuild. `test:unit` runs `test/unit`; `test:integration` runs mocked provider adapter tests under `test/integration`; `test:extension` compiles `test/extension/index.ts` and launches the Extension Development Host via `@vscode/test-electron`. It tests extension activation and manifest contributions. It defaults to current stable VS Code; set `VSCODE_VERSION=1.140.0` for the proposed minimum, or `VSCODE_EXECUTABLE_PATH=/absolute/path/to/Code` to use an existing executable. CI runs both the minimum and stable channels. On macOS, the launcher uses the downloaded app's sibling `Code` binary only if the test runner's expected `Electron` path is missing and `Code` exists. `package` creates a VSIX using `@vscode/vsce`.
 
-The extension host entry and complete UI are still being integrated. A command that requires those pending sources may fail until integration completes; record actual output rather than treating configured scripts as passing evidence.
+The host smoke test verifies activation and contributed command/view declarations; it does not verify provider connectivity, command behavior, or live mutations. On macOS, the launcher uses VS Code 1.140.0 and stable (resolved to 1.146.0 in the current local run).
 
 ## Current source boundaries
 
@@ -35,7 +35,7 @@ The extension host entry and complete UI are still being integrated. A command t
 - `src/infrastructure/providers/github/`, `gitlab/`: REST adapters and DTO mappers.
 - `src/presentation/webview/messageProtocol.ts`: runtime validation for Webview requests.
 - `webview-ui/src/`: React Webview entry and styles.
-- `package.json`: VS Code view/command contributions; source registration in the extension host is not complete.
+- `src/extension.ts`, `src/presentation/tree/`, and `src/presentation/webview/reviewRequestPanel.ts`: VS Code host composition, navigation and detail panel; `package.json` declares the corresponding contributions.
 
 Dependency direction: presentation → application → domain; infrastructure implements application ports. Provider adapters normalize DTOs while retaining native identifiers and semantics. Webview code must not read credentials or call provider APIs. Check that connections are enabled before retrieving credentials or attaching authorization.
 
