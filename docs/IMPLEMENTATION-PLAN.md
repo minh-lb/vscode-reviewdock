@@ -289,7 +289,7 @@ flowchart TD
   M2 --> M3[M3 Diff and Inline Comments]
   M2 --> M4[M4 Discussions]
   M3 --> M4
-  M2 --> M5[M5 Merge]
+  M2 --> M5[M5 Provider Merge]
   M4 --> M5
   M5 --> M6[M6 Pipeline and Approval P1]
   M5 --> M7[M7 Hardening and Release]
