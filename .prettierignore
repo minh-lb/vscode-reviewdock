@@ -1,0 +1,7 @@
+docs/**
+.agents/**
+node_modules/**
+dist/**
+webview-ui/dist/**
+out/**
+coverage/**

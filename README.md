@@ -1,66 +1,35 @@
 # ReviewDock
 
-GitHub Pull Request and GitLab Merge Request review and merge management inside Visual Studio Code.
+Review GitHub Pull Requests and GitLab Merge Requests from Visual Studio Code.
 
-> **Project status:** Documentation and specification phase. Product implementation has not started.
+> **Project status:** Early implementation. Provider-neutral review contracts, GitHub and GitLab adapters, connection/repository services, diff parsing and Webview message validation are present. The VS Code extension host entry point and full user interface are still in progress. No live provider acceptance is claimed.
 
-## Planned capabilities
+## Current implementation
 
-- Manage GitHub Pull Requests and GitLab Merge Requests from VS Code.
-- Inspect changes and discussions, add general and inline comments, and merge when permitted by the provider.
-- Connect multiple GitHub and GitLab accounts, including multiple accounts on the same provider host.
-- Bind workspace folders/repositories to the appropriate connection.
-- Keep each connection's credentials isolated in VS Code SecretStorage.
+- Shared models and `ReviewProvider` contract in `src/domain/models.ts` and `src/application/ports.ts`.
+- Provider HTTP transport and GitHub/GitLab adapters under `src/infrastructure/`.
+- Connection and repository binding logic under `src/application/`.
+- Unified diff parsing and provider-specific line mapping in `src/domain/diff/`.
+- Runtime validation for Webview messages in `src/presentation/webview/messageProtocol.ts`.
+- VS Code commands, views and welcome content are declared in `package.json`; the extension host registration is not complete yet.
 
-## Connection management
+## Development
 
-Each connection has its own immutable ID, provider, user-defined name, server URL, account identity, enabled state and connection status.
+Requires Node.js 24 (`.nvmrc`) and npm.
 
-| Setting / state | Meaning |
-|---|---|
-| Provider | GitHub or GitLab |
-| Name | User-defined display name |
-| Server URL | GitHub.com, GitLab.com or supported Enterprise / Self-Managed host |
-| Enabled | User-controlled switch; new connections are enabled by default |
-| Status | Last-known connection/authentication state, independent of Enabled |
+```sh
+npm ci
+npm run typecheck
+npm run lint
+npm run test:unit
+npm run test:integration
+npm run build
+npm run test:extension
+npm run package
+```
 
-### Enabled and Disabled behavior
+The extension-host test requires a built extension and VS Code test runtime. See [Development Guide](docs/DEVELOPMENT-GUIDE.md) for command details and current verification limits.
 
-- **Enabled:** the connection can be selected and used, subject to its connection status and provider permissions.
-- **Disabled:** the connection remains in the connection list, but cannot be selected, used for remote discovery, resolved as a default, or used for any provider API request.
-- Disabling preserves the connection configuration, credential, last-known status and workspace bindings.
-- Disabling the current provider default clears that default; ReviewDock does not automatically promote another connection.
-- A workspace binding to a disabled connection remains stored but is blocked. ReviewDock never silently switches to another account.
-- Re-enabling does not automatically validate credentials. The existing connection status still determines whether re-authentication is required.
+## Specifications
 
-Connection enablement is not the same as connection health: a connection can be enabled but unreachable, or disabled while its last-known status is Connected.
-
-## Documentation
-
-- [Provider Capability Matrix](docs/PROVIDER-CAPABILITY-MATRIX.md)
-- [Requirement Traceability](docs/REQUIREMENT-TRACEABILITY.md)
-- [Development Guide](docs/DEVELOPMENT-GUIDE.md)
-
-## Documentation
-
-Detailed specifications are maintained in the docs directory.
-
-| Document | Description |
-|---|---|
-| [SRS](./docs/SRS.md) | Software requirements, functional requirements and business rules |
-| [Connection Management](./docs/CONNECTION-MANAGEMENT.md) | Multi-connection model, lifecycle, enabled/disabled behavior and credential isolation |
-| [SDS](./docs/SDS.md) | Software architecture, domain model and component responsibilities |
-| [API Specification](./docs/API-SPEC.md) | GitHub and GitLab API contracts, permissions, pagination and mutation safety |
-| [Provider Capability Matrix](./docs/PROVIDER-CAPABILITY-MATRIX.md) | Provider parity, conversation semantics, API limitations and compatibility policy |
-| [UI/UX Specification](./docs/UI-UX.md) | Connection Manager and review experience |
-| [Test Plan](./docs/TEST-PLAN.md) | Provider-specific unit, integration, security, E2E and release-gate scenarios |
-| [Requirement Traceability](./docs/REQUIREMENT-TRACEABILITY.md) | Requirement-to-design-to-implementation-to-test mapping |
-| [Technical Decisions](./docs/DECISIONS.md) | Proposed architecture and product decisions requiring approval |
-| [Implementation Plan](./docs/IMPLEMENTATION-PLAN.md) | Milestones, dependencies and exit criteria |
-| [Development Guide](./docs/DEVELOPMENT-GUIDE.md) | Local setup, build, debug, test and release workflow |
-
-## Current scope
-
-The current specification targets GitHub and GitLab. Provider-specific differences in review, approval, pipeline/check and merge capabilities must be represented explicitly; the shared interface must not imply that both providers support identical behavior.
-
-Authentication, provider-specific behavior and compatibility policy are documented in PROVIDER-CAPABILITY-MATRIX.md and remain subject to approval in DECISIONS.md. The specifications are proposals until reviewed and approved.
+The product and provider behavior are documented in [SRS](docs/SRS.md), [SDS](docs/SDS.md), [API Specification](docs/API-SPEC.md), [Provider Capability Matrix](docs/PROVIDER-CAPABILITY-MATRIX.md), [UI/UX](docs/UI-UX.md), [Technical Decisions](docs/DECISIONS.md), and [Requirement Traceability](docs/REQUIREMENT-TRACEABILITY.md). The owner has adopted the proposed decisions as the implementation baseline; external provider/version compatibility and release acceptance remain open.

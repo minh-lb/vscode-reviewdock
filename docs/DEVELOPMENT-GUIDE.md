@@ -2,54 +2,43 @@
 
 ## Source of truth
 
-Executable commands/tool versions must match committed package scripts, lockfile, TypeScript/bundler config and CI. If they differ from this guide, update the guide; do not invent commands or versions.
+Executable commands and tool versions match `package.json`, `package-lock.json`, TypeScript/bundler configuration and `.github/workflows/ci.yml`. Update this guide when those change.
 
-## Prerequisites and setup
+## Setup
 
-- VS Code with Extension Development Host support.
-- Node.js version from .nvmrc, .node-version or package engines when present.
-- Package manager matching the committed lockfile, Git and repository access.
-- Isolated GitHub test repository and GitLab test project; Enterprise/Self-Managed hosts for compatibility claims.
-- Clone repository, inspect scripts/config/CI, install with lockfile package manager, run lint/typecheck/unit tests/build, then launch the committed Extension Development Host task. Add missing commands as M0 work and record exact names here.
+- Node.js 24 as pinned by `.nvmrc` and npm.
+- VS Code with Extension Development Host support for host tests.
+- Dedicated disposable GitHub/GitLab test resources for any live mutation checks; never use production credentials or repositories.
 
-Never use production credentials or repositories for mutation tests.
+```sh
+npm ci
+npm run typecheck
+npm run lint
+npm run test:unit
+npm run test:integration
+npm run build
+npm run test:extension
+npm run package
+```
 
-## Architecture rules
+`typecheck` checks both the extension-host TypeScript project (`tsconfig.json`) and Webview project (`tsconfig.webview.json`). `build` bundles the VS Code extension entry and React Webview entry with esbuild. `test:unit` runs `test/unit`; `test:integration` runs mocked provider adapter tests under `test/integration`; `test:extension` compiles `test/extension/index.ts` and launches the Extension Development Host via `@vscode/test-electron`. `package` creates a VSIX using `@vscode/vsce`.
 
-- Dependency direction: presentation → application → domain; infrastructure implements ports.
-- Domain must not import VS Code, React/Webview or provider DTO/SDK types.
-- Separate GitHub REST v3 and GitLab REST v4 clients own transport, auth, pagination, rate limits and raw responses.
-- Provider adapters normalize DTOs while retaining native IDs and semantics.
-- Application services depend on provider-neutral ports/capabilities, never provider-specific HTTP clients.
-- Webview receives sanitized view models and emits validated intent messages; it never receives PATs or calls provider APIs.
-- Check connection enabled state before SecretStorage lookup and credential attachment.
+The extension host entry and complete UI are still being integrated. A command that requires those pending sources may fail until integration completes; record actual output rather than treating configured scripts as passing evidence.
 
-## Secrets and test safety
+## Current source boundaries
 
-Tokens only in VS Code SecretStorage keyed by immutable connection ID; metadata is separate. Never commit tokens, test credentials, private diff fixtures, real repository URLs or user data. Use dedicated least-privilege expiring tokens; disclose GitLab's proposed api scope is broad. Redact auth headers, tokens, private code and comment bodies. Use deterministic sanitized fixtures for PR/MR, diffs, discussions, pagination and errors. Include added/removed/context/renamed/binary/oversized/malformed diff cases. Use disposable resources for mutation tests and document cleanup.
+- `src/domain/models.ts`, `src/domain/errors.ts`: provider-neutral models and errors; no VS Code or provider DTO dependencies.
+- `src/domain/diff/`: unified diff parser and GitHub/GitLab line position mapping.
+- `src/application/ports.ts`: provider and secret-storage ports.
+- `src/application/connectionService.ts`, `repositoryService.ts`, `reviewService.ts`: connection, repository binding and review use cases.
+- `src/infrastructure/http/providerHttpClient.ts`: provider request transport and URL/auth constraints.
+- `src/infrastructure/providers/github/`, `gitlab/`: REST adapters and DTO mappers.
+- `src/presentation/webview/messageProtocol.ts`: runtime validation for Webview requests.
+- `webview-ui/src/`: React Webview entry and styles.
+- `package.json`: VS Code view/command contributions; source registration in the extension host is not complete.
 
-## Feature workflow
+Dependency direction: presentation → application → domain; infrastructure implements application ports. Provider adapters normalize DTOs while retaining native identifiers and semantics. Webview code must not read credentials or call provider APIs. Check that connections are enabled before retrieving credentials or attaching authorization.
 
-1. Identify SRS IDs and acceptance criteria.
-2. Confirm provider capability and traceability mapping.
-3. Implement domain behavior and unit tests.
-4. Implement provider DTO mapping and mocked HTTP integration tests.
-5. Implement application orchestration, cancellation and typed errors.
-6. Implement VS Code UI/Webview and message validation.
-7. Run targeted and full quality gates.
-8. Update SDS/API/UI/TEST/IMPLEMENTATION docs in the same PR when contracts change.
-9. Attach requirement IDs, test evidence and known limitations to PR.
+## Test and release safety
 
-## Quality gates
-
-M0 must provide canonical scripts for lint/format, strict TypeScript typecheck, unit tests, provider API integration, extension-host tests, Webview/message tests, production build and VSIX packaging/install smoke test. Exact names must match package.json and CI. A skipped gate requires documented reason and reviewer approval.
-
-## Diagnostics and release
-
-Log correlation ID, provider, host alias, operation, duration and safe status/rate metadata only. Distinguish transport failure, provider HTTP error and mutation outcome unknown. After ambiguous comment/merge timeout, refresh server state before retry. For stale inline comments, preserve draft text and require refreshed diff context.
-
-Before release run P0 tests independently on GitHub.com and GitLab.com; test every Enterprise/Self-Managed version claimed; smoke-test Windows/macOS/Linux; review Webview CSP/sanitization/message validation, SecretStorage and log redaction; measure activation/large-diff responsiveness; package VSIX and install in a clean profile; publish supported versions, token permissions and limitations.
-
-## Definition of done
-
-Requirements implemented, traceability updated, tests pass, provider-specific limitations documented, secrets protected and review evidence attached. Compilation or success against one provider does not establish cross-provider verification.
+Use deterministic sanitized fixtures for provider and diff tests. Do not commit tokens, real repository URLs, private diffs, comment bodies, or other user data. Before claiming release readiness, additionally verify live GitHub.com and GitLab.com behavior, each exact Enterprise/Self-Managed compatibility target, Windows/macOS/Linux, accessibility, Webview security, SecretStorage/log redaction, responsiveness, and clean-profile VSIX installation. Those external gates are not established by mocked tests or compilation.

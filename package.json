@@ -1,0 +1,162 @@
+{
+  "name": "reviewdock",
+  "displayName": "ReviewDock",
+  "description": "GitHub Pull Request and GitLab Merge Request reviews in VS Code",
+  "version": "0.1.0",
+  "publisher": "reviewdock",
+  "license": "UNLICENSED",
+  "engines": {
+    "vscode": "^1.140.0",
+    "node": ">=20 <25"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onCommand:reviewdock.addConnection",
+    "onCommand:reviewdock.manageConnections",
+    "onCommand:reviewdock.selectConnection",
+    "onCommand:reviewdock.selectRepository",
+    "onCommand:reviewdock.refresh",
+    "onCommand:reviewdock.openReviewRequest",
+    "onCommand:reviewdock.openOnProvider",
+    "onCommand:reviewdock.merge",
+    "onCommand:reviewdock.addComment",
+    "onView:reviewdock.connections",
+    "onView:reviewdock.requests"
+  ],
+  "main": "./dist/extension.js",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "watch": "node scripts/build.mjs --watch",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.webview.json --noEmit",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:extension": "node scripts/test-extension.mjs",
+    "package": "vsce package",
+    "build:webview": "node scripts/build-webview.mjs",
+    "test:api": "npm run test:integration",
+    "test:integration": "vitest run test/integration",
+    "test:unit": "vitest run test/unit"
+  },
+  "dependencies": {
+    "react": "19.3.1",
+    "react-dom": "19.3.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "9.39.5",
+    "@types/node": "24.19.2",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@types/vscode": "1.146.0",
+    "@vscode/test-electron": "2.5.2",
+    "@vscode/vsce": "3.9.2",
+    "esbuild": "0.28.2",
+    "eslint": "9.39.5",
+    "eslint-config-prettier": "10.1.8",
+    "globals": "16.5.0",
+    "prettier": "3.10.1",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.73.0",
+    "vitest": "4.1.12"
+  },
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "reviewdock",
+          "title": "ReviewDock",
+          "icon": "resources/reviewdock.svg"
+        }
+      ]
+    },
+    "views": {
+      "reviewdock": [
+        {
+          "id": "reviewdock.connections",
+          "name": "Connections"
+        },
+        {
+          "id": "reviewdock.requests",
+          "name": "Pull Requests / Merge Requests"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "reviewdock.addConnection",
+        "title": "ReviewDock: Add Connection"
+      },
+      {
+        "command": "reviewdock.manageConnections",
+        "title": "ReviewDock: Manage Connections"
+      },
+      {
+        "command": "reviewdock.selectConnection",
+        "title": "ReviewDock: Select Connection"
+      },
+      {
+        "command": "reviewdock.selectRepository",
+        "title": "ReviewDock: Select Repository"
+      },
+      {
+        "command": "reviewdock.refresh",
+        "title": "ReviewDock: Refresh"
+      },
+      {
+        "command": "reviewdock.openReviewRequest",
+        "title": "ReviewDock: Open Review Request"
+      },
+      {
+        "command": "reviewdock.openOnProvider",
+        "title": "ReviewDock: Open on Provider"
+      },
+      {
+        "command": "reviewdock.merge",
+        "title": "ReviewDock: Merge"
+      },
+      {
+        "command": "reviewdock.addComment",
+        "title": "ReviewDock: Add Comment"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "reviewdock.addConnection",
+          "when": "view == reviewdock.connections",
+          "group": "navigation"
+        },
+        {
+          "command": "reviewdock.manageConnections",
+          "when": "view == reviewdock.connections",
+          "group": "navigation"
+        },
+        {
+          "command": "reviewdock.refresh",
+          "when": "view == reviewdock.requests",
+          "group": "navigation"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "reviewdock.connections",
+        "contents": "Connect GitHub or GitLab to get started. [Add Connection](command:reviewdock.addConnection) · [Manage Connections](command:reviewdock.manageConnections)"
+      },
+      {
+        "view": "reviewdock.requests",
+        "contents": "Select a connection and repository to browse review requests. [Select Connection](command:reviewdock.selectConnection) · [Select Repository](command:reviewdock.selectRepository)"
+      }
+    ]
+  },
+  "files": [
+    "dist/**",
+    "webview-ui/dist/**",
+    "resources/**",
+    "README.md"
+  ]
+}

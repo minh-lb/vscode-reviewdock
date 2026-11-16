@@ -1,0 +1,13 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "ReviewDock: typecheck",
+      "type": "npm",
+      "script": "typecheck",
+      "problemMatcher": "$tsc"
+    },
+    { "label": "ReviewDock: unit tests", "type": "npm", "script": "test", "problemMatcher": [] },
+    { "label": "ReviewDock: build", "type": "npm", "script": "build", "problemMatcher": [] }
+  ]
+}
