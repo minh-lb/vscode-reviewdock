@@ -1,0 +1,7 @@
+--- a/eof.txt
++++ b/eof.txt
+@@ -1 +1 @@
+-old eof
+\ No newline at end of file
++new eof
+\ No newline at end of file
