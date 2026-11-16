@@ -260,7 +260,7 @@ Minimum VS Code engine version và chính sách GitHub Enterprise Server/GitLab 
 | ID | Ưu tiên | Yêu cầu |
 |---|---|---|
 | MR-001 | P0 | Hệ thống PHẢI hiển thị Pull Request/Merge Request thuộc repository/project đang active. |
-| MR-002 | P0 | Hệ thống PHẢI hỗ trợ lọc PR/MR theo trạng thái Open, Closed và Merged tương ứng với provider. |
+| MR-002 | P0 | Hệ thống PHẢI hỗ trợ lọc PR/MR theo trạng thái Open, Closed và Merged tương ứng với provider; với GitHub, Merged là tập con của API state=closed và phải được phân biệt bằng merged_at/merged, không được coi mọi closed PR là merged. |
 | MR-003 | P0 | Hệ thống PHẢI cung cấp Created by me, Assigned to me và Review requested from me bằng cơ chế query native của từng provider; GitHub dùng Search Issues API, GitLab dùng MR list scopes. Team review requests chỉ được bao gồm khi được triển khai và kiểm thử riêng. |
 | MR-004 | P0 | Người dùng PHẢI có thể tìm PR/MR theo provider-native number/IID hoặc title. |
 | MR-005 | P0 | Danh sách MR PHẢI hỗ trợ pagination hoặc tải thêm. |
@@ -352,7 +352,7 @@ Minimum VS Code engine version và chính sách GitHub Enterprise Server/GitLab 
 | MERGE-007 | P0 | Hệ thống PHẢI xử lý merge conflict, missing approval, pipeline failure, SHA mismatch và permission denied. |
 | MERGE-008 | P0 | Hệ thống KHÔNG ĐƯỢC bypass protected branch, repository rules, approval rules, merge checks hoặc quyền provider. |
 | MERGE-009 | P0 | Hệ thống KHÔNG ĐƯỢC tự bật auto-merge, merge queue hoặc merge-when-pipeline-succeeds nếu người dùng chưa chọn rõ ràng; các chức năng này ngoài MVP. |
-| MERGE-010 | P0 | Hệ thống KHÔNG ĐƯỢC tự retry merge request khi kết quả request trước đó không xác định; phải refresh trạng thái MR trước. |
+| MERGE-010 | P0 | Hệ thống KHÔNG ĐƯỢC tự retry merge request khi kết quả request trước đó không xác định; phải refresh trạng thái PR/MR trước. |
 
 ## 5. Quy tắc nghiệp vụ
 
@@ -364,7 +364,7 @@ Minimum VS Code engine version và chính sách GitHub Enterprise Server/GitLab 
 | BR-004 | Inline comment chỉ hợp lệ khi vị trí gắn với current PR/MR head hoặc diff version mà provider chấp nhận. |
 | BR-005 | Client-side merge eligibility chỉ là thông tin hỗ trợ; quyết định cuối cùng thuộc provider server. |
 | BR-006 | Dữ liệu cache có thể cũ; thao tác ghi quan trọng phải refresh trạng thái cần thiết trước khi thực hiện. |
-| BR-007 | Không có thao tác ghi nào được thực hiện ngầm hoặc chỉ dựa trên việc mở một MR. |
+| BR-007 | Không có thao tác ghi nào được thực hiện ngầm hoặc chỉ dựa trên việc mở một PR/MR. |
 | BR-008 | Không được dùng ReviewDock để né tránh branch protection, repository rules hoặc policy của provider. |
 | BR-009 | Connection disabled bị loại khỏi mọi luồng chọn connection và request tới provider; workspace binding liên quan được giữ lại nhưng phải chặn thao tác cho đến khi người dùng enable hoặc gán connection khác. |
 | BR-010 | enabled là trạng thái cấu hình do người dùng quản lý; status là trạng thái kết nối/xác thực được quan sát gần nhất. Hai thuộc tính không được ghi đè hoặc suy diễn lẫn nhau. |
@@ -396,7 +396,7 @@ Minimum VS Code engine version và chính sách GitHub Enterprise Server/GitLab 
 
 **DATA-002 (P0):** Cấu hình không nhạy cảm chỉ được lưu ở global/workspace state hoặc settings phù hợp.
 
-**DATA-003 (P0):** Dữ liệu MR, diff và discussion mặc định NÊN được giữ trong bộ nhớ; persistent cache phải có quyết định riêng.
+**DATA-003 (P0):** Dữ liệu PR/MR, diff và conversation mặc định NÊN được giữ trong bộ nhớ; persistent cache phải có quyết định riêng.
 
 **DATA-004 (P0):** Khi disconnect, hệ thống PHẢI xóa credential của đúng connection khỏi SecretStorage; các connection khác không bị ảnh hưởng.
 
@@ -477,7 +477,7 @@ Minimum VS Code engine version và chính sách GitHub Enterprise Server/GitLab 
 
 | Mã | Điều kiện | Hành vi bắt buộc |
 |---|---|---|
-| ERR-001 | Token invalid/expired/revoked | Báo kết nối không hợp lệ; hướng dẫn reconnect; không retry liên tục |
+| ERR-001 | Token invalid/expired/revoked | Báo kết nối không hợp lệ; hướng dẫn reconnect; không retry liên tục. Với provider/endpoint có thể dùng 401 cho operation-level permission, phải kiểm tra authenticated-user endpoint trước khi yêu cầu đổi token. |
 | ERR-002 | HTTP 403 | Báo không đủ quyền; không đề xuất bypass |
 | ERR-003 | HTTP 404 | Báo repository/project/PR/MR/resource không còn khả dụng |
 | ERR-004 | HTTP 400/422 | Hiển thị validation error có thể hành động |
