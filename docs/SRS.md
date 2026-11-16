@@ -165,7 +165,7 @@ Minimum VS Code engine version và chính sách GitHub Enterprise Server/GitLab 
 - Các API cần thiết tồn tại trong phiên bản GitHub/GitLab được hỗ trợ.
 - Một workspace có thể chứa nhiều repository và mỗi repository có thể dùng connection khác nhau.
 - VS Code SecretStorage khả dụng trong môi trường vận hành.
-- Trạng thái MR có thể thay đổi bởi người dùng khác trong lúc ReviewDock đang mở; do đó dữ liệu hiển thị có thể stale.
+- Trạng thái PR/MR có thể thay đổi bởi người dùng khác trong lúc ReviewDock đang mở; do đó dữ liệu hiển thị có thể stale.
 
 ## 3. Yêu cầu giao diện ngoài
 
@@ -305,8 +305,8 @@ Minimum VS Code engine version và chính sách GitHub Enterprise Server/GitLab 
 
 | ID | Ưu tiên | Yêu cầu |
 |---|---|---|
-| DISC-001 | P0 | Hệ thống PHẢI tải và hiển thị notes/discussions của MR. |
-| DISC-002 | P0 | Người dùng PHẢI có thể tạo comment chung cho MR. |
+| DISC-001 | P0 | Hệ thống PHẢI tải và hiển thị conversation resources của PR/MR: GitHub issue comments, inline review comments và review submissions; GitLab discussions/notes. |
+| DISC-002 | P0 | Người dùng PHẢI có thể tạo general comment cho PR/MR bằng resource type phù hợp của provider. |
 | DISC-003 | P0 | Người dùng PHẢI có thể tạo inline comment trên diff hợp lệ. |
 | DISC-004 | P0 | Người dùng PHẢI có thể reply vào thread khi provider capability cho phép: GitLab discussion notes hỗ trợ reply; GitHub chỉ hỗ trợ reply vào top-level inline review comment và không hỗ trợ reply vào general issue comment hoặc reply lồng nhau trong workflow REST đã chọn. |
 | DISC-005 | P0 | Comment PHẢI hiển thị author, nội dung và timestamp. |
@@ -314,7 +314,7 @@ Minimum VS Code engine version và chính sách GitHub Enterprise Server/GitLab 
 | DISC-007 | P1 | Người dùng CÓ THỂ resolve/reopen discussion nếu provider API và quyền tài khoản cho phép; GitHub REST adapter hiện tại không cung cấp capability này. |
 | DISC-008 | P1 | Người dùng CÓ THỂ edit/delete comment của chính mình nếu provider API và quyền tài khoản cho phép. |
 | DISC-009 | P0 | Hệ thống PHẢI ngăn submit lặp trong khi request gửi comment đang chạy. |
-| DISC-010 | P0 | Nếu request tạo comment timeout và kết quả không xác định, hệ thống PHẢI refresh discussions trước khi cho phép người dùng retry; không tự retry mutation một cách mù quáng. |
+| DISC-010 | P0 | Nếu request tạo comment timeout và kết quả không xác định, hệ thống PHẢI refresh các conversation resources liên quan trước khi cho phép người dùng retry; không tự retry mutation một cách mù quáng. |
 | DISC-011 | P0 | Hệ thống PHẢI hiển thị lỗi của provider khi comment/reply bị từ chối do permission, validation, diff position hoặc trạng thái PR/MR. |
 | DISC-012 | P0 | Hệ thống PHẢI bảo toàn loại resource, provider-native ID, parent/thread ID và system-note metadata; không đánh đồng GitHub issue comment, inline review comment, review submission và GitLab discussion note. |
 | DISC-013 | P0 | UI PHẢI chỉ cung cấp reply/resolve/edit/delete action khi capability descriptor của provider và loại conversation hiện tại cho phép. |
@@ -485,7 +485,7 @@ Minimum VS Code engine version và chính sách GitHub Enterprise Server/GitLab 
 | ERR-006 | Timeout/network failure | Báo lỗi kết nối; cho phép refresh/retry an toàn |
 | ERR-007 | Stale diff position | Bắt buộc reload diff trước khi tạo inline comment |
 | ERR-008 | Merge conflict / policy rejection | Hiển thị trạng thái và thông tin provider trả về; không giả lập merge thành công |
-| ERR-009 | SHA mismatch | Refresh MR và yêu cầu người dùng thực hiện lại thao tác có xác nhận |
+| ERR-009 | SHA mismatch | Refresh PR/MR và yêu cầu người dùng thực hiện lại thao tác có xác nhận |
 | ERR-010 | Provider API capability/version không tương thích | Thông báo chức năng không được hỗ trợ trên server đó |
 
 ## 9. Yêu cầu kiểm thử và xác minh
