@@ -3,7 +3,7 @@
 > **Mã tài liệu:** RVD-SRS-001  
 > **Sản phẩm:** ReviewDock  
 > **Loại tài liệu:** Software Requirements Specification  
-> **Phiên bản:** 1.0.0-draft  
+> **Phiên bản:** 1.0.1-draft  
 > **Trạng thái:** Draft — chờ Product Owner xác nhận  
 > **Repository:** [minh-lb/vscode-reviewdock](https://github.com/minh-lb/vscode-reviewdock)  
 > **Ngày:** 2026-11-16
@@ -15,7 +15,7 @@
 | Thuộc tính | Giá trị |
 |---|---|
 | Document ID | RVD-SRS-001 |
-| Version | 1.0.0-draft |
+| Version | 1.0.1-draft |
 | Product | ReviewDock |
 | Target platform | Visual Studio Code Extension |
 | Primary integration | GitLab REST API v4 |
@@ -27,7 +27,8 @@
 | Phiên bản | Ngày | Nội dung |
 |---|---|---|
 | 0.1.0 | 2026-11-16 | Bản yêu cầu sản phẩm ban đầu |
-| 1.0.0-draft | 2026-11-16 | Chuẩn hóa thành SRS: phạm vi, yêu cầu định danh, giao diện, chất lượng, bảo mật và tiêu chí xác minh |
+| 1.0.0-draft | 2026-11-16 | Chuẩn hóa thành SRS |
+| 1.0.1-draft | 2026-11-16 | Đồng bộ scope inline comment MVP và liên kết bộ tài liệu thiết kế/kiểm thử |
 
 ## 1. Giới thiệu
 
@@ -89,6 +90,8 @@ Mỗi yêu cầu có ID duy nhất để liên kết với thiết kế, impleme
 - [GitLab Discussions API](https://docs.gitlab.com/api/discussions/)
 - [GitLab Merge Request Approvals API](https://docs.gitlab.com/api/merge_request_approvals/)
 - [GitLab Jobs API](https://docs.gitlab.com/api/jobs/)
+
+Tài liệu thiết kế và triển khai liên quan: [DECISIONS.md](./DECISIONS.md), [SDS.md](./SDS.md), [API-SPEC.md](./API-SPEC.md), [UI-UX.md](./UI-UX.md), [TEST-PLAN.md](./TEST-PLAN.md), [IMPLEMENTATION-PLAN.md](./IMPLEMENTATION-PLAN.md).
 
 Các endpoint, field và capability cụ thể phải được đối chiếu với phiên bản GitLab tối thiểu được chọn trước khi implementation.
 
@@ -264,7 +267,8 @@ Minimum VS Code engine version và minimum GitLab version là các quyết đị
 | DIFF-004 | P0 | Hệ thống PHẢI thể hiện file added, modified, deleted và renamed khi API cung cấp trạng thái đó. |
 | DIFF-005 | P0 | Hệ thống PHẢI hiển thị line number và dấu hiệu additions/deletions khi diff có thông tin tương ứng. |
 | DIFF-006 | P0 | Hệ thống PHẢI cho phép điều hướng từ file list tới diff tương ứng. |
-| DIFF-007 | P0 | Hệ thống PHẢI hỗ trợ tạo inline comment trên dòng/đoạn dòng hợp lệ của diff. |
+| DIFF-007 | P0 | Hệ thống PHẢI hỗ trợ tạo inline comment trên một dòng hợp lệ của diff. |
+| DIFF-012 | P1 | Hệ thống NÊN hỗ trợ inline comment trên một đoạn nhiều dòng sau khi line-range mapping được kiểm chứng. |
 | DIFF-008 | P0 | Hệ thống PHẢI hiển thị discussion liên quan tại vị trí code tương ứng khi GitLab cung cấp position metadata. |
 | DIFF-009 | P0 | Hệ thống PHẢI xử lý file binary, diff quá lớn, patch không khả dụng hoặc file không có diff text bằng trạng thái/giải thích phù hợp. |
 | DIFF-010 | P0 | Khi diff version thay đổi hoặc position không còn hợp lệ, hệ thống PHẢI yêu cầu refresh diff trước khi gửi inline comment. |
@@ -530,7 +534,7 @@ Các nhóm ID chính:
 
 ## 12. Các quyết định còn mở
 
-Các mục sau PHẢI được Product Owner xác nhận trước khi chốt baseline implementation:
+Các mục sau PHẢI được Product Owner xác nhận trước khi chốt baseline implementation. Đề xuất mặc định, trade-off và checklist phê duyệt được quản lý tại [DECISIONS.md](./DECISIONS.md):
 
 | ID | Quyết định | Phương án cần chọn | Đề xuất |
 |---|---|---|---|
