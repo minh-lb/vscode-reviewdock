@@ -1,4 +1,4 @@
-# ReviewDock — Test Plan
+# ReviewDock — Multi-provider Test Plan
 
 > **Document ID:** RVD-TEST-001  
 > **Version:** 0.1.0  
@@ -12,7 +12,7 @@ This plan defines how ReviewDock will be verified against its requirements befor
 ## 2. Test objectives
 
 1. Verify that all P0 SRS requirements are implemented.
-2. Verify GitLab API requests and response mapping.
+2. Verify GitHub and GitLab API requests, response mapping and connection isolation.
 3. Verify comments and merge operations use current server state.
 4. Verify no credential reaches Webview, logs or workspace files.
 5. Verify the extension remains responsive under network errors and large responses.
@@ -22,9 +22,9 @@ This plan defines how ReviewDock will be verified against its requirements befor
 
 ### In scope for MVP
 
-- GitLab connection and PAT lifecycle.
-- Git remote parsing and project mapping.
-- MR list, filters, search, pagination and detail.
+- Multiple GitHub/GitLab connections and provider-specific PAT lifecycle.
+- Git remote parsing and per-workspace repository binding.
+- GitHub PR / GitLab MR list, filters, search, pagination and detail.
 - Diff retrieval and rendering.
 - Single-line inline comments.
 - General comments and discussion replies.
@@ -71,18 +71,17 @@ No test should require a real PAT in source code, fixtures, CI logs or repositor
 - Mock GitLab responses stored as sanitized JSON fixtures.
 - Fake SecretStorage adapter for unit tests; real VS Code SecretStorage for extension integration tests.
 
-### 5.2. GitLab integration environment
+### 5.2. Provider integration environments
 
-Use a dedicated non-production test project with:
-- A user able to read MR data.
-- A user able to create comments.
-- A user able to merge a test MR.
-- At least one open MR with added, removed and modified lines.
-- At least one MR with a discussion thread.
-- A pipeline-enabled MR if P1 pipeline tests are enabled.
-- A project with merge restrictions for negative merge tests.
+Use isolated non-production repositories/projects and dedicated test accounts:
+- GitHub.com: one account with repository read access, one with review-comment write access and one with merge permission.
+- GitHub Enterprise Server: at least one supported test instance before release; verify API root and supported API version.
+- GitLab.com: one account with project read access, one with discussion write access and one with merge permission.
+- GitLab Self-Managed: test the proposed compatibility floor and a current supported instance.
 
-Use the oldest supported GitLab version and a current GitLab instance for compatibility checks. The proposed compatibility floor is 17.0; see DECISIONS.md. Confirm the exact test matrix before release.
+For each provider, prepare an open PR/MR with added, removed and modified lines, at least one review conversation, and a repository/project with merge restrictions for negative tests. Enable GitHub Checks/Actions or GitLab pipelines if P1 tests are enabled.
+
+The proposed GitLab technical floor is 17.0. The exact GitHub Enterprise Server target and complete provider compatibility matrix must be confirmed before release.
 
 ### 5.3. Operating system matrix
 
@@ -97,10 +96,10 @@ Run at least one full end-to-end workflow on each platform before stable release
 ## 6. Test data and fixtures
 
 Required sanitized fixtures:
-- GitLab current user.
-- Project details.
-- MR list pages 1 and 2.
-- MR detail with complete diff_refs.
+- GitHub authenticated user and GitLab current user.
+- GitHub repository and GitLab project details.
+- GitHub PR list pages 1 and 2; GitLab MR list pages 1 and 2.
+- GitHub PR detail and GitLab MR detail with current head/diff refs.
 - MR detail with missing/preparing diff_refs.
 - Diff version list and a selected version.
 - Diff files: added, modified, deleted, renamed, empty patch, binary, too large and collapsed.
@@ -116,7 +115,7 @@ Fixtures must contain no real user secrets, private code or production project i
 
 ## 7. Unit test cases
 
-### 7.1. Git remote and project mapping
+### 7.1. Git remote and repository mapping
 
 | ID | Scenario | Expected result |
 |---|---|---|
@@ -127,7 +126,29 @@ Fixtures must contain no real user secrets, private code or production project i
 | UNIT-PROJ-005 | Malformed or unsupported remote | Manual selection offered |
 | UNIT-PROJ-006 | Path includes nested groups and URL characters | Correct path encoding |
 
-### 7.2. Diff parsing and position mapping
+
+
+### 7.2. Connection registry and isolation
+
+| ID | Scenario | Expected result |
+|---|---|---|
+| UNIT-CONN-001 | Create GitHub connection | Immutable ID and GitHub provider are stored |
+| UNIT-CONN-002 | Create GitLab connection | Immutable ID and GitLab provider are stored |
+| UNIT-CONN-003 | Create multiple connections for one provider | All records coexist independently |
+| UNIT-CONN-004 | Create two accounts on the same host | Both connections remain selectable |
+| UNIT-CONN-005 | Duplicate provider + host + account ID | Duplicate warning is shown; no silent merge |
+| UNIT-CONN-006 | Duplicate display name | Allowed; UI identity remains unambiguous |
+| UNIT-CONN-007 | Rename connection | Only displayName changes; secret key and bindings remain stable |
+| UNIT-CONN-008 | Re-authenticate one connection | Only that connection's secret is replaced after successful validation |
+| UNIT-CONN-009 | Authenticated-user validation fails | Credential is not saved |
+| UNIT-CONN-010 | Disconnect one connection | Only its credential is deleted; record remains disconnected |
+| UNIT-CONN-011 | Delete one connection | Only its record/secret is deleted; dependent bindings become unresolved |
+| UNIT-CONN-012 | Set GitHub and GitLab defaults | One independent default per provider is maintained |
+| UNIT-CONN-013 | Two workspace folders use different connections | Each folder resolves its own provider/account/repository |
+| UNIT-CONN-014 | Multiple same-host connections can access remote | Explicit account picker is required |
+| UNIT-CONN-015 | Provider or server URL is changed on existing connection | Mutation is rejected; user must create a new connection |
+
+### 7.3. Diff parsing and position mapping
 
 | ID | Scenario | Expected result |
 |---|---|---|
@@ -141,7 +162,7 @@ Fixtures must contain no real user secrets, private code or production project i
 | UNIT-DIFF-008 | Missing diff SHA | Inline comment disabled |
 | UNIT-DIFF-009 | Diff version changes | Existing composer context becomes stale |
 
-### 7.3. Domain and error mapping
+### 7.4. Domain and error mapping
 
 | ID | Scenario | Expected result |
 |---|---|---|
@@ -184,6 +205,28 @@ Fixtures must contain no real user secrets, private code or production project i
 | API-MERGE-003 | Merge rejected by policy | 405/422 mapped and surfaced |
 | API-MERGE-004 | Merge request times out | State refresh required before another attempt |
 
+
+
+### GitHub API tests
+
+| ID | Scenario | Expected result |
+|---|---|---|
+| API-GH-AUTH-001 | Valid GitHub PAT calls GET /user | Stable account identity returned |
+| API-GH-AUTH-002 | Invalid GitHub PAT | Authentication error; credential not persisted |
+| API-GH-AUTH-003 | Fine-grained token lacks one repository permission | Connection stays valid; operation-level permission error shown |
+| API-GH-REPO-001 | List accessible repositories | Results are scoped to selected connection |
+| API-GH-PR-001 | List and retrieve PR | PR DTO normalized with repository ID and PR number |
+| API-GH-PR-002 | Retrieve PR files with pagination | All pages loaded; missing patches represented explicitly |
+| API-GH-COM-001 | Create general PR comment | Issue comment endpoint is used |
+| API-GH-COM-002 | Create inline comment on added line | Current head SHA, path, line and RIGHT side sent |
+| API-GH-COM-003 | Create inline comment on removed line | Current head SHA, path, line and LEFT side sent |
+| API-GH-COM-004 | Reply to review comment | Correct review-comment reply endpoint used |
+| API-GH-MERGE-001 | Merge PR | Current head SHA included |
+| API-GH-MERGE-002 | Head SHA mismatch | 409/conflict shown; no automatic retry |
+| API-GH-MERGE-003 | Merge rejected by rules/permission | Server rejection surfaced accurately |
+| API-GH-CHECK-001 | Check run SHA differs from PR head | Check is not shown as current |
+| API-GH-PAGE-001 | Pagination Link points to another origin | Link rejected before token is attached |
+
 ### P1 API tests
 
 | ID | Scenario | Expected result |
@@ -216,20 +259,21 @@ Fixtures must contain no real user secrets, private code or production project i
 
 ## 10. Manual end-to-end scenarios
 
-### E2E-001 — First-time connection
+### E2E-001 — Create and use multiple connections
 
 1. Install extension in VS Code.
-2. Run Connect GitLab.
-3. Enter GitLab URL and PAT.
-4. Validate connection.
-5. Select a project from Git remote or manual picker.
-6. Restart VS Code.
-7. Reopen ReviewDock.
+2. Add a GitHub connection with a display name and PAT; test and save it.
+3. Add a GitLab connection with a different display name and PAT; test and save it.
+4. Add a second account on one of the same provider hosts.
+5. Bind two workspace folders to different connections and repositories.
+6. Restart VS Code and reopen ReviewDock.
+7. Disconnect one connection and verify the other remains usable.
 
 Expected:
-- Instance and project mapping remain available.
-- Token is retrieved from SecretStorage.
-- Token does not appear in settings or logs.
+- All connection records and repository bindings remain available.
+- Each token is retrieved from its own SecretStorage key.
+- The account picker appears when more than one connection matches a remote.
+- Disconnecting one connection does not affect another.
 
 ### E2E-002 — Discover and open MR
 
@@ -313,13 +357,13 @@ Expected:
 
 | ID | Threat / test | Expected result |
 |---|---|---|
-| SEC-TEST-001 | Search repository/settings/logs for PAT fixture | No PAT persisted outside SecretStorage |
+| SEC-TEST-001 | Search repository/settings/logs for GitHub and GitLab PAT fixtures | No PAT persisted outside SecretStorage |
 | SEC-TEST-002 | Inspect Webview messages and state | No token exposed |
 | SEC-TEST-003 | Malicious pagination Link to another origin | Rejected before authenticated request |
 | SEC-TEST-004 | HTML/script in MR description or comment | Safely escaped/sanitized |
 | SEC-TEST-005 | External link with javascript/data scheme | Blocked |
 | SEC-TEST-006 | Log HTTP error containing sensitive header | Header redacted |
-| SEC-TEST-007 | Disconnect GitLab instance | Corresponding SecretStorage key removed |
+| SEC-TEST-007 | Disconnect one connection | Corresponding SecretStorage key removed |
 | SEC-TEST-008 | User lacks merge permission | Merge is rejected by GitLab; no bypass path exists |
 
 ## 12. Performance and resilience checks
@@ -337,10 +381,10 @@ Initial targets (to be validated and adjusted after baseline measurement):
 ## 13. Release gates
 
 MVP release is blocked until:
-- All P0 test cases pass.
+- All P0 test cases pass for both GitHub and GitLab.
 - All P0 SRS requirements map to at least one test or inspection.
-- Inline comment mapping is verified against a real test GitLab instance.
-- Merge SHA precondition is verified against a real test GitLab instance.
+- GitHub inline review comment mapping and GitLab diff position mapping are verified against real test environments.
+- GitHub PR head SHA and GitLab MR source SHA preconditions are verified against real test environments.
 - Secret handling and Webview security tests pass.
 - No known critical/high severity security defect remains.
 - Windows, macOS and Linux smoke tests pass.
@@ -353,12 +397,12 @@ Maintain a test-to-requirement mapping as implementation progresses:
 
 | Requirement group | Primary test groups |
 |---|---|
-| AUTH | API-AUTH, E2E-001, SEC-TEST |
-| PROJ | UNIT-PROJ, API-PROJ, E2E-001 |
-| MR / DETAIL | API-MR, E2E-002 |
+| AUTH / CONN | API-AUTH, API-GH-AUTH, UNIT-CONN, E2E-001, SEC-TEST |
+| PROJ | UNIT-PROJ, API-PROJ, API-GH-REPO, E2E-001 |
+| PR / MR / DETAIL | API-MR, API-GH-PR, E2E-002 |
 | DIFF | UNIT-DIFF, API-DIFF, E2E-003, E2E-005 |
-| DISC | API-DISC, E2E-004 |
-| MERGE | API-MERGE, E2E-006, E2E-007 |
+| DISC / REVIEW COMMENTS | API-DISC, API-GH-COM, E2E-004 |
+| MERGE | API-MERGE, API-GH-MERGE, E2E-006, E2E-007 |
 | APR / PIPE | API-APR, API-PIPE |
 | UI / NFR | EXT, SEC-TEST, performance checks |
 
