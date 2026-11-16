@@ -653,3 +653,8 @@ Each error should include operation, HTTP status if available, provider request 
 - [ ] Cache keys include provider, connection ID and repository identity.
 - [ ] API pagination links are origin-validated before following.
 - [ ] Secret and user content are excluded from logs.
+
+
+## 12. Multi-provider architecture contract
+
+Application services depend on a provider-neutral ReviewProvider port and explicit capability descriptors. GitHub and GitLab adapters implement it using separate HTTP clients, authentication schemes and DTO mappers. Shared services must not import provider DTOs or provider HTTP clients. Normalized models retain provider, connection ID, server origin, repository/project ID, native PR number/MR IID, native URL, head SHA and provider-specific discussion/diff position metadata. Unsupported, unknown and not-authorized are distinct states, never empty results or false. See [PROVIDER-CAPABILITY-MATRIX.md](./PROVIDER-CAPABILITY-MATRIX.md).

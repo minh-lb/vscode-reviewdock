@@ -2,6 +2,12 @@
 
 Tài liệu dự án ReviewDock — extension cho Visual Studio Code để quản lý GitHub Pull Requests và GitLab Merge Requests, với nhiều connection/account độc lập.
 
+## Additional implementation references
+
+- [Provider Capability Matrix](./PROVIDER-CAPABILITY-MATRIX.md)
+- [Requirement Traceability](./REQUIREMENT-TRACEABILITY.md)
+- [Development Guide](./DEVELOPMENT-GUIDE.md)
+
 ## Document map
 
 | Document | Purpose | Status |

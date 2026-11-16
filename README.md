@@ -37,6 +37,12 @@ Connection enablement is not the same as connection health: a connection can be 
 
 ## Documentation
 
+- [Provider Capability Matrix](docs/PROVIDER-CAPABILITY-MATRIX.md)
+- [Requirement Traceability](docs/REQUIREMENT-TRACEABILITY.md)
+- [Development Guide](docs/DEVELOPMENT-GUIDE.md)
+
+## Documentation
+
 Detailed specifications are maintained in the docs directory.
 
 | Document | Description |
