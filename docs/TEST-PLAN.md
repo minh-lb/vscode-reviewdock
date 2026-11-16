@@ -290,22 +290,6 @@ Expected:
 - Re-enabling does not silently validate or switch accounts.
 - Disconnecting one connection does not affect another.
 
-### E2E-008 — Disable and re-enable a connection
-
-1. Create and validate two connections for the same provider.
-2. Bind a workspace repository to the first connection and set it as the provider default.
-3. Disable the first connection.
-4. Attempt repository discovery and an API-backed command through the existing workspace binding.
-5. Inspect the provider default and connection registry.
-6. Re-enable the first connection and inspect its status.
-7. Explicitly test/re-authenticate only if its last-known status requires it.
-
-Expected:
-- The first connection is excluded from selection, discovery, default resolution and outbound requests while disabled.
-- Its credential, configuration, last-known status and workspace binding remain stored.
-- Disabling it clears the provider default and does not auto-promote the second connection.
-- The existing workspace binding is blocked rather than silently reassigned.
-- Re-enabling does not automatically validate the credential or switch accounts.
 
 ### E2E-002 — Discover and open MR
 
@@ -384,6 +368,23 @@ Expected:
 - No false success notification.
 - MR state is refreshed.
 - No automatic retry occurs.
+
+### E2E-008 — Disable and re-enable a connection
+
+1. Create and validate two connections for the same provider.
+2. Bind a workspace repository to the first connection and set it as the provider default.
+3. Disable the first connection.
+4. Attempt repository discovery and an API-backed command through the existing workspace binding.
+5. Inspect the provider default and connection registry.
+6. Re-enable the first connection and inspect its status.
+7. Explicitly test/re-authenticate only if its last-known status requires it.
+
+Expected:
+- The first connection is excluded from selection, discovery, default resolution and outbound requests while disabled.
+- Its credential, configuration, last-known status and workspace binding remain stored.
+- Disabling it clears the provider default and does not auto-promote the second connection.
+- The existing workspace binding is blocked rather than silently reassigned.
+- Re-enabling does not automatically validate the credential or switch accounts.
 
 ## 11. Security test cases
 
