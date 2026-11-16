@@ -1,7 +1,7 @@
 # ReviewDock — Software Design Specification (SDS)
 
 > **Document ID:** RVD-SDS-001  
-> **Version:** 0.1.0  
+> **Version:** 0.2.0  
 > **Status:** Proposed design — depends on approval of [DECISIONS.md](./DECISIONS.md)  
 > **Parent requirement:** [SRS.md](./SRS.md)
 
@@ -39,60 +39,70 @@ If a decision is changed, update this SDS and the affected API/UI/test documents
 ~~~mermaid
 flowchart TB
   User[Developer / Reviewer]
-  subgraph VSCode[VS Code]
-    subgraph UI[Presentation]
+  subgraph VSCode[VS Code Extension Host]
+    subgraph Presentation[Presentation]
       Tree[Activity Bar / Tree Views]
-      Panel[MR Detail Webview]
+      Panel[PR / MR Detail Webview]
       Commands[Commands / Quick Picks]
-      Diff[Diff Renderer]
+      Editor[Native VS Code Diff / Editor]
     end
-    subgraph App[Application]
-      AuthSvc[Authentication Service]
-      ProjectSvc[Project Service]
-      MrSvc[Merge Request Service]
-      ReviewSvc[Review Service]
-      MergeSvc[Merge Service]
+    subgraph Application[Application]
+      Connection[Connection Service]
+      Repository[Repository Service]
+      ReviewRequest[Review Request Service]
+      Review[Review Service]
+      Merge[Merge Service]
+      Capability[Capability Resolver]
       State[Workspace State / Cache]
     end
-    subgraph Infra[Infrastructure]
-      Providers[Provider Adapter Registry]
+    subgraph Infrastructure[Infrastructure]
+      Registry[Provider Adapter Registry]
+      GitHub[GitHub Adapter + REST Client]
+      GitLab[GitLab Adapter + REST Client]
       Secret[SecretStorage Adapter]
       Git[Git Remote Resolver]
       Logger[Redacting Logger]
     end
   end
-  ProviderAPI[GitHub REST API v3 / GitLab REST API v4]
+  GitHubAPI[GitHub REST API v3]
+  GitLabAPI[GitLab REST API v4]
   User --> Tree
   User --> Panel
   User --> Commands
-  Tree --> ProjectSvc
-  Tree --> MrSvc
-  Panel <--> ReviewSvc
-  Panel <--> MrSvc
-  Diff --> ReviewSvc
-  Commands --> AuthSvc
-  Commands --> MergeSvc
-  AuthSvc --> Secret
-  ProjectSvc --> Git
-  ProjectSvc --> Api
-  MrSvc --> Api
-  ReviewSvc --> Api
-  MergeSvc --> Api
-  App --> State
-  Providers --> ProviderAPI
-  Infra --> Logger
+  Tree --> Repository
+  Tree --> ReviewRequest
+  Panel <--> Review
+  Panel <--> ReviewRequest
+  Commands --> Connection
+  Commands --> Merge
+  Connection --> Secret
+  Repository --> Git
+  Repository --> Registry
+  ReviewRequest --> Registry
+  Review --> Registry
+  Merge --> Registry
+  Registry --> GitHub
+  Registry --> GitLab
+  GitHub --> GitHubAPI
+  GitLab --> GitLabAPI
+  Application --> State
+  Infrastructure --> Logger
+  Review --> Editor
 ~~~
 
 ### 3.2. Runtime boundaries
 
 | Boundary | Responsibility | Must not do |
 |---|---|---|
-| VS Code Extension Host | Lifecycle, commands, views, workspace integration | Render large diff DOM |
-| Application services | Use cases and orchestration | Depend on Webview DOM |
-| Domain | Types, validation and pure logic | Import VS Code API or perform HTTP |
-| GitLab infrastructure | HTTP, auth header, pagination, DTO mapping | Decide UI presentation |
-| Webview | Render view state and emit user intent | Store PAT or call GitLab directly |
-| SecretStorage adapter | Read/write token secrets | Expose secrets to UI/logs |
+| VS Code Extension Host | Lifecycle, commands, views, workspace integration and secure provider requests | Block activation on network; render large diff DOM |
+| Presentation | Render state and collect user intent | Call GitHub/GitLab HTTP endpoints or read credentials |
+| Application services | Orchestrate use cases and enforce domain invariants | Depend on Webview DOM or provider DTOs |
+| Domain | Provider-neutral types, validation and pure logic | Import VS Code API or perform HTTP |
+| Provider adapters | Provider-specific HTTP, authentication, pagination, DTO mapping, capability and error mapping | Leak raw DTOs or secrets into UI |
+| Webview | Render the current PR/MR and emit validated user intent | Store PAT, call provider APIs or access arbitrary workspace files |
+| SecretStorage adapter | Read/write per-connection credential | Return secret material to presentation or logs |
+
+Dependency direction: presentation → application → domain. Infrastructure implements application ports. Provider-specific DTOs must not cross the adapter boundary.
 
 ### 3.3. Proposed source layout
 
@@ -103,27 +113,31 @@ src/
     registerCommands.ts
   domain/
     models/
-      gitlabInstance.ts
-      project.ts
-      mergeRequest.ts
+      connection.ts
+      repository.ts
+      reviewRequest.ts
       diff.ts
-      discussion.ts
-      pipeline.ts
-      approval.ts
+      reviewConversation.ts
+      providerCapability.ts
+      checkStatus.ts
+      approvalState.ts
+      mergeResult.ts
     errors/
       appError.ts
     diff/
       parseUnifiedDiff.ts
-      mapDiffLine.ts
+      mapGitHubReviewLine.ts
+      mapGitLabDiscussionPosition.ts
   application/
     services/
+      connectionService.ts
       authenticationService.ts
-      projectService.ts
-      mergeRequestService.ts
+      repositoryService.ts
+      reviewRequestService.ts
       reviewService.ts
       mergeService.ts
     ports/
-      providerApi.ts
+      reviewProvider.ts
       secretStore.ts
       workspaceStore.ts
   infrastructure/
@@ -151,9 +165,9 @@ src/
   presentation/
     tree/
       projectTreeProvider.ts
-      mergeRequestTreeProvider.ts
+      reviewRequestTreeProvider.ts
     webview/
-      mrPanelProvider.ts
+      reviewRequestPanelProvider.ts
       messageProtocol.ts
       security.ts
       webview-ui/
@@ -162,13 +176,14 @@ src/
           components/
           state/
           styles/
-  test/
-    unit/
-    integration/
-    fixtures/
+test/
+  unit/
+  integration/
+  extension/
+  fixtures/
 ~~~
 
-The exact filenames may change, but the dependency direction must remain: presentation → application → domain; infrastructure implements application ports.
+The exact filenames may change, but domain and application code remain provider-neutral. Provider-specific HTTP clients and DTOs stay under their respective adapters.
 
 ## 4. Component responsibilities
 
@@ -215,21 +230,21 @@ Responsibilities:
 ### 4.5. ReviewService
 
 Responsibilities:
-- Retrieve discussions.
-- Create general discussion threads.
-- Create inline diff discussions.
-- Reply to a discussion.
-- Resolve/reopen discussion when enabled.
-- Validate that the diff version used by the composer is still current.
+- Retrieve provider-native conversation resources and normalize them without erasing resource type or parent/thread identity.
+- Create general timeline comments and inline comments through the selected provider adapter.
+- Reply only when the conversation type and provider capability permit it.
+- Resolve/reopen only when the adapter exposes the capability and the current user is authorized.
+- Validate the current PR head SHA or GitLab diff-version SHAs before inline comment submission.
+- Preserve system-note flags, resolution state and provider-native IDs.
 
 ### 4.6. MergeService
 
 Responsibilities:
-- Refresh MR state immediately before merge.
-- Require current source HEAD SHA.
-- Validate user intent and confirmation result.
-- Submit immediate merge request.
-- Normalize GitLab merge errors.
+- Refresh PR/MR state immediately before merge.
+- Require the current source/head SHA expected by the selected provider endpoint.
+- Validate user intent and explicit confirmation.
+- Submit immediate merge through the selected provider adapter.
+- Normalize provider-specific merge errors while preserving the server reason.
 - Never auto-retry an ambiguous mutation.
 
 ### 4.7. Provider adapters and HTTP clients
@@ -237,8 +252,9 @@ Responsibilities:
 Responsibilities:
 - Select GitHubAdapter or GitLabAdapter from the immutable provider type on the connection.
 - Build provider API URLs (GitHub REST API v3; GitLab REST API v4) from the validated server configuration.
-- Apply provider-specific authentication headers; never reuse GitLab headers for GitHub or vice versa.
-- Map provider DTOs into shared domain contracts and expose provider capability descriptors.
+- Apply provider-specific authentication headers; never reuse headers, tokens or request defaults across providers/connections.
+- Map provider DTOs into shared domain contracts while preserving provider-native resource type and identifiers.
+- Expose provider capability descriptors for each operation and conversation kind.
 - Follow pagination links only when their origin and API path prefix match the configured connection.
 - Apply timeout, cancellation, rate-limit handling and provider-specific error mapping.
 - Retry safe GET requests only under defined conditions; never automatically retry ambiguous mutations.
@@ -296,20 +312,89 @@ type ReviewRequestSummary = {
   webUrl: string;
 };
 
-type ProviderCapabilities = {
-  inlineComments: boolean;
-  threadedReplies: boolean;
-  resolveThreads: boolean;
-  reviewDecisions: boolean;
-  checksOrPipelines: boolean;
-  merge: boolean;
+type ProviderCapability = "supported" | "unsupported" | "conditional" | "unknown";
+
+type ProviderCapabilityDescriptor = {
+  generalComments: ProviderCapability;
+  inlineComments: ProviderCapability;
+  replyToGeneralComment: ProviderCapability;
+  replyToInlineComment: ProviderCapability;
+  replyToReply: ProviderCapability;
+  resolveThreads: ProviderCapability;
+  editOwnComment: ProviderCapability;
+  deleteOwnComment: ProviderCapability;
+  reviewDecision: ProviderCapability;
+  approvalRules: ProviderCapability;
+  checksOrPipelines: ProviderCapability;
+  immediateMerge: ProviderCapability;
+  mergeQueue: ProviderCapability;
 };
 
 // Shared DiffFile, ReviewConversation and ReviewComment models must retain
-// provider-specific identifiers and opaque metadata needed by each adapter.
+// provider-specific identifiers and source resource types needed by each adapter.
 ~~~
 
 A GitHub PR number and a GitLab MR IID are not globally unique. Every review request and cache entry must carry connection ID and repository ID. Missing provider fields must remain unknown rather than being coerced to false.
+
+
+### 5.1. Provider-aware conversation model
+
+The following discriminated union is the minimum semantic model. It is illustrative TypeScript; the final implementation may refine field names but must preserve these distinctions.
+
+~~~ts
+type ConversationKind =
+  | "github-issue-comment"
+  | "github-inline-review-comment"
+  | "github-review-submission"
+  | "gitlab-discussion";
+
+type ReplyCapability = "supported" | "unsupported" | "unknown";
+
+type ReviewConversation = {
+  connectionId: string;
+  provider: ProviderType;
+  repositoryId: string;
+  reviewRequestId: string;
+  kind: ConversationKind;
+  providerResourceId: string;
+  parentResourceId?: string;
+  author: UserSummary;
+  body: string;
+  createdAt: string;
+  updatedAt?: string;
+  webUrl?: string;
+  replyCapability: ReplyCapability;
+  resolution: "resolved" | "unresolved" | "not-applicable" | "unknown";
+  position?: ProviderDiffPosition;
+  systemNote?: boolean;
+};
+
+type ProviderDiffPosition =
+  | {
+      provider: "github";
+      path: string;
+      line: number;
+      side: "LEFT" | "RIGHT";
+      commitSha: string;
+    }
+  | {
+      provider: "gitlab";
+      oldPath: string;
+      newPath: string;
+      oldLine?: number;
+      newLine?: number;
+      baseSha: string;
+      startSha: string;
+      headSha: string;
+    };
+~~~
+
+Invariants:
+- GitHub issue comments have `replyCapability="unsupported"` in the selected REST workflow.
+- GitHub inline review comments can be replied to only when the target is a top-level comment; replies-to-replies are unsupported.
+- GitHub REST thread resolution is not available in the selected adapter.
+- GitLab discussion replies and resolution are controlled by the API and current user's permission.
+- Missing provider data is `unknown`, not `false`, empty or resolved.
 
 ## 6. State and persistence
 
@@ -366,25 +451,20 @@ Each rendered row must identify:
 - Hunk identity and diff-version identity.
 - Whether a comment can be created at that row.
 
-### 7.3. Single-line position mapping
+### 7.3. Provider-specific single-line position mapping
 
-| Diff row | GitLab position fields |
-|---|---|
-| Added line | new_line only |
-| Removed line | old_line only |
-| Context line | old_line and new_line |
-| Hunk header / metadata | Not commentable |
+| Diff row | GitLab position | GitHub review comment |
+|---|---|---|
+| Added line | `new_line` only | New-side line with `side=RIGHT` |
+| Removed line | `old_line` only | Old-side line with `side=LEFT` |
+| Context line | Both `old_line` and `new_line` | New-side line with `side=RIGHT` |
+| Hunk header / metadata | Not commentable | Not commentable |
 
-Every inline comment request must include:
-- position_type=text
-- base_sha
-- start_sha
-- head_sha
-- old_path
-- new_path
-- The appropriate old/new line field(s)
+GitLab request requires `position_type=text`, base/start/head SHAs, old/new paths and the applicable old/new line fields from one collected diff version.
 
-A comment is disabled when any required SHA/path/line value is unavailable. Do not infer line positions from the visible row index.
+GitHub request requires current PR head `commit_id`, file `path`, `line` and `side`. Use `line`/ `side`; do not introduce new use of the deprecated `position` offset.
+
+A comment is disabled when any provider-required SHA/path/line value is unavailable. Do not infer line positions from the visible row index.
 
 ### 7.4. Stale diff handling
 
@@ -392,7 +472,7 @@ Before submitting an inline comment:
 1. Refresh MR detail and latest diff version.
 2. Compare the current version SHAs with the version displayed in the composer.
 3. If they differ, cancel submission and reload the diff.
-4. If GitLab rejects the position, display the API validation error and reload.
+4. If the selected provider rejects the position, display the API validation error and reload.
 5. Never silently post the text as a general comment.
 
 ## 8. Runtime workflows
@@ -405,14 +485,14 @@ sequenceDiagram
   participant UI as VS Code UI
   participant Auth as AuthenticationService
   participant Secret as SecretStorage
-  participant API as GitLabApiClient
-  participant GL as GitLab
+  participant API as ProviderApiClient
+  participant Provider as GitHub or GitLab
 
   User->>UI: Choose GitHub/GitLab, name, server and PAT
   UI->>Auth: createConnection(provider, server, name, PAT)
   Auth->>API: validate authenticated user
-  API->>GL: provider-specific GET /user
-  GL-->>API: 200 account profile
+  API->>Provider: provider-specific GET /user
+  Provider-->>API: 200 account profile
   API-->>Auth: normalized account identity
   Auth->>Secret: store credential by connection ID
   Auth-->>UI: connection summary (no token)
@@ -438,21 +518,21 @@ sequenceDiagram
   actor User
   participant Tree as TreeView
   participant MR as MergeRequestService
-  participant API as GitLabApiClient
-  participant GL as GitLab
+  participant API as ProviderApiClient
+  participant Provider as GitHub or GitLab
   participant Web as MR Webview
 
   User->>Tree: Select MR
   Tree->>MR: getDetail(project, iid)
   MR->>API: GET MR detail
-  API->>GL: REST request
-  GL-->>API: MR DTO + diff_refs
+  API->>Provider: provider REST request
+  Provider-->>API: PR/MR DTO + provider diff metadata
   API-->>MR: normalized MR
   MR-->>Web: open detail state
   Web->>MR: load changes
   MR->>API: GET diff versions + diffs
-  API->>GL: REST requests
-  GL-->>API: versions + paginated diffs
+  API->>Provider: provider REST requests
+  Provider-->>API: provider diff metadata + paginated files
   API-->>MR: normalized diff
   MR-->>Web: structured file diffs
 ~~~
@@ -465,21 +545,21 @@ sequenceDiagram
   participant Web as MR Webview
   participant Review as ReviewService
   participant MR as MergeRequestService
-  participant API as GitLabApiClient
-  participant GL as GitLab
+  participant API as ProviderApiClient
+  participant Provider as GitHub or GitLab
 
   User->>Web: Select changed line + submit
   Web->>Review: createInlineComment(context, line, body)
   Review->>MR: getLatestDiffVersion()
   MR->>API: GET MR + diff versions
-  API->>GL: GET requests
-  GL-->>API: current SHAs
+  API->>Provider: provider GET requests
+  Provider-->>API: current PR head SHA or GitLab diff-version SHAs
   API-->>MR: version metadata
   MR-->>Review: current version
   Review->>Review: validate line mapping and SHA
-  Review->>API: POST discussions with position
-  API->>GL: POST /discussions
-  GL-->>API: 201 discussion
+  Review->>API: provider-specific inline comment request
+  API->>Provider: POST review comment or discussion
+  Provider-->>API: 201 comment/thread
   API-->>Review: normalized discussion
   Review-->>Web: success + refresh thread
 ~~~
@@ -499,13 +579,13 @@ sequenceDiagram
   User->>UI: Confirm
   UI->>Merge: merge(project, iid, options)
   Merge->>API: GET MR detail
-  API->>GL: GET MR
-  GL-->>API: current MR + source SHA
+  API->>Provider: GET PR/MR
+  Provider-->>API: current PR/MR + source HEAD SHA
   API-->>Merge: normalized MR
   Merge->>Merge: validate open state and SHA
   Merge->>API: PUT /merge with sha
-  API->>GL: PUT merge request
-  GL-->>API: success or error
+  API->>Provider: provider immediate-merge endpoint
+  Provider-->>API: success or error
   API-->>Merge: normalized result
   Merge-->>UI: result + refresh state
 ~~~
@@ -521,10 +601,10 @@ Use a typed error model with at least:
 - RateLimitError (429)
 - TimeoutError
 - NetworkError
-- GitLabServerError (5xx)
+- ProviderServerError (5xx)
 - UnsupportedCapabilityError
 
-Each error should include operation, HTTP status if available, GitLab request ID if present and a safe user-facing message. It must not include the token or full request headers.
+Each error should include operation, HTTP status if available, provider request ID if present and a safe user-facing message. It must not include the token or full request headers.
 
 ## 10. Concurrency and cancellation
 
@@ -545,12 +625,12 @@ Each error should include operation, HTTP status if available, GitLab request ID
 - Validate every incoming message against a runtime schema.
 - Escape/render user-supplied Markdown as text or sanitized HTML; disable raw HTML.
 - Validate all links before opening them externally.
-- Do not trust GitLab comment bodies, MR descriptions, filenames or branch names as HTML.
+- Do not trust GitHub/GitLab comment bodies, PR/MR descriptions, filenames or branch names as HTML.
 
 ## 12. Observability
 
 - Use structured, redacted logs.
-- Include operation name, instance ID, project ID, MR IID and GitLab request ID where safe.
+- Include operation name, connection ID, provider, repository/project ID, PR number/MR IID and provider request ID where safe.
 - Do not log tokens, raw authorization headers, full diff bodies or comment content.
 - Provide a user-accessible "Copy diagnostic info" action containing only sanitized metadata.
 
@@ -559,6 +639,10 @@ Each error should include operation, HTTP status if available, GitLab request ID
 - [ ] No domain module imports VS Code API.
 - [ ] Webview has no credential or direct API access.
 - [ ] GitHub and GitLab HTTP calls are isolated behind provider adapters.
+- [ ] GitHub issue comments, inline review comments and review submissions remain distinct resource types.
+- [ ] Reply/resolve/edit/delete actions are gated by provider and conversation-kind capabilities.
+- [ ] GitHub and GitLab diff positions are mapped by separate tested functions.
+- [ ] Missing provider fields remain unknown rather than false/zero.
 - [ ] Credentials are stored and resolved by immutable connection ID.
 - [ ] Multiple accounts on the same host require explicit selection when ambiguous.
 - [ ] Workspace bindings and cache keys include connection ID.
