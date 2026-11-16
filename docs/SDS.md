@@ -13,7 +13,7 @@ The design is based on the proposed MVP decisions in DECISIONS.md:
 - TypeScript extension host.
 - Native VS Code Tree Views for navigation.
 - React + TypeScript Webview for PR/MR detail, diff and review conversations.
-- Separate GitHub REST API v3 and GitLab REST API v4 provider adapters behind a common application contract.
+- Separate GitHub REST API v3 and GitHub REST API / GitLab REST API v4 provider adapters behind a common application contract.
 - Multiple PAT-backed connections, each stored independently in SecretStorage.
 - One active connection + repository binding per workspace folder; one default connection per provider.
 - Single-line inline comments in MVP where supported by the provider.
@@ -65,7 +65,7 @@ flowchart TB
     end
   end
   GitHubAPI[GitHub REST API v3]
-  GitLabAPI[GitLab REST API v4]
+  GitLabAPI[GitHub REST API / GitLab REST API v4]
   User --> Tree
   User --> Panel
   User --> Commands
@@ -251,7 +251,7 @@ Responsibilities:
 
 Responsibilities:
 - Select GitHubAdapter or GitLabAdapter from the immutable provider type on the connection.
-- Build provider API URLs (GitHub REST API v3; GitLab REST API v4) from the validated server configuration.
+- Build provider API URLs (GitHub REST API v3; GitHub REST API / GitLab REST API v4) from the validated server configuration.
 - Apply provider-specific authentication headers; never reuse headers, tokens or request defaults across providers/connections.
 - Map provider DTOs into shared domain contracts while preserving provider-native resource type and identifiers.
 - Expose provider capability descriptors for each operation and conversation kind.
@@ -655,6 +655,6 @@ Each error should include operation, HTTP status if available, provider request 
 - [ ] Secret and user content are excluded from logs.
 
 
-## 12. Multi-provider architecture contract
+## 14. Multi-provider architecture contract
 
 Application services depend on a provider-neutral ReviewProvider port and explicit capability descriptors. GitHub and GitLab adapters implement it using separate HTTP clients, authentication schemes and DTO mappers. Shared services must not import provider DTOs or provider HTTP clients. Normalized models retain provider, connection ID, server origin, repository/project ID, native PR number/MR IID, native URL, head SHA and provider-specific discussion/diff position metadata. Unsupported, unknown and not-authorized are distinct states, never empty results or false. See [PROVIDER-CAPABILITY-MATRIX.md](./PROVIDER-CAPABILITY-MATRIX.md).

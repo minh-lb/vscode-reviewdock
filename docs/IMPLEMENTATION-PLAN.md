@@ -146,11 +146,11 @@ Exit criteria:
 
 ### M2 — Pull Request / Merge Request discovery and detail
 
-**Goal:** make GitHub PRs and GitLab MRs discoverable and readable through provider-native queries.
+**Goal:** make GitHub PRs and GitHub PR / GitLab MRs discoverable and readable through provider-native queries.
 
 Tasks:
-- [ ] Implement GitHub PR list adapter and GitLab MR list adapter.
-- [ ] Implement state filters and provider-native scopes (GitHub Search Issues qualifiers; GitLab MR list scopes).
+- [ ] Implement GitHub PR list adapter and GitHub PR / GitLab MR list adapter.
+- [ ] Implement state filters and provider-native scopes (GitHub Search Issues qualifiers; GitHub PR / GitLab MR list scopes).
 - [ ] Implement title/number search with debounce and cancellation; surface GitHub Search API cap/rate-limit states.
 - [ ] Implement pagination.
 - [ ] Implement native Activity Bar and Tree Views.
@@ -173,7 +173,7 @@ Exit criteria:
 
 Tasks:
 - [ ] Implement GitLab diff-version retrieval and GitHub current-head/diff metadata retrieval.
-- [ ] Implement paginated GitHub PR files and GitLab MR diffs retrieval; represent provider result caps/partial responses.
+- [ ] Implement paginated GitHub PR files and GitHub PR / GitLab MR diffs retrieval; represent provider result caps/partial responses.
 - [ ] Implement unified diff parser.
 - [ ] Implement shared unified-diff row parsing plus GitHub line/side mapping and GitLab old/new position mapping.
 - [ ] Build Webview file navigator and diff renderer.
@@ -214,7 +214,7 @@ Exit criteria:
 
 ### M5 — Provider-aware merge operation
 
-**Goal:** allow safe, explicit immediate merge for GitHub PRs and GitLab MRs.
+**Goal:** allow safe, explicit immediate merge for GitHub PRs and GitHub PR / GitLab MRs.
 
 Tasks:
 - [ ] Implement merge eligibility presentation from fresh PR/MR data while keeping provider status values distinct.
@@ -240,7 +240,7 @@ Exit criteria:
 **Goal:** add pipeline and approval visibility after MVP core workflows are stable.
 
 Tasks:
-- [ ] Implement GitLab MR pipeline list and GitHub Check Runs/commit status list.
+- [ ] Implement GitHub PR / GitLab MR pipeline list and GitHub Check Runs/commit status list.
 - [ ] Implement GitLab pipeline jobs and GitHub Actions workflow run summaries.
 - [ ] Match check/pipeline SHA to PR/MR head SHA.
 - [ ] Implement GitLab basic approval state and GitHub review decision state.

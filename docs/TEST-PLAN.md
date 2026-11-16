@@ -1152,7 +1152,7 @@ Maintain a test-to-requirement mapping as implementation progresses:
 A test case is considered passed only when the observed result and evidence are recorded. A skipped test must include a reason and an approved deferral.
 
 
-## 15. Cross-provider acceptance matrix
+## 17. Cross-provider acceptance matrix
 
 Every P0 workflow is exercised independently against GitHub.com and GitLab.com. Passing one provider does not verify the other. Use provider-specific fixtures and payload assertions.
 
@@ -1167,7 +1167,7 @@ Every P0 workflow is exercised independently against GitHub.com and GitLab.com. 
 | Merge | Current PR head SHA + confirmation | Current MR source SHA + confirmation | P0 |
 | Permission/errors | 401/403/404/409/422/rate limit | 401/403/404/409/422/rate limit | P0 |
 
-### 15.1. Negative cases
+### 17.1. Negative cases
 
 Credentials never cross connection/provider/host boundaries. A valid identity with insufficient repository permission remains a valid connection. Missing/collapsed diff is not empty success. GitHub general comments are not inline comments; GitLab Notes do not replace discussion threads. Checks/pipelines for another head SHA are not current. Mutation timeout requires state reconciliation; no duplicate retry. Disabled connections cannot be selected, resolved as default or issue requests.
 
