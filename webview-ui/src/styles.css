@@ -118,8 +118,36 @@ p {
   flex-wrap: wrap;
   gap: 8px;
 }
-.state-label {
-  color: var(--muted);
+.request-statuses {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+.request-status {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  border: 1px solid var(--status-color, var(--border));
+  border-radius: 12px;
+  padding: 1px 9px;
+  color: var(--vscode-foreground);
+  background: color-mix(in srgb, var(--status-color, var(--surface)) 16%, var(--surface));
+  font-size: 11px;
+  font-weight: 600;
+}
+.request-status.open {
+  --status-color: var(--vscode-testing-iconPassed, var(--vscode-foreground));
+}
+.request-status.closed {
+  --status-color: var(--vscode-editorError-foreground, var(--vscode-foreground));
+}
+.request-status.merged {
+  --status-color: var(--vscode-textLink-foreground, var(--vscode-foreground));
+}
+.request-status.unknown,
+.request-status.draft {
+  --status-color: var(--vscode-descriptionForeground, var(--vscode-foreground));
 }
 .notice {
   margin: 12px 0 4px;
@@ -417,11 +445,64 @@ dd {
   display: grid;
   place-items: center;
   padding: 20px;
-  background: #0008;
+  background: #000c;
 }
 .modal {
   width: min(640px, 100%);
+  max-height: calc(100vh - 40px);
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 16px;
+  background: var(--surface);
   box-shadow: 0 8px 30px #0005;
+}
+.metadata-editor {
+  width: min(560px, 100%);
+}
+.metadata-editor input,
+.metadata-editor textarea,
+.metadata-editor select {
+  width: 100%;
+  color: var(--vscode-input-foreground);
+  background: var(--vscode-input-background);
+  border: 1px solid var(--vscode-input-border, var(--border));
+  padding: 7px;
+  font: inherit;
+}
+.metadata-editor select[multiple] {
+  min-height: 150px;
+}
+.conversation-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+.conversation-actions button {
+  color: var(--vscode-foreground);
+  background: var(--vscode-button-secondaryBackground, var(--surface));
+  border-color: var(--border);
+}
+.commit {
+  margin-bottom: 10px;
+  overflow-wrap: anywhere;
+}
+.commit-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+.commit-message {
+  white-space: pre-wrap;
+}
+.commit-meta {
+  overflow-wrap: anywhere;
+}
+.reply-composer {
+  margin: 12px 0 0;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
 }
 .actions {
   display: flex;

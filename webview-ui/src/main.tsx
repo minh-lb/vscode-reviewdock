@@ -4,14 +4,21 @@ import type {
   ApprovalState,
   CheckSummary,
   DiffFilePage,
+  MetadataOptionKind,
   ProviderCapabilityDescriptor,
+  ProviderUser,
+  ReviewCommit,
   ReviewConversation,
 } from '../../src/domain/models';
-import { parseUnifiedDiff } from '../../src/domain/diff';
 import type {
   WebviewMessage,
   WebviewRequest,
 } from '../../src/presentation/webview/messageProtocol';
+import {
+  ChangesPanel,
+  type ChangesPanelState,
+  type MarkdownFileContent,
+} from './components/ChangesPanel';
 import './styles.css';
 
 declare function acquireVsCodeApi(): {
@@ -38,9 +45,9 @@ function App() {
   const [conversations, setConversations] = useState<ReviewConversation[]>([]);
   const [checks, setChecks] = useState<CheckSummary[]>();
   const [approvals, setApprovals] = useState<ApprovalState>();
-  const [tab, setTab] = useState<'overview' | 'changes' | 'conversations' | 'checks' | 'approvals'>(
-    'overview',
-  );
+  const [tab, setTab] = useState<
+    'overview' | 'changes' | 'conversations' | 'checks' | 'approvals' | 'commits'
+  >('overview');
   const [notice, setNotice] = useState<Notice>();
   const [busy, setBusy] = useState<string>();
   const [mutationUncertain, setMutationUncertain] = useState(false);
@@ -56,6 +63,30 @@ function App() {
   const [draft, setDraft] = useState('');
   const [replyFor, setReplyFor] = useState<string>();
   const [replyDraft, setReplyDraft] = useState('');
+  const [metadataEditing, setMetadataEditing] = useState(false);
+  const [metadataDraft, setMetadataDraft] = useState<{
+    title: string;
+    description: string;
+    assigneeIds: string[];
+    reviewerIds: string[];
+    labels: string[];
+  }>();
+  const [metadataOptions, setMetadataOptions] = useState<
+    Partial<Record<MetadataOptionKind, (ProviderUser | string)[]>>
+  >({});
+  const [metadataOptionPages, setMetadataOptionPages] = useState<
+    Partial<Record<MetadataOptionKind, number>>
+  >({});
+  const [changesState, setChangesState] = useState<Partial<ChangesPanelState>>(() => {
+    const state = vscode.getState() as { changesState?: Partial<ChangesPanelState> } | undefined;
+    return state?.changesState ?? {};
+  });
+  const [fileContent, setFileContent] = useState<Record<string, MarkdownFileContent>>({});
+  const [commits, setCommits] = useState<ReviewCommit[]>([]);
+  const [commitsPage, setCommitsPage] = useState<{ hasNextPage: boolean }>({ hasNextPage: false });
+  const [commitsLoaded, setCommitsLoaded] = useState(false);
+  const [commitsLoading, setCommitsLoading] = useState(false);
+  const [commitsError, setCommitsError] = useState<string>();
   const [conversationPage, setConversationPage] = useState<{ hasNextPage: boolean }>({
     hasNextPage: false,
   });
@@ -63,6 +94,8 @@ function App() {
   const inlineTrigger = useRef<HTMLElement | null>(null);
   const inlineEditor = useRef<HTMLTextAreaElement>(null);
   const inlineDialog = useRef<HTMLFormElement>(null);
+  const metadataDialog = useRef<HTMLFormElement>(null);
+  const replyEditor = useRef<HTMLTextAreaElement>(null);
   const contextId = init?.contextId ?? window.reviewDockContextId;
   const post = (message: Record<string, unknown>) =>
     vscode.postMessage({ ...message, contextId } as WebviewRequest);
@@ -79,6 +112,16 @@ function App() {
         setApprovals(undefined);
         latestResults.current = {};
         setInline(undefined);
+        setMetadataEditing(false);
+        setMetadataDraft(undefined);
+        setMetadataOptions({});
+        setMetadataOptionPages({});
+        setFileContent({});
+        setCommits([]);
+        setCommitsPage({ hasNextPage: false });
+        setCommitsLoaded(false);
+        setCommitsLoading(false);
+        setCommitsError(undefined);
       }
       if (message.type === 'files' && message.requestId >= (latestResults.current.files ?? 0)) {
         latestResults.current.files = message.requestId;
@@ -103,6 +146,50 @@ function App() {
         latestResults.current.approvals = message.requestId;
         setApprovals(message.result);
       }
+      if (message.type === 'metadataOptions') {
+        const key = `metadata-${message.kind}`;
+        if (message.requestId >= (latestResults.current[key] ?? 0)) {
+          latestResults.current[key] = message.requestId;
+          setMetadataOptions((current) => ({
+            ...current,
+            [message.kind]:
+              message.result.page.page > 1
+                ? [...(current[message.kind] ?? []), ...message.result.items]
+                : message.result.items,
+          }));
+          setMetadataOptionPages((current) => ({
+            ...current,
+            [message.kind]: message.result.page.hasNextPage
+              ? message.result.page.page + 1
+              : undefined,
+          }));
+        }
+      }
+      if (message.type === 'markdownContent') {
+        setFileContent((current) => ({
+          ...current,
+          [message.path]: {
+            ...(message.oldContent === undefined ? {} : { oldContent: message.oldContent }),
+            ...(message.newContent === undefined ? {} : { newContent: message.newContent }),
+            ...(message.oldContent === undefined && message.error
+              ? { oldError: message.error }
+              : {}),
+            ...(message.newContent === undefined && message.error
+              ? { newError: message.error }
+              : {}),
+          },
+        }));
+      }
+      if (message.type === 'commits' && message.requestId >= (latestResults.current.commits ?? 0)) {
+        latestResults.current.commits = message.requestId;
+        setCommitsLoading(false);
+        setCommitsLoaded(!!message.result);
+        setCommitsError(message.error);
+        if (message.result) {
+          setCommits(message.result.items);
+          setCommitsPage({ hasNextPage: message.result.page.hasNextPage });
+        }
+      }
       if (message.type === 'mutationState') setMutationUncertain(message.uncertain);
       if (message.type === 'busy') setBusy(message.busy ? message.action : undefined);
       if (message.type === 'notice') {
@@ -111,7 +198,10 @@ function App() {
           setDraft('');
           setComment('');
           setReplyDraft('');
+          setReplyFor(undefined);
           setInline(undefined);
+          setMetadataEditing(false);
+          setMetadataDraft(undefined);
         }
       }
       if (message.type === 'stale') {
@@ -139,8 +229,102 @@ function App() {
   const requestLabel =
     init?.providerName === 'GitHub' ? `PR #${detail?.number}` : `!${detail?.number}`;
   const fileCount = files?.items.length ?? 0;
+  const canEditMetadata = ['supported', 'conditional'].includes(
+    init?.capabilities.editMetadata?.support ?? 'unsupported',
+  );
+  const beginMetadataEdit = () => {
+    if (!detail || !canEditMetadata) return;
+    setMetadataDraft({
+      title: detail.title,
+      description: detail.description ?? '',
+      assigneeIds: detail.assignees?.map((user) => user.id) ?? [],
+      reviewerIds: detail.reviewers?.map((user) => user.id) ?? [],
+      labels: detail.labels ?? [],
+    });
+    setMetadataEditing(true);
+    setMetadataOptionPages({ assignees: 1, reviewers: 1, labels: 1 });
+    (['assignees', 'reviewers', 'labels'] as const).forEach((kind) =>
+      post({ type: 'listMetadataOptions', kind, page: 1 }),
+    );
+  };
+  const saveMetadata = (event: FormEvent) => {
+    event.preventDefault();
+    if (!metadataDraft || !detail || mutationUncertain || busy) return;
+    const patch: Record<string, unknown> = {};
+    if (metadataDraft.title !== detail.title) patch.title = metadataDraft.title;
+    if (metadataDraft.description !== (detail.description ?? ''))
+      patch.description = metadataDraft.description;
+    if (
+      detail.assignees &&
+      JSON.stringify(metadataDraft.assigneeIds) !==
+        JSON.stringify(detail.assignees.map((user) => user.id))
+    )
+      patch.assigneeIds = metadataDraft.assigneeIds;
+    if (
+      detail.reviewers &&
+      JSON.stringify(metadataDraft.reviewerIds) !==
+        JSON.stringify(detail.reviewers.map((user) => user.id))
+    )
+      patch.reviewerIds = metadataDraft.reviewerIds;
+    if (detail.labels && JSON.stringify(metadataDraft.labels) !== JSON.stringify(detail.labels))
+      patch.labels = metadataDraft.labels;
+    if (Object.keys(patch).length) {
+      post({ type: 'editMetadata', ...patch });
+      setBusy('metadata');
+    }
+  };
+  const loadMoreMetadataOptions = (kind: MetadataOptionKind) => {
+    const page = metadataOptionPages[kind];
+    if (page) post({ type: 'listMetadataOptions', kind, page });
+  };
+  const loadMarkdownContent = (path: string) => {
+    setFileContent((current) => ({ ...current, [path]: { loading: true } }));
+    post({ type: 'loadMarkdownContent', path });
+  };
+  const deleteComment = (conversationId: string, commentId?: string) => {
+    if (busy || mutationUncertain) return;
+    post({ type: 'deleteComment', conversationId, ...(commentId ? { commentId } : {}) });
+    setBusy('deleteComment');
+  };
+  const setResolved = (conversationId: string, resolved: boolean) => {
+    if (busy || mutationUncertain) return;
+    post({ type: 'setThreadResolved', conversationId, resolved });
+    setBusy('resolveThread');
+  };
+  const renderDiscussion = (item: ReviewConversation) => (
+    <InlineDiscussion
+      key={item.id}
+      item={item}
+      canReply={canReply(item, init!.capabilities.replyByResource)}
+      onReply={() => setReplyFor(item.id)}
+      canDelete={canDeleteConversation(item, init!)}
+      onDelete={(commentId) => deleteComment(item.id, commentId)}
+      canResolve={canResolveConversation(item, init!.capabilities)}
+      onResolve={(resolved) => setResolved(item.id, resolved)}
+      {...(init!.accountId ? { accountId: init!.accountId } : {})}
+      accountLogin={init!.accountLogin}
+      deleteCapabilities={init!.capabilities.deleteByResource ?? {}}
+      disabled={!!busy || mutationUncertain}
+      {...(replyFor ? { replyFor } : {})}
+      replyDraft={replyDraft}
+      replyPending={busy === 'reply'}
+      replyEditor={replyEditor}
+      onReplyDraftChange={setReplyDraft}
+      onCancelReply={() => setReplyFor(undefined)}
+      onSubmitReply={(event) => {
+        event.preventDefault();
+        if (mutationUncertain || !replyDraft.trim() || busy) return;
+        post({ type: 'reply', conversationId: item.id, body: replyDraft });
+        setBusy('reply');
+      }}
+    />
+  );
   const selectTab = (next: typeof tab) => {
     setTab(next);
+    if (next === 'commits') {
+      setCommitsLoading(true);
+      setCommitsError(undefined);
+    }
     post({ type: 'selectTab', tab: next });
   };
   const submit = (event: FormEvent, type: 'addGeneralComment' | 'addInlineComment' | 'reply') => {
@@ -160,6 +344,15 @@ function App() {
     if (inline) inlineEditor.current?.focus();
     else inlineTrigger.current?.focus();
   }, [inline]);
+  useEffect(() => {
+    if (metadataEditing) metadataDialog.current?.querySelector<HTMLElement>('input')?.focus();
+  }, [metadataEditing]);
+  useEffect(() => {
+    if (!replyFor) return;
+    const editor = replyEditor.current;
+    editor?.closest('.reply-composer')?.scrollIntoView?.({ block: 'nearest' });
+    editor?.focus();
+  }, [replyFor]);
 
   if (!init || !detail)
     return (
@@ -227,36 +420,46 @@ function App() {
             </button>
           </div>
         )}
-        {detail.state !== 'open' && (
-          <p className="state-label">
-            {detail.state === 'merged'
-              ? 'Merged'
-              : detail.state === 'closed'
-                ? 'Closed'
-                : 'State unknown'}
-          </p>
-        )}
+        <div className="request-statuses" aria-label="Review request status">
+          <span className={`request-status ${detail.state}`}>
+            {detail.state === 'open'
+              ? 'Open'
+              : detail.state === 'merged'
+                ? 'Merged'
+                : detail.state === 'closed'
+                  ? 'Closed'
+                  : 'Status unknown'}
+          </span>
+          {detail.draft && <span className="request-status draft">Draft</span>}
+        </div>
       </header>
       <nav className="tabs" aria-label="Review request sections">
-        {(['overview', 'changes', 'conversations', 'checks', 'approvals'] as const).map((name) => (
-          <button
-            key={name}
-            className={tab === name ? 'active' : ''}
-            aria-current={tab === name ? 'page' : undefined}
-            onClick={() => selectTab(name)}
-          >
-            {name === 'changes'
-              ? `Changes ${fileCount || ''}`
-              : name === 'conversations'
-                ? `Conversations ${conversations.length || ''}`
-                : name.slice(0, 1).toUpperCase() + name.slice(1)}
-          </button>
-        ))}
+        {(['overview', 'changes', 'conversations', 'checks', 'approvals', 'commits'] as const).map(
+          (name) => (
+            <button
+              key={name}
+              className={tab === name ? 'active' : ''}
+              aria-current={tab === name ? 'page' : undefined}
+              onClick={() => selectTab(name)}
+            >
+              {name === 'commits'
+                ? `Commits ${commits.length || ''}`
+                : name === 'changes'
+                  ? `Changes ${fileCount || ''}`
+                  : name === 'conversations'
+                    ? `Conversations ${conversations.length || ''}`
+                    : name.slice(0, 1).toUpperCase() + name.slice(1)}
+            </button>
+          ),
+        )}
       </nav>
       {tab === 'overview' && (
         <section className="content overview">
           <article className="card">
-            <h2>Description</h2>
+            <div className="section-title">
+              <h2>Description</h2>
+              {canEditMetadata && <button onClick={beginMetadataEdit}>Edit review details</button>}
+            </div>
             {detail.description ? (
               <Markdown text={detail.description} />
             ) : (
@@ -333,69 +536,31 @@ function App() {
         </section>
       )}
       {tab === 'changes' && (
-        <section className="content changes">
-          <div className="file-list">
-            <div className="section-title">
-              <h2>Files ({fileCount})</h2>
-              <button onClick={() => post({ type: 'refresh' })}>Refresh</button>
-            </div>
-            {files?.truncated && (
-              <p className="warning">File list is partial; the provider imposed a limit.</p>
-            )}
-            {!files && (
-              <button
-                className="empty-action"
-                onClick={() => post({ type: 'selectTab', tab: 'changes' })}
-              >
-                Load changed files
-              </button>
-            )}
-            {files?.items.map((file, index) => (
-              <a key={`${file.path}-${index}`} href={`#file-${index}`} className="file-item">
-                <span className={`change ${file.change}`}>
-                  {file.change.slice(0, 1).toUpperCase()}
-                </span>
-                <span className="path">
-                  {file.previousPath ? `${file.previousPath} → ` : ''}
-                  {file.path}
-                </span>
-                <span className="stats">
-                  {file.additions != null ? `+${file.additions}` : ''}{' '}
-                  {file.deletions != null ? `−${file.deletions}` : ''}
-                </span>
-              </a>
-            ))}
-            {files?.page.hasNextPage && (
-              <button onClick={() => post({ type: 'loadMoreFiles' })}>Load more files</button>
-            )}
-          </div>
-          <div className="diff-list">
-            {files?.items.map((file, index) => (
-              <DiffView
-                key={`${file.path}-${index}`}
-                index={index}
-                file={file}
-                conversations={conversations}
-                canComment={['supported', 'conditional'].includes(
-                  init.capabilities.inlineComments.support,
-                )}
-                replyCapabilities={init.capabilities.replyByResource}
-                onComment={(position) => {
-                  inlineTrigger.current = document.activeElement as HTMLElement;
-                  setInline(position);
-                  setNeedsReanchor(false);
-                }}
-                onReply={(id) => setReplyFor(id)}
-              />
-            ))}
-            {!files && (
-              <div className="empty card">
-                <h2>Changes not loaded</h2>
-                <p>Open this tab to fetch the current diff.</p>
-              </div>
-            )}
-          </div>
-        </section>
+        <ChangesPanel
+          files={files}
+          conversations={conversations}
+          canComment={['supported', 'conditional'].includes(
+            init.capabilities.inlineComments.support,
+          )}
+          replyCapabilities={init.capabilities.replyByResource}
+          contentByPath={fileContent}
+          stale={needsReanchor}
+          initialState={changesState}
+          onStateChange={(state) => {
+            setChangesState(state);
+            vscode.setState({ changesState: state });
+          }}
+          onLoadContent={loadMarkdownContent}
+          renderDiscussion={renderDiscussion}
+          onComment={(position) => {
+            inlineTrigger.current = document.activeElement as HTMLElement;
+            setInline(position);
+            setNeedsReanchor(false);
+          }}
+          onReply={(id) => setReplyFor(id)}
+          onRefresh={() => post({ type: 'refresh' })}
+          onLoadMore={() => post({ type: 'loadMoreFiles' })}
+        />
       )}
       {tab === 'conversations' && (
         <section className="content">
@@ -440,14 +605,7 @@ function App() {
               </button>
             </form>
           )}
-          {groups.map((item) => (
-            <Conversation
-              key={item.id}
-              item={item}
-              canReply={canReply(item, init.capabilities.replyByResource)}
-              onReply={() => setReplyFor(item.id)}
-            />
-          ))}
+          {groups.map((item) => renderDiscussion(item))}
           {conversationPage.hasNextPage && (
             <button onClick={() => post({ type: 'loadMoreConversations' })}>
               Load more conversations
@@ -536,30 +694,236 @@ function App() {
             ))}
         </section>
       )}
-      {replyFor && (
-        <form
-          className="content card composer"
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (mutationUncertain) return;
-            post({ type: 'reply', conversationId: replyFor, body: replyDraft });
-            setBusy('reply');
-          }}
-        >
-          <label htmlFor="reply">Reply</label>
-          <textarea id="reply" value={replyDraft} onChange={(e) => setReplyDraft(e.target.value)} />
-          <div className="actions">
-            <button type="button" onClick={() => setReplyFor(undefined)}>
-              Cancel
-            </button>
-            <button
-              className="primary"
-              disabled={!!busy || mutationUncertain || !replyDraft.trim()}
+      {tab === 'commits' && (
+        <section className="content commits" aria-label="Commits">
+          {unavailable(
+            init.capabilities.commits?.support ?? 'unknown',
+            init.capabilities.commits?.reason,
+          ) ? (
+            <Unavailable
+              message={unavailable(
+                init.capabilities.commits?.support ?? 'unknown',
+                init.capabilities.commits?.reason,
+              )}
+            />
+          ) : commitsError ? (
+            <div className="empty card" role="alert">
+              <p>{commitsError}</p>
+              <button onClick={() => selectTab('commits')}>Retry commits</button>
+            </div>
+          ) : commitsLoading && !commitsLoaded ? (
+            <div className="empty card">Loading commits…</div>
+          ) : !commits.length ? (
+            <div className="empty card">
+              <h2>No commits found</h2>
+              <p>This review request has no commits to display.</p>
+            </div>
+          ) : (
+            <>
+              {commits.map((commit) => {
+                const shortSha = commit.sha.slice(0, 7);
+                return (
+                  <article className="card commit" key={commit.id}>
+                    <div className="commit-heading">
+                      <strong>
+                        {commit.message.split('\n')[0] || 'Commit message unavailable'}
+                      </strong>
+                      <button
+                        aria-label={`Open commit ${shortSha} on provider`}
+                        onClick={() => post({ type: 'openCommit', commitId: commit.id })}
+                      >
+                        Open commit {shortSha}
+                      </button>
+                    </div>
+                    <p className="commit-message">{commit.message}</p>
+                    <p className="muted commit-meta">
+                      {commit.author?.name ||
+                        commit.author?.login ||
+                        commit.authorName ||
+                        'Author unavailable'}
+                      {commit.authoredAt || commit.committedAt
+                        ? ` · ${new Date(commit.authoredAt ?? commit.committedAt!).toLocaleString()}`
+                        : ' · Date unavailable'}
+                      {' · '}
+                      {commit.sha}
+                    </p>
+                  </article>
+                );
+              })}
+              {commitsPage.hasNextPage && (
+                <button
+                  disabled={commitsLoading}
+                  onClick={() => {
+                    setCommitsLoading(true);
+                    setCommitsError(undefined);
+                    post({ type: 'loadMoreCommits' });
+                  }}
+                >
+                  {commitsLoading ? 'Loading more commits…' : 'Load more commits'}
+                </button>
+              )}
+              {commitsError && (
+                <div className="notice error" role="alert">
+                  {commitsError}
+                </div>
+              )}
+            </>
+          )}
+        </section>
+      )}
+      {metadataEditing && metadataDraft && (
+        <div className="modal-backdrop" role="presentation">
+          <form
+            ref={metadataDialog}
+            className="modal metadata-editor composer"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="metadata-title"
+            onKeyDown={(event) => {
+              if (event.key === 'Escape') {
+                event.preventDefault();
+                setMetadataEditing(false);
+              }
+              if (event.key === 'Tab') {
+                const controls = metadataDialog.current?.querySelectorAll<HTMLElement>(
+                  'button:not(:disabled), input:not(:disabled), textarea:not(:disabled), select:not(:disabled)',
+                );
+                if (!controls?.length) return;
+                const first = controls[0]!;
+                const last = controls[controls.length - 1]!;
+                if (event.shiftKey && document.activeElement === first) {
+                  event.preventDefault();
+                  last.focus();
+                } else if (!event.shiftKey && document.activeElement === last) {
+                  event.preventDefault();
+                  first.focus();
+                }
+              }
+            }}
+            onSubmit={saveMetadata}
+          >
+            <h2 id="metadata-title">Edit review details</h2>
+            <label htmlFor="review-title">Title</label>
+            <input
+              id="review-title"
+              value={metadataDraft.title}
+              onChange={(event) =>
+                setMetadataDraft({ ...metadataDraft, title: event.target.value })
+              }
+              required
+            />
+            <label htmlFor="review-description">Description</label>
+            <textarea
+              id="review-description"
+              value={metadataDraft.description}
+              onChange={(event) =>
+                setMetadataDraft({ ...metadataDraft, description: event.target.value })
+              }
+            />
+            <label htmlFor="review-assignees">
+              Assignees{detail.assignees === undefined ? ' (unavailable)' : ''}
+            </label>
+            <select
+              id="review-assignees"
+              multiple
+              disabled={detail.assignees === undefined}
+              value={metadataDraft.assigneeIds}
+              onChange={(event) =>
+                setMetadataDraft({
+                  ...metadataDraft,
+                  assigneeIds: [...event.currentTarget.selectedOptions].map(
+                    (option) => option.value,
+                  ),
+                })
+              }
             >
-              {busy === 'reply' ? 'Sending…' : 'Send reply'}
-            </button>
-          </div>
-        </form>
+              {optionsWithCurrent(
+                metadataOptions.assignees,
+                detail.assignees?.map((user) => user.id) ?? [],
+                detail.assignees?.map((user) => user.login) ?? [],
+              ).map((option) => (
+                <option key={option.id} value={option.id}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            {metadataOptionPages.assignees && (
+              <button type="button" onClick={() => loadMoreMetadataOptions('assignees')}>
+                Load more assignees
+              </button>
+            )}
+            <label htmlFor="review-reviewers">
+              Reviewers{detail.reviewers === undefined ? ' (unavailable)' : ''}
+            </label>
+            <select
+              id="review-reviewers"
+              multiple
+              disabled={detail.reviewers === undefined}
+              value={metadataDraft.reviewerIds}
+              onChange={(event) =>
+                setMetadataDraft({
+                  ...metadataDraft,
+                  reviewerIds: [...event.currentTarget.selectedOptions].map(
+                    (option) => option.value,
+                  ),
+                })
+              }
+            >
+              {optionsWithCurrent(
+                metadataOptions.reviewers,
+                detail.reviewers?.map((user) => user.id) ?? [],
+                detail.reviewers?.map((user) => user.login) ?? [],
+              ).map((option) => (
+                <option key={option.id} value={option.id}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            {metadataOptionPages.reviewers && (
+              <button type="button" onClick={() => loadMoreMetadataOptions('reviewers')}>
+                Load more reviewers
+              </button>
+            )}
+            <label htmlFor="review-labels">
+              Labels{detail.labels === undefined ? ' (unavailable)' : ''}
+            </label>
+            <select
+              id="review-labels"
+              multiple
+              disabled={detail.labels === undefined}
+              value={metadataDraft.labels}
+              onChange={(event) =>
+                setMetadataDraft({
+                  ...metadataDraft,
+                  labels: [...event.currentTarget.selectedOptions].map((option) => option.value),
+                })
+              }
+            >
+              {optionsWithCurrent(
+                metadataOptions.labels,
+                detail.labels ?? [],
+                detail.labels ?? [],
+              ).map((option) => (
+                <option key={option.id} value={option.id}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            {metadataOptionPages.labels && (
+              <button type="button" onClick={() => loadMoreMetadataOptions('labels')}>
+                Load more labels
+              </button>
+            )}
+            <div className="actions">
+              <button type="button" onClick={() => setMetadataEditing(false)}>
+                Cancel
+              </button>
+              <button className="primary" disabled={!!busy || mutationUncertain}>
+                {busy === 'metadata' ? 'Saving…' : 'Save details'}
+              </button>
+            </div>
+          </form>
+        </div>
       )}
       {inline && (
         <div className="modal-backdrop" role="presentation">
@@ -630,130 +994,54 @@ function App() {
   );
 }
 
-function DiffView({
-  index,
-  file,
-  conversations,
-  canComment,
-  replyCapabilities,
-  onComment,
-  onReply,
-}: {
-  index: number;
-  file: DiffFilePage['items'][number];
-  conversations: ReviewConversation[];
-  canComment: boolean;
-  replyCapabilities: ProviderCapabilityDescriptor['replyByResource'];
-  onComment: (
-    p: NonNullable<Extract<WebviewRequest, { type: 'addInlineComment' }>['position']>,
-  ) => void;
-  onReply: (id: string) => void;
-}) {
-  const parsed = parseUnifiedDiff(file);
-  const discussions = conversations.filter(
-    (c) => c.position && [file.path, file.previousPath].includes(c.position.path),
-  );
-  const renderDiscussion = (item: ReviewConversation) => (
-    <InlineDiscussion
-      key={item.id}
-      item={item}
-      canReply={canReply(item, replyCapabilities)}
-      onReply={() => onReply(item.id)}
-    />
-  );
-  return (
-    <article className="diff-file card" id={`file-${index}`}>
-      <div className="diff-file-head">
-        <strong>{file.path}</strong>
-        <span>{file.change}</span>
-      </div>
-      {parsed.status !== 'available' ? (
-        <p className="muted">
-          {parsed.status === 'invalid'
-            ? parsed.reason
-            : parsed.reason === 'binary'
-              ? 'Binary file'
-              : parsed.reason === 'too-large'
-                ? 'Patch too large'
-                : parsed.reason === 'collapsed'
-                  ? 'Patch collapsed'
-                  : 'Patch unavailable'}
-        </p>
-      ) : (
-        parsed.rows.map((row, i) => {
-          const anchored = discussions.filter((item) => {
-            const pos = item.position!;
-            const target =
-              pos.side === 'old' ? (pos.oldLine ?? pos.line) : (pos.newLine ?? pos.line);
-            return target === (pos.side === 'old' ? row.oldLine : row.newLine);
-          });
-          return (
-            <React.Fragment key={`${i}-${row.oldLine}-${row.newLine}`}>
-              <div className={`diff-row ${row.kind}`}>
-                <span className="line-no">{row.oldLine ?? ''}</span>
-                <span className="line-no">{row.newLine ?? ''}</span>
-                <span
-                  className="diff-sign"
-                  aria-label={
-                    row.kind === 'added'
-                      ? 'Added line'
-                      : row.kind === 'removed'
-                        ? 'Removed line'
-                        : 'Context line'
-                  }
-                >
-                  {row.kind === 'added' ? '+' : row.kind === 'removed' ? '−' : ' '}
-                </span>
-                <code>{row.text || ' '}</code>
-                {canComment && row.commentable && (
-                  <button
-                    className="line-comment"
-                    aria-label={`Comment on ${file.path} line ${row.newLine ?? row.oldLine}`}
-                    title="Add inline comment"
-                    onClick={() =>
-                      onComment({
-                        path: file.path,
-                        ...(file.previousPath ? { oldPath: file.previousPath } : {}),
-                        newPath: file.path,
-                        side: row.newLine ? 'new' : 'old',
-                        line: row.newLine ?? row.oldLine ?? 1,
-                        ...(row.oldLine === undefined ? {} : { oldLine: row.oldLine }),
-                        ...(row.newLine === undefined ? {} : { newLine: row.newLine }),
-                      })
-                    }
-                  >
-                    ＋
-                  </button>
-                )}
-              </div>
-              {anchored.map(renderDiscussion)}
-            </React.Fragment>
-          );
-        })
-      )}
-      {parsed.status !== 'available' && discussions.map(renderDiscussion)}
-    </article>
-  );
-}
 function InlineDiscussion({
   item,
   canReply,
   onReply,
+  canDelete,
+  onDelete,
+  canResolve,
+  onResolve,
+  accountLogin,
+  accountId,
+  deleteCapabilities,
+  disabled,
+  replyFor,
+  replyDraft,
+  replyPending,
+  replyEditor,
+  onReplyDraftChange,
+  onCancelReply,
+  onSubmitReply,
 }: {
   item: ReviewConversation;
   canReply: boolean;
   onReply: () => void;
+  canDelete: boolean;
+  onDelete: (commentId?: string) => void;
+  canResolve: boolean;
+  onResolve: (resolved: boolean) => void;
+  accountLogin: string;
+  accountId?: string;
+  deleteCapabilities: NonNullable<ProviderCapabilityDescriptor['deleteByResource']>;
+  disabled: boolean;
+  replyFor?: string;
+  replyDraft: string;
+  replyPending: boolean;
+  replyEditor: React.RefObject<HTMLTextAreaElement | null>;
+  onReplyDraftChange: (value: string) => void;
+  onCancelReply: () => void;
+  onSubmitReply: (event: FormEvent) => void;
 }) {
-  const resolution =
-    item.provider === 'github'
-      ? 'Not applicable'
-      : item.resolved === undefined || item.resolved === null
-        ? 'Unknown'
-        : item.resolved
-          ? 'Resolved'
-          : 'Unresolved';
+  const resolution = !item.threadId
+    ? 'Not applicable'
+    : item.resolved === undefined || item.resolved === null
+      ? 'Unknown'
+      : item.resolved
+        ? 'Resolved'
+        : 'Unresolved';
   return (
-    <div className="inline-discussion">
+    <div className="inline-discussion conversation card">
       <div className="conversation-meta">
         <strong>{item.author.login}</strong>
         <time>{new Date(item.createdAt).toLocaleString()}</time>
@@ -765,53 +1053,51 @@ function InlineDiscussion({
           <strong>{reply.author.login}</strong>
           <time>{new Date(reply.createdAt).toLocaleString()}</time>
           <Markdown text={reply.body} />
+          {canDeleteReply(reply, accountId, accountLogin, deleteCapabilities) && (
+            <button disabled={disabled} onClick={() => onDelete(reply.id)}>
+              Delete reply
+            </button>
+          )}
         </div>
       ))}
-      {canReply ? <button onClick={onReply}>Reply</button> : null}
-    </div>
-  );
-}
-function Conversation({
-  item,
-  canReply,
-  onReply,
-}: {
-  item: ReviewConversation;
-  canReply: boolean;
-  onReply: () => void;
-}) {
-  const resolution =
-    item.provider === 'github'
-      ? 'Not applicable'
-      : item.resolved === undefined || item.resolved === null
-        ? 'Unknown'
-        : item.resolved
-          ? 'Resolved'
-          : 'Unresolved';
-  return (
-    <article className="card conversation">
-      <div className="conversation-meta">
-        <strong>{item.author.login}</strong>
-        <time>{new Date(item.createdAt).toLocaleString()}</time>
-        <span>
-          {item.position
-            ? `${item.position.path}:${item.position.newLine ?? item.position.oldLine}`
-            : 'General'}
-        </span>
-        {item.position && <span>{resolution}</span>}
-        {item.systemNote && <span>System note</span>}
-        {item.reviewState && <span>Review: {item.reviewState}</span>}
+      <div className="conversation-actions">
+        {canReply && (
+          <button disabled={disabled} onClick={onReply}>
+            Reply
+          </button>
+        )}
+        {canDelete && (
+          <button disabled={disabled} onClick={() => onDelete()}>
+            Delete comment
+          </button>
+        )}
+        {canResolve && (
+          <button disabled={disabled} onClick={() => onResolve(!item.resolved)}>
+            {item.resolved ? 'Unresolve thread' : 'Resolve thread'}
+          </button>
+        )}
       </div>
-      <Markdown text={item.body} />
-      {item.replies.map((reply) => (
-        <div className="reply" key={reply.id}>
-          <strong>{reply.author.login}</strong>
-          <time>{new Date(reply.createdAt).toLocaleString()}</time>
-          <Markdown text={reply.body} />
-        </div>
-      ))}
-      {canReply && <button onClick={onReply}>Reply</button>}
-    </article>
+      {replyFor === item.id && (
+        <form className="composer reply-composer" onSubmit={onSubmitReply}>
+          <label htmlFor={`reply-${item.id}`}>Reply to {item.author.login}</label>
+          <textarea
+            ref={replyEditor}
+            id={`reply-${item.id}`}
+            value={replyDraft}
+            onChange={(event) => onReplyDraftChange(event.target.value)}
+            aria-label="Reply"
+          />
+          <div className="actions">
+            <button type="button" disabled={disabled} onClick={onCancelReply}>
+              Cancel
+            </button>
+            <button className="primary" disabled={disabled || !replyDraft.trim()}>
+              {replyPending ? 'Sending…' : 'Send reply'}
+            </button>
+          </div>
+        </form>
+      )}
+    </div>
   );
 }
 function Markdown({ text }: { text: string }) {
@@ -984,4 +1270,68 @@ function canReply(
     return false;
   const support = capabilities[item.resourceType]?.support;
   return support === 'supported' || support === 'conditional';
+}
+
+function canDeleteConversation(item: ReviewConversation, init: Init): boolean {
+  const capability = init.capabilities.deleteByResource?.[item.resourceType]?.support;
+  return (
+    !item.systemNote &&
+    item.resourceType !== 'github-review' &&
+    (init.accountId
+      ? item.author.id === init.accountId
+      : item.author.login === init.accountLogin) &&
+    (capability === 'supported' || capability === 'conditional')
+  );
+}
+
+function canDeleteReply(
+  reply: ReviewConversation['replies'][number],
+  accountId: string | undefined,
+  accountLogin: string,
+  capabilities: NonNullable<ProviderCapabilityDescriptor['deleteByResource']>,
+): boolean {
+  const capability = capabilities[reply.resourceType]?.support;
+  return (
+    (accountId ? reply.author.id === accountId : reply.author.login === accountLogin) &&
+    (capability === 'supported' || capability === 'conditional')
+  );
+}
+
+function canResolveConversation(
+  item: ReviewConversation,
+  capabilities: ProviderCapabilityDescriptor,
+): boolean {
+  const support = capabilities.resolveThreads.support;
+  const permissionKnown =
+    item.provider === 'github'
+      ? item.resolved
+        ? item.canUnresolve === true
+        : item.canResolve === true
+      : typeof item.resolved === 'boolean';
+  return (
+    !!item.threadId &&
+    !item.parentId &&
+    !item.replyToId &&
+    !item.systemNote &&
+    item.resourceType !== 'github-issue-comment' &&
+    item.resourceType !== 'github-review' &&
+    (support === 'supported' || support === 'conditional') &&
+    permissionKnown
+  );
+}
+
+function optionsWithCurrent(
+  options: (ProviderUser | string)[] | undefined,
+  currentIds: string[],
+  currentLabels: string[],
+): { id: string; label: string }[] {
+  const result = new Map<string, string>();
+  options?.forEach((option) => {
+    if (typeof option === 'string') result.set(option, option);
+    else result.set(option.id, option.login);
+  });
+  currentIds.forEach((id, index) => {
+    if (!result.has(id)) result.set(id, currentLabels[index] ?? id);
+  });
+  return [...result].map(([id, label]) => ({ id, label }));
 }

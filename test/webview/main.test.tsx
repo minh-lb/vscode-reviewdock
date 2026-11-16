@@ -326,8 +326,11 @@ describe('ReviewDock webview entry point', () => {
     expect(threadCards[0]?.querySelector('button')?.textContent).toBe('Reply');
     expect(threadCards[1]?.querySelector('button')).toBeNull();
     act(() => button('Reply').click());
-    const reply = document.querySelector<HTMLTextAreaElement>('#reply');
+    const reply = document.querySelector<HTMLTextAreaElement>('textarea[aria-label="Reply"]');
     expect(reply).not.toBeNull();
+    expect(reply?.closest('.conversation')).toBe(threadCards[0]);
+    expect(document.querySelector('.content > .reply-composer')).toBeNull();
+    expect(document.activeElement).toBe(reply);
     typeInto(reply!, 'Here is more detail.');
     act(() => button('Send reply').click());
     expect(messages.at(-1)).toEqual({
@@ -400,5 +403,257 @@ describe('ReviewDock webview entry point', () => {
     expect(document.querySelector('.spinner')).toBeNull();
     act(() => button('Retry').click());
     expect(messages.at(-1)).toEqual({ type: 'refresh', contextId: 'preview-context' });
+  });
+
+  it('edits title and reviewer IDs without resubmitting unchanged assignees', () => {
+    send({
+      ...initialize,
+      detail: {
+        ...detail,
+        assignees: [{ id: 'assignee-id', login: 'assignee' }],
+        reviewers: [{ id: 'reviewer-id', login: 'reviewer' }],
+        labels: ['bug'],
+      },
+      capabilities: { ...capabilities, editMetadata: { support: 'supported' } },
+    });
+    act(() => button('Edit review details').click());
+    send({
+      type: 'metadataOptions',
+      requestId: 1,
+      kind: 'reviewers',
+      result: {
+        items: [
+          { id: 'reviewer-id', login: 'reviewer' },
+          { id: 'new-reviewer-id', login: 'new-reviewer' },
+        ],
+        page: { page: 1, perPage: 50, hasNextPage: false },
+      },
+    });
+    const title = document.querySelector<HTMLInputElement>('#review-title')!;
+    typeInto(title, 'Updated review title');
+    const reviewers = document.querySelector<HTMLSelectElement>('#review-reviewers')!;
+    act(() => {
+      [...reviewers.options].forEach((option) => {
+        option.selected = option.value === 'new-reviewer-id';
+      });
+      reviewers.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    act(() => button('Save details').click());
+
+    expect(messages.at(-1)).toEqual({
+      type: 'editMetadata',
+      contextId: 'context-42',
+      title: 'Updated review title',
+      reviewerIds: ['new-reviewer-id'],
+    });
+  });
+
+  it('offers supported thread actions and hides deletion for system notes and review submissions', () => {
+    send({
+      ...initialize,
+      capabilities: {
+        ...capabilities,
+        resolveThreads: { support: 'supported' },
+        deleteByResource: {
+          'github-review-comment': { support: 'supported' },
+          'github-review': { support: 'supported' },
+        },
+      },
+    });
+    act(() => button('Conversations').click());
+    send({
+      type: 'conversations',
+      requestId: 1,
+      result: {
+        items: [
+          {
+            id: 'thread-1',
+            provider: 'github',
+            resourceType: 'github-review-comment',
+            threadId: 'thread-node-1',
+            resolved: false,
+            canResolve: true,
+            author: { id: 'user-1', login: 'minh' },
+            body: 'Review thread',
+            createdAt: '2026-11-02T00:00:00.000Z',
+            replies: [
+              {
+                id: 'reply-1',
+                provider: 'github',
+                resourceType: 'github-review-comment',
+                author: { id: 'user-1', login: 'minh' },
+                body: 'Reply',
+                createdAt: '2026-11-02T00:01:00.000Z',
+              },
+            ],
+          },
+          {
+            id: 'system-1',
+            provider: 'github',
+            resourceType: 'github-issue-comment',
+            systemNote: true,
+            author: { id: 'user-1', login: 'minh' },
+            body: 'System note',
+            createdAt: '2026-11-02T00:02:00.000Z',
+            replies: [],
+          },
+          {
+            id: 'review-1',
+            provider: 'github',
+            resourceType: 'github-review',
+            author: { id: 'user-1', login: 'minh' },
+            body: 'Review submission',
+            createdAt: '2026-11-02T00:03:00.000Z',
+            replies: [],
+          },
+        ],
+        page: { page: 1, perPage: 50, hasNextPage: false },
+      },
+    });
+
+    expect(
+      [...document.querySelectorAll('button')].map((item) => item.textContent?.trim()),
+    ).toContain('Resolve thread');
+    expect(
+      [...document.querySelectorAll('button')].map((item) => item.textContent?.trim()),
+    ).toContain('Delete reply');
+    expect(
+      [...document.querySelectorAll('.conversation-actions button')].filter(
+        (item) => item.textContent?.trim() === 'Delete comment',
+      ),
+    ).toHaveLength(1);
+    act(() => button('Resolve thread').click());
+    expect(messages.at(-1)).toMatchObject({
+      type: 'setThreadResolved',
+      conversationId: 'thread-1',
+      resolved: true,
+    });
+    send({ type: 'busy', action: 'setThreadResolved', busy: false });
+    act(() => button('Delete reply').click());
+    expect(messages.at(-1)).toMatchObject({
+      type: 'deleteComment',
+      conversationId: 'thread-1',
+      commentId: 'reply-1',
+    });
+  });
+
+  it('loads commits with explicit empty, error, and paginated states and opens by commit id', () => {
+    send({
+      ...initialize,
+      capabilities: { ...capabilities, commits: { support: 'supported' } },
+    });
+    act(() => button('Commits').click());
+    expect(document.body.textContent).toContain('Loading commits…');
+    expect(messages.at(-1)).toMatchObject({ type: 'selectTab', tab: 'commits' });
+    send({
+      type: 'commits',
+      requestId: 1,
+      result: {
+        items: [
+          {
+            id: 'commit-id-1',
+            sha: '123456789abcdef',
+            message: 'Add feature title\nFull commit body',
+            author: { id: 'author-1', login: 'minh', name: 'Minh Luu' },
+            authoredAt: '2026-11-02T00:00:00.000Z',
+          },
+        ],
+        page: { page: 1, perPage: 50, hasNextPage: true },
+      },
+    });
+    expect(document.body.textContent).toContain('Add feature title');
+    expect(document.body.textContent).toContain('Full commit body');
+    expect(document.body.textContent).toContain('Minh Luu');
+    expect(button('Open commit 1234567')).not.toBeNull();
+    act(() => button('Open commit 1234567').click());
+    expect(messages.at(-1)).toMatchObject({ type: 'openCommit', commitId: 'commit-id-1' });
+    act(() => button('Load more commits').click());
+    expect(messages.at(-1)).toMatchObject({ type: 'loadMoreCommits' });
+    send({
+      type: 'commits',
+      requestId: 2,
+      result: {
+        items: [
+          {
+            id: 'commit-id-1',
+            sha: '123456789abcdef',
+            message: 'Add feature title\nFull commit body',
+            author: { id: 'author-1', login: 'minh', name: 'Minh Luu' },
+            authoredAt: '2026-11-02T00:00:00.000Z',
+          },
+          {
+            id: 'commit-id-2',
+            sha: 'abcdef123456789',
+            message: 'Fix follow-up',
+            author: { id: 'author-2', login: 'reviewer' },
+            committedAt: '2026-11-03T00:00:00.000Z',
+          },
+        ],
+        page: { page: 2, perPage: 50, hasNextPage: false },
+      },
+    });
+    expect(document.querySelectorAll('.commit')).toHaveLength(2);
+    expect(
+      [...document.querySelectorAll('.commit')].filter((item) =>
+        item.textContent?.includes('123456789abcdef'),
+      ),
+    ).toHaveLength(1);
+    expect(document.body.textContent).toContain('Fix follow-up');
+    expect(
+      [...document.querySelectorAll('button')].some(
+        (item) => item.textContent?.trim() === 'Load more commits',
+      ),
+    ).toBe(false);
+    send({ type: 'commits', requestId: 3, error: 'Commit history is unavailable.' });
+    expect(document.body.textContent).toContain('Commit history is unavailable.');
+    act(() => button('Retry commits').click());
+    expect(messages.at(-1)).toMatchObject({ type: 'selectTab', tab: 'commits' });
+  });
+
+  it('shows explicit request status and a separate draft badge', () => {
+    send(initialize);
+    expect(document.querySelector('.request-status.open')?.textContent).toBe('Open');
+    send({ ...initialize, detail: { ...detail, state: 'merged' } });
+    expect(document.querySelector('.request-status.merged')?.textContent).toBe('Merged');
+    send({ ...initialize, detail: { ...detail, draft: true } });
+    expect(document.querySelector('.request-status.open')?.textContent).toBe('Open');
+    expect(document.querySelector('.request-status.draft')?.textContent).toBe('Draft');
+    send({ ...initialize, detail: { ...detail, state: 'unknown' } });
+    expect(document.querySelector('.request-status.unknown')?.textContent).toBe('Status unknown');
+  });
+
+  it('keeps Rich mode selected while full Markdown content loads and renders', () => {
+    send(initialize);
+    act(() => button('Changes').click());
+    send({
+      type: 'files',
+      requestId: 1,
+      result: {
+        items: [
+          {
+            path: 'README.md',
+            change: 'modified',
+            additions: 1,
+            deletions: 1,
+            patch: '@@ -1,1 +1,1 @@\n-old line\n+new line',
+          },
+        ],
+        page: { page: 1, perPage: 50, hasNextPage: false },
+      },
+    });
+    act(() => button('Rich').click());
+    expect(button('Rich').getAttribute('aria-pressed')).toBe('true');
+    expect(document.body.textContent).toContain('Loading full file content…');
+    expect(messages.at(-1)).toMatchObject({ type: 'loadMarkdownContent', path: 'README.md' });
+    send({
+      type: 'markdownContent',
+      path: 'README.md',
+      oldContent: '# Before',
+      newContent: '# After',
+    });
+    expect(button('Rich').getAttribute('aria-pressed')).toBe('true');
+    expect(document.querySelector('.rich-diff')?.textContent).toContain('Before');
+    expect(document.querySelector('.rich-diff')?.textContent).toContain('After');
+    expect(document.querySelector('.unified-diff')).toBeNull();
   });
 });
