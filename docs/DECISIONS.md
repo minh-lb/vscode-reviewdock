@@ -23,6 +23,7 @@ This document records recommended defaults needed to turn the SRS into an implem
 | DEC-010 | Localization | English extension UI for MVP; project documentation may be Vietnamese | One UI locale initially; avoid blocking implementation on localization |
 | DEC-011 | Webview framework | React + TypeScript, bundled locally | Typed component UI; no remote scripts or runtime CDN |
 | DEC-012 | Diff rendering | Normalize GitHub/GitLab file diffs into a shared diff model; provider adapters map comment positions | Comment positions must use provider-specific current commit/diff metadata, never guessed |
+| DEC-016 | Connection enablement | Each connection has an independent enabled flag, default true; disabled connections are excluded from selection and all API requests | Preserve credentials/status/bindings; clear disabled defaults; no automatic failover |
 
 ## Detailed decisions
 
@@ -146,6 +147,20 @@ GitLab 17.0 is a proposed technical floor, not a statement that this version rem
 - The UI renders only supported actions and uses a clear unavailable state for unsupported capabilities.
 - Shared UI must not imply identical behavior across providers.
 
+### DEC-016 — Per-connection enabled state
+
+**Decision proposed:**
+- Every connection has a user-controlled enabled boolean, defaulting to true when created.
+- enabled is independent from the last-known connection health/authentication status.
+- A disabled connection is excluded from workspace resolution, remote discovery, manual selection, provider defaults and all outbound API requests. Enforce this before credential lookup.
+- Disabling preserves the credential, configuration, last-known status and workspace bindings.
+- A disabled connection cannot be a provider default. Disabling the current default clears it; do not automatically promote another connection.
+- Existing workspace bindings to a disabled connection remain stored but blocked until the user enables it or explicitly selects another connection.
+- Re-enabling does not trigger implicit validation; the existing status still governs whether provider operations are allowed.
+- Pending reads are cancelled where possible. A mutation already submitted may still complete and must be reconciled after re-enabling rather than assumed rolled back.
+
+**Rationale:** allow users to temporarily suspend an account without deleting credentials or losing repository configuration, while preventing accidental use of the wrong account.
+
 ## Approval checklist
 
 - [ ] DEC-001 Provider-specific authentication approved.
@@ -162,5 +177,6 @@ GitLab 17.0 is a proposed technical floor, not a statement that this version rem
 - [ ] DEC-013 Multi-provider adapter architecture approved.
 - [ ] DEC-014 Connection identity and lifecycle approved.
 - [ ] DEC-015 Provider capability model approved.
+- [ ] DEC-016 Per-connection enabled/disabled behavior approved.
 
 **Implementation rule:** begin work on a feature only after its relevant proposed decisions are approved. Foundation work that does not depend on unresolved decisions may proceed independently.
