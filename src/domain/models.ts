@@ -80,7 +80,9 @@ export interface ReviewCommit {
   sha: string;
   message: string;
   author?: ProviderUser;
+  committer?: ProviderUser;
   authorName?: string;
+  committerName?: string;
   authorEmail?: string;
   authoredAt?: string;
   committedAt?: string;

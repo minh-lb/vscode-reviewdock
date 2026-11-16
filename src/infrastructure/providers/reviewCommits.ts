@@ -32,7 +32,9 @@ function mapGitHubCommit(raw: Json): ReviewCommit {
   const authorData = object(commit.author);
   const committerData = object(commit.committer);
   const userData = object(raw.author);
+  const committerUserData = object(raw.committer);
   const login = string(userData.login);
+  const committerLogin = string(committerUserData.login);
   const sha = string(raw.sha) ?? '';
   const author: ProviderUser | undefined = login
     ? {
@@ -42,12 +44,27 @@ function mapGitHubCommit(raw: Json): ReviewCommit {
         ...(string(userData.avatar_url) ? { avatarUrl: string(userData.avatar_url)! } : {}),
       }
     : undefined;
+  const committer: ProviderUser | undefined = committerLogin
+    ? {
+        id:
+          typeof committerUserData.id === 'number'
+            ? String(committerUserData.id)
+            : (string(committerUserData.id) ?? committerLogin),
+        login: committerLogin,
+        ...(string(committerUserData.name) ? { name: string(committerUserData.name)! } : {}),
+        ...(string(committerUserData.avatar_url)
+          ? { avatarUrl: string(committerUserData.avatar_url)! }
+          : {}),
+      }
+    : undefined;
   return {
     id: sha,
     sha,
     message: string(commit.message) ?? '',
     ...(author ? { author } : {}),
+    ...(committer ? { committer } : {}),
     ...(string(authorData.name) ? { authorName: string(authorData.name)! } : {}),
+    ...(string(committerData.name) ? { committerName: string(committerData.name)! } : {}),
     ...(string(authorData.email) ? { authorEmail: string(authorData.email)! } : {}),
     ...(string(authorData.date) ? { authoredAt: string(authorData.date)! } : {}),
     ...(string(committerData.date) ? { committedAt: string(committerData.date)! } : {}),
@@ -108,6 +125,7 @@ function mapGitLabCommit(raw: Json): ReviewCommit {
     sha,
     message,
     ...(string(raw.author_name) ? { authorName: string(raw.author_name)! } : {}),
+    ...(string(raw.committer_name) ? { committerName: string(raw.committer_name)! } : {}),
     ...(string(raw.author_email) ? { authorEmail: string(raw.author_email)! } : {}),
     ...(string(raw.authored_date) ? { authoredAt: string(raw.authored_date)! } : {}),
     ...(string(raw.committed_date) ? { committedAt: string(raw.committed_date)! } : {}),

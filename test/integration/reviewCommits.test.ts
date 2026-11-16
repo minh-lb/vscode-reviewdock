@@ -41,9 +41,10 @@ describe('review commit listing', () => {
           commit: {
             message: 'Fix bug',
             author: { name: 'Dev', email: 'dev@example.test', date: '2026-10-01T10:00:00Z' },
-            committer: { date: '2026-10-01T10:01:00Z' },
+            committer: { name: 'Release Bot', date: '2026-10-01T10:01:00Z' },
           },
           author: { id: 9, login: 'dev', avatar_url: 'https://avatar.test/dev.png' },
+          committer: { id: 10, login: 'release-bot', avatar_url: 'https://avatar.test/bot.png' },
         },
       ],
       headers: new Headers({
@@ -72,8 +73,10 @@ describe('review commit listing', () => {
       authorName: 'Dev',
       authorEmail: 'dev@example.test',
       authoredAt: '2026-10-01T10:00:00Z',
+      committerName: 'Release Bot',
       committedAt: '2026-10-01T10:01:00Z',
       author: { id: '9', login: 'dev' },
+      committer: { id: '10', login: 'release-bot' },
       webUrl: 'https://github.com/org/repo/commit/abc123',
     });
   });
@@ -87,6 +90,7 @@ describe('review commit listing', () => {
           title: 'Add feature',
           message: 'Add feature\n\nDetails',
           author_name: 'Dev',
+          committer_name: 'Release Bot',
           author_email: 'dev@example.test',
           authored_date: '2026-10-02T10:00:00Z',
           committed_date: '2026-10-02T10:02:00Z',
@@ -110,6 +114,7 @@ describe('review commit listing', () => {
       authorName: 'Dev',
       authorEmail: 'dev@example.test',
       authoredAt: '2026-10-02T10:00:00Z',
+      committerName: 'Release Bot',
       committedAt: '2026-10-02T10:02:00Z',
       webUrl: 'https://gitlab.example/team/repo/-/commit/def456',
     });
