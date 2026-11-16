@@ -638,3 +638,16 @@ Một requirement chỉ được đánh dấu Verified khi:
 4. Unsupported, not-authorized, unknown and empty states remain distinct.
 5. Requirement-to-design/task/test mapping is maintained in [REQUIREMENT-TRACEABILITY.md](./REQUIREMENT-TRACEABILITY.md).
 6. Provider differences and compatibility evidence are maintained in [PROVIDER-CAPABILITY-MATRIX.md](./PROVIDER-CAPABILITY-MATRIX.md).
+
+
+## 14. Additional release decisions
+
+The following decisions supplement Section 12 and must be resolved before the corresponding release claims are made:
+
+| ID | Decision | Required evidence |
+|---|---|---|
+| DEC-020 | Minimum GitHub Enterprise Server | Tested auth, PR, diff, review comment and merge on selected version |
+| DEC-021 | Minimum GitLab Self-Managed | Tested diff versions, discussions, inline positions and merge on selected version |
+| DEC-022 | GitHub PAT permissions | Least-privilege endpoint-by-endpoint permission matrix |
+| DEC-023 | Cross-provider release gate | Independent P0 acceptance on GitHub.com and GitLab.com |
+| DEC-024 | Traceability enforcement | CI validation of every SRS ID against traceability matrix |
