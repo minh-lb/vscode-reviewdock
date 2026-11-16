@@ -1,7 +1,7 @@
 # ReviewDock — Connection Management Specification
 
 > **Document ID:** RVD-CONN-001  
-> **Version:** 0.1.0  
+> **Version:** 0.2.0  
 > **Status:** Proposed — Product Owner approval required  
 > **Related:** [SRS.md](./SRS.md), [DECISIONS.md](./DECISIONS.md), [SDS.md](./SDS.md), [API-SPEC.md](./API-SPEC.md), [UI-UX.md](./UI-UX.md), [TEST-PLAN.md](./TEST-PLAN.md)
 
@@ -30,6 +30,11 @@ Terms:
 10. The user can test, rename, re-authenticate, disconnect, delete and set a default connection.
 11. Connection health is distinct from the last API request's business outcome.
 12. Provider-specific capabilities must be surfaced honestly; GitHub Pull Requests and GitLab Merge Requests are normalized for shared workflows but are not assumed to have identical features.
+13. Every connection has an independent enabled configuration flag, defaulting to true when created.
+14. A disabled connection must not be selected for repository discovery, default resolution or any outbound provider API request.
+15. Disabling a connection preserves its configuration, credential, last-known connection status and workspace bindings.
+16. A disabled connection cannot be set as a provider default. Disabling the current default clears that provider's default without automatically selecting another connection.
+17. A workspace binding to a disabled connection remains stored but is blocked until the user enables that connection or explicitly assigns another one.
 
 ## 3. Connection data model
 
@@ -54,7 +59,8 @@ type Connection = {
   accountLogin: string;       // username/login
   accountDisplayName?: string;
   avatarUrl?: string;
-  status: ConnectionStatus;   // last known validation state
+  enabled: boolean;           // user-controlled; defaults to true
+  status: ConnectionStatus;   // last-known provider/connectivity state; independent of enabled
   createdAt: string;
   updatedAt: string;
   lastValidatedAt?: string;
@@ -62,7 +68,7 @@ type Connection = {
 };
 ~~~
 
-Do not store raw access tokens, refresh tokens, authorization headers or other secrets in this record.
+Do not store raw access tokens, refresh tokens, authorization headers or other secrets in this record. Persist enabled with the non-secret connection metadata; it is not a credential or a health status.
 
 ### 3.2. Credential record
 
@@ -167,11 +173,25 @@ If validation fails, do not save the credential. Preserve non-secret form fields
 
 ### 6.6. Default and active connection
 
-- Support one optional default connection per provider (one GitHub default and one GitLab default).
+- Support one optional default enabled connection per provider (one GitHub default and one GitLab default).
+- A disabled connection cannot be selected as a default. Disabling the current default clears that provider's default; do not silently promote another connection.
 - Each workspace folder/repository has its own active connection binding.
-- A workspace binding takes precedence over the provider default.
-- The provider default is used only when a user explicitly starts repository selection without an existing binding.
+- A workspace binding takes precedence over the provider default only while its connection is enabled.
+- If a workspace binding points to a disabled connection, keep the binding but block provider operations and ask the user to enable it or explicitly choose another connection.
+- The provider default is used only when a user explicitly starts repository selection without an existing binding, and only if that default is enabled.
 - Never use one global active connection for all workspace folders.
+
+### 6.7. Enable and disable
+
+- New connections are enabled by default.
+- The user can enable or disable each connection independently without deleting or recreating it.
+- Disabling changes only the enabled flag. It does not delete the SecretStorage credential, change provider/server/account identity, or rewrite the last-known status.
+- While disabled, the connection is excluded from automatic remote matching, manual active-connection selection, default resolution and all provider API requests, including Test Connection.
+- The application must check enabled before reading the credential or constructing an authenticated request. A disabled connection must fail locally with a clear ConnectionDisabledError; no request is sent.
+- If the disabled connection is the provider default, clear that provider's default. Do not automatically select a different default.
+- Preserve workspace repository bindings that reference the disabled connection, but mark them unavailable. Do not silently fail over to another account.
+- Re-enabling makes the connection eligible for selection again, but does not validate its credential. The existing status remains authoritative: if re-authentication is required or the connection is disconnected, the user must resolve that state before provider operations.
+- Disabling cancels pending read requests where possible. A mutation already submitted to the provider may still complete; do not claim that disabling rolled it back. Reconcile its outcome with a fresh read after the connection is enabled again.
 
 ## 7. Repository binding and discovery
 
@@ -204,15 +224,17 @@ Each row displays:
 - user-defined connection name;
 - server host;
 - authenticated account login;
-- status;
+- an Enabled/Disabled toggle, independent of connection status;
+- last-known connection status;
 - default indicator when applicable;
 - actions menu.
 
 Actions:
-- Test connection
+- Enable / Disable
+- Test connection (available only when enabled)
 - Rename
 - Re-authenticate
-- Set as default for provider
+- Set as default for provider (available only when enabled)
 - Disconnect
 - Delete
 
@@ -227,18 +249,29 @@ Fields:
 6. Test Connection — required before Save.
 7. Account identity and validation result — read-only after successful test.
 
-The form must not expose provider-inapplicable fields. GitHub Enterprise Server and GitLab Self-Managed use their own API base URL rules.
+The form must not expose provider-inapplicable fields. GitHub Enterprise Server and GitLab Self-Managed use their own API base URL rules. A newly saved connection is enabled by default; the user can disable it from the connection list.
 
 ### 8.3. Context switching
 
 - The active connection is visible in the ReviewDock project/repository selector.
 - PR/MR headers show provider, connection name, account login and repository.
+- Only enabled connections can be selected or used for switching.
+- If the current workspace binding points to a disabled connection, show a blocked/unavailable state with Enable or Choose another connection actions.
 - Switching connection refreshes repository data and cancels in-flight requests from the previous connection.
 - If the selected repository is not accessible through the new connection, do not show cached data as if it belongs to the new account.
+
+### 8.4. Enabled state
+
+- Show Enabled/Disabled as a separate control or state from Connected/Unreachable/Re-authentication required.
+- A disabled connection may still display its last-known status (for example, Disabled · last known Connected).
+- Disable the Test Connection and Set as Default actions while the connection is disabled.
+- Disabling the active workspace connection must show a clear blocked state; never switch accounts automatically.
+- Re-enabling does not silently trigger API traffic. The user can explicitly test the connection or continue if its last-known status is still valid.
 
 ## 9. Connection isolation and security
 
 - Credential lookup is always by immutable connection ID.
+- Before credential lookup or request creation, enforce enabled === true; disabled connections produce a local error and no outbound request.
 - Provider adapter is selected from the connection's immutable provider type.
 - Host allowlisting is evaluated before attaching credentials.
 - Redirects to a different origin must not forward credentials.
@@ -254,6 +287,11 @@ The form must not expose provider-inapplicable fields. GitHub Enterprise Server 
 - [ ] User can create multiple connections for the same provider.
 - [ ] User can create two accounts on the same provider host.
 - [ ] User can assign a distinct name to every connection.
+- [ ] Every new connection is enabled by default and can be independently enabled/disabled.
+- [ ] Disabled connections retain their credentials, configuration, last-known status and workspace bindings.
+- [ ] Disabled connections are excluded from selection, remote discovery, defaults and all outbound API requests.
+- [ ] Disabling a default clears the provider default without silently promoting another connection.
+- [ ] Re-enabling does not automatically validate credentials or silently switch workspace bindings.
 - [ ] GitHub.com and GitLab.com default URLs are pre-filled correctly.
 - [ ] Enterprise/Self-Managed URLs are validated and normalized.
 - [ ] Invalid credentials are not saved.
@@ -265,6 +303,7 @@ The form must not expose provider-inapplicable fields. GitHub Enterprise Server 
 - [ ] A GitHub token is never sent to GitLab and vice versa.
 - [ ] A token is never forwarded to a different host after redirect or pagination.
 - [ ] Deleting a connection never silently reassigns its repository bindings.
+- [ ] Disabling a connection never silently reassigns its repository bindings.
 
 ## 11. Open decisions
 
