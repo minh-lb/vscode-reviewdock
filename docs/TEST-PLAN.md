@@ -239,6 +239,7 @@ Fixtures must contain no real user secrets, private code or production project i
 | API-GH-PR-003 | Search PR by title and number | Search query uses repository and is:pr qualifiers; full PR detail is fetched |
 | API-GH-PR-004 | Filter created/assigned/direct review-requested PRs | author:@me, assignee:@me and user-review-requested:@me are used |
 | API-GH-PR-005 | Search API reaches 1,000 results or rate limit | UI marks results limited; does not claim exhaustive results |
+| API-GH-PR-006 | Closed PR list includes both closed and merged PRs | Merged filter uses merged/merged_at; Closed excludes merged PRs |
 | API-GH-COM-001 | Create general PR comment | Issue comment endpoint is used |
 | API-GH-COM-002 | Create inline comment on added line | Current head SHA, path, line and RIGHT side sent |
 | API-GH-COM-003 | Create inline comment on removed line | Current head SHA, path, line and LEFT side sent |
@@ -269,6 +270,7 @@ Fixtures must contain no real user secrets, private code or production project i
 | API-PIPE-003 | Jobs request returns paginated results | Job list loads pages |
 | API-GH-REVIEW-001 | GitHub review state is retrieved | Review submissions are distinct from general/inline comments |
 | API-GH-REVIEW-002 | GitHub review permission is missing | Operation-level permission error shown; connection remains valid |
+| API-GH-REVIEW-003 | Review submission uses APPROVE or REQUEST_CHANGES | Review decision is distinct from general/inline comment creation |
 | API-GH-CHECK-002 | Check Runs request lacks Checks:read | Checks panel shows permission state; PR detail remains usable |
 | API-GH-CHECK-003 | Actions workflow request lacks Actions:read | Workflow panel shows permission state; no false failed state |
 
