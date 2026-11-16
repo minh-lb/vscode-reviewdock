@@ -14,7 +14,7 @@ The repository provides `npm run build`, `npm run package`, `npm run test:extens
 
 ## Evidence snapshot
 
-On 2026-11-17, `npm test` passed 88/88 tests across 12 files; typecheck, lint, format check, traceability check and build passed. Packaging succeeded and produced a 105.74 KB VSIX, with a license warning because the package metadata declares `UNLICENSED`. Host activation smoke passed on macOS with VS Code 1.140.0 and stable 1.146.0. The inline comment modal now traps keyboard focus, closes on Escape and restores focus to its trigger; a regression test covers those behaviors.
+On 2026-11-17, `npm test` passed 88/88 tests across 12 files; typecheck, lint, format check, traceability check and build passed. Packaging succeeded and produced a 105.81 KB VSIX, with a license warning because the package metadata declares `UNLICENSED`. Host activation smoke passed on macOS with VS Code 1.140.0 and stable 1.146.0. The inline comment modal now traps keyboard focus, closes on Escape and restores focus to its trigger; a regression test covers those behaviors.
 
 The CI workflow is configured for an Ubuntu/macOS/Windows × VS Code 1.140.0/stable extension-host matrix. GitHub Actions has not run this matrix, and the repository has not been pushed; this configuration is not cross-platform test evidence. Provider, compatibility and release acceptance gates remain open.
 

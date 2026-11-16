@@ -7,7 +7,7 @@
 
 ## Delivery evidence snapshot (2026-11-17)
 
-On 2026-11-17, `npm test` passed 88/88 tests across 12 files; typecheck, lint, format check, traceability check and build passed. Packaging succeeded and produced a 105.74 KB VSIX; the packager warned that package metadata declares `UNLICENSED`. Host activation smoke passed on macOS with VS Code 1.140.0 and stable 1.146.0. The inline comment modal focus trap, Escape dismissal and focus restoration are covered by a regression test.
+On 2026-11-17, `npm test` passed 88/88 tests across 12 files; typecheck, lint, format check, traceability check and build passed. Packaging succeeded and produced a 105.81 KB VSIX; the packager warned that package metadata declares `UNLICENSED`. Host activation smoke passed on macOS with VS Code 1.140.0 and stable 1.146.0. The inline comment modal focus trap, Escape dismissal and focus restoration are covered by a regression test.
 
 The GitHub Actions workflow is configured for Ubuntu, macOS and Windows with VS Code 1.140.0 and stable. GitHub Actions has not run, and this repository has not been pushed, so there is no CI matrix result. No live-provider mutation acceptance, GHES/Self-Managed compatibility, non-macOS host smoke, or manual screen-reader/high-contrast/full keyboard workflow acceptance is recorded. PAT permission scopes are documented; the application does not inspect granted permissions.
 

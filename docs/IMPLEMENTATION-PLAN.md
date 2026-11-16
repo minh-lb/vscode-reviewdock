@@ -7,7 +7,7 @@
 
 ## Delivery status snapshot (2026-11-17)
 
-The owner adopted the proposed decisions as the implementation baseline. On 2026-11-17, `npm test` passed 88/88 tests across 12 files; typecheck, lint, format check, traceability check and build passed. Packaging succeeded with a 105.74 KB VSIX; the packager emitted a license warning because package metadata declares `UNLICENSED`. macOS VS Code 1.140.0 and stable 1.146.0 host activation smoke passed. The inline comment modal has automated focus-trap, Escape and focus-restoration regression coverage. The configured Ubuntu/macOS/Windows × VS Code 1.140.0/stable GitHub Actions matrix has not run; the repository has not been pushed. These local checks do not establish live provider acceptance, cross-platform CI results or production readiness.
+The owner adopted the proposed decisions as the implementation baseline. On 2026-11-17, `npm test` passed 88/88 tests across 12 files; typecheck, lint, format check, traceability check and build passed. Packaging succeeded with a 105.81 KB VSIX; the packager emitted a license warning because package metadata declares `UNLICENSED`. macOS VS Code 1.140.0 and stable 1.146.0 host activation smoke passed. The inline comment modal has automated focus-trap, Escape and focus-restoration regression coverage. The configured Ubuntu/macOS/Windows × VS Code 1.140.0/stable GitHub Actions matrix has not run; the repository has not been pushed. These local checks do not establish live provider acceptance, cross-platform CI results or production readiness.
 
 | Work package | Local status | Remaining evidence / gate |
 |---|---|---|
