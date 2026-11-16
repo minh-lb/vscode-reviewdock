@@ -113,6 +113,24 @@
   display: grid;
   gap: 10px;
 }
+.changes-scroll-controls {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  display: grid;
+  gap: 5px;
+}
+.changes-scroll-controls button {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  color: var(--vscode-foreground);
+  background: var(--surface);
+  box-shadow: 0 2px 8px #0004;
+  font-size: 18px;
+}
 .changes-muted,
 .changes-warning {
   color: var(--muted);

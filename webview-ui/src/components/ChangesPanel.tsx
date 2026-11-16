@@ -1,4 +1,4 @@
-import React, { Fragment, useEffect, useMemo, useState } from 'react';
+import React, { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import type {
   DiffFile,
   DiffFilePage,
@@ -67,6 +67,7 @@ export function ChangesPanel(props: ChangesPanelProps) {
     sidebarWidth: clampWidth(props.initialState?.sidebarWidth ?? defaults.sidebarWidth),
     expandedDirectories: props.initialState?.expandedDirectories ?? defaults.expandedDirectories,
   }));
+  const diffRef = useRef<HTMLDivElement>(null);
   const [dragWidth, setDragWidth] = useState<number>();
   const entries = files?.items ?? [];
   const selectedPath = entries.some((file) => file.path === state.selectedPath)
@@ -105,6 +106,23 @@ export function ChangesPanel(props: ChangesPanelProps) {
   };
   const resizeBy = (delta: number) =>
     update({ sidebarWidth: clampWidth(state.sidebarWidth + delta) });
+  const scrollDiff = (edge: 'top' | 'bottom') => {
+    const diff = diffRef.current;
+    if (!diff) return;
+    const behavior: ScrollBehavior = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+      ? 'auto'
+      : 'smooth';
+    const overflowY = window.getComputedStyle(diff).overflowY;
+    if (diff.scrollHeight > diff.clientHeight && ['auto', 'scroll'].includes(overflowY)) {
+      diff.scrollTo({ top: edge === 'top' ? 0 : diff.scrollHeight - diff.clientHeight, behavior });
+      return;
+    }
+    const target =
+      edge === 'top'
+        ? diff.getBoundingClientRect().top + window.scrollY
+        : diff.getBoundingClientRect().bottom + window.scrollY - window.innerHeight;
+    window.scrollTo({ top: Math.max(0, target), behavior });
+  };
   const resizeStart = (event: React.PointerEvent<HTMLDivElement>) => {
     event.preventDefault();
     const start = event.clientX;
@@ -183,7 +201,7 @@ export function ChangesPanel(props: ChangesPanelProps) {
           }}
         />
       )}
-      <div className="changes-body">
+      <div className="changes-body changes-diff" ref={diffRef}>
         {props.stale && (
           <p className="changes-warning" role="status">
             This diff is stale. Choose a current line before submitting an inline comment.
@@ -253,6 +271,24 @@ export function ChangesPanel(props: ChangesPanelProps) {
             />
           ))
         )}
+      </div>
+      <div className="changes-scroll-controls" aria-label="Changes navigation">
+        <button
+          type="button"
+          aria-label="Scroll Changes to top"
+          title="Scroll Changes to top"
+          onClick={() => scrollDiff('top')}
+        >
+          ↑
+        </button>
+        <button
+          type="button"
+          aria-label="Scroll Changes to bottom"
+          title="Scroll Changes to bottom"
+          onClick={() => scrollDiff('bottom')}
+        >
+          ↓
+        </button>
       </div>
     </section>
   );

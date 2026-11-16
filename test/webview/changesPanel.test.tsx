@@ -39,6 +39,8 @@ function mount(props: React.ComponentProps<typeof ChangesPanel>) {
 afterEach(() => {
   act(() => root?.unmount());
   document.body.innerHTML = '';
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
 
 describe('ChangesPanel', () => {
@@ -161,6 +163,57 @@ describe('ChangesPanel', () => {
     expect(host.querySelector('[aria-label="Show files"]')).not.toBeNull();
     expect(onStateChange).toHaveBeenLastCalledWith(
       expect.objectContaining({ sidebarVisible: false, sidebarWidth: 460 }),
+    );
+  });
+
+  it('scrolls the Changes container to its top and bottom when it owns overflow', () => {
+    mount({ files });
+    const diff = host.querySelector<HTMLDivElement>('.changes-diff')!;
+    Object.defineProperties(diff, {
+      scrollHeight: { configurable: true, value: 1000 },
+      clientHeight: { configurable: true, value: 200 },
+    });
+    diff.style.overflowY = 'auto';
+    const scrollTo = vi.fn();
+    Object.defineProperty(diff, 'scrollTo', { configurable: true, value: scrollTo });
+    vi.stubGlobal('matchMedia', () => ({ matches: true }));
+
+    act(() =>
+      host.querySelector<HTMLButtonElement>('[aria-label="Scroll Changes to top"]')!.click(),
+    );
+    act(() =>
+      host.querySelector<HTMLButtonElement>('[aria-label="Scroll Changes to bottom"]')!.click(),
+    );
+
+    expect(scrollTo.mock.calls.map(([options]) => options)).toEqual([
+      expect.objectContaining({ top: 0 }),
+      expect.objectContaining({ top: 800 }),
+    ]);
+    expect(scrollTo.mock.calls.every(([options]) => options.behavior === 'auto')).toBe(true);
+  });
+
+  it('scrolls the document when the Changes container has no own overflow', () => {
+    mount({ files });
+    const diff = host.querySelector<HTMLDivElement>('.changes-diff')!;
+    vi.spyOn(diff, 'getBoundingClientRect').mockReturnValue({
+      top: 100,
+      bottom: 1100,
+      left: 0,
+      right: 800,
+      width: 800,
+      height: 1000,
+      x: 0,
+      y: 100,
+      toJSON: () => ({}),
+    });
+    vi.spyOn(window, 'scrollTo').mockImplementation(() => undefined);
+
+    act(() =>
+      host.querySelector<HTMLButtonElement>('[aria-label="Scroll Changes to bottom"]')!.click(),
+    );
+
+    expect(window.scrollTo).toHaveBeenCalledWith(
+      expect.objectContaining({ top: 332, behavior: 'smooth' }),
     );
   });
 
