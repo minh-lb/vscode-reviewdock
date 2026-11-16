@@ -42,7 +42,7 @@ export interface RepositoryRef {
   defaultBranch?: string;
   webUrl: string;
 }
-export type ReviewRequestState = 'open' | 'closed' | 'merged';
+export type ReviewRequestState = 'open' | 'closed' | 'merged' | 'unknown';
 export interface ReviewRequestSummary {
   id: string;
   number: string;
@@ -68,6 +68,10 @@ export interface ReviewRequestDetail extends ReviewRequestSummary {
   mergeStatus?: string;
   assignees?: ProviderUser[];
   reviewers?: ProviderUser[];
+  commitsCount?: number;
+  changedFiles?: number;
+  additions?: number;
+  deletions?: number;
   closedAt?: string;
   mergedAt?: string;
 }
