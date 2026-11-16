@@ -139,6 +139,17 @@
 | MERGE-008 | MergeService; confirmation UI; provider mutation adapters | `src/application/reviewService.ts; provider adapter merge methods` | In progress |
 | MERGE-009 | MergeService; confirmation UI; provider mutation adapters | `src/application/reviewService.ts; provider adapter merge methods` | In progress |
 | MERGE-010 | MergeService; confirmation UI; provider mutation adapters | `src/application/reviewService.ts; provider adapter merge methods` | In progress |
+| NFR-COMP-001 | Runtime and packaging compatibility | `package.json; .github/workflows/ci.yml` | In progress |
+| NFR-COMP-002 | Runtime and packaging compatibility | `package.json; .github/workflows/ci.yml` | In progress |
+| NFR-COMP-003 | Runtime and packaging compatibility | `package.json; .github/workflows/ci.yml` | In progress |
+| NFR-COMP-004 | Runtime and packaging compatibility | `package.json; .github/workflows/ci.yml` | In progress |
+| NFR-COMP-005 | Runtime and packaging compatibility | `package.json; .github/workflows/ci.yml` | In progress |
+| NFR-MAIN-001 | TypeScript configuration and quality gates | `tsconfig.json; package.json; .github/workflows/ci.yml` | In progress |
+| NFR-MAIN-002 | TypeScript configuration and quality gates | `tsconfig.json; package.json; .github/workflows/ci.yml` | In progress |
+| NFR-MAIN-003 | TypeScript configuration and quality gates | `tsconfig.json; package.json; .github/workflows/ci.yml` | In progress |
+| NFR-MAIN-004 | TypeScript configuration and quality gates | `tsconfig.json; package.json; .github/workflows/ci.yml` | In progress |
+| NFR-MAIN-005 | TypeScript configuration and quality gates | `tsconfig.json; package.json; .github/workflows/ci.yml` | In progress |
+| NFR-MAIN-006 | TypeScript configuration and quality gates | `tsconfig.json; package.json; .github/workflows/ci.yml` | In progress |
 | MR-001 | ReviewRequestService; provider adapters | `provider adapters and mappers under src/infrastructure/providers/` | In progress |
 | MR-002 | ReviewRequestService; provider adapters | `provider adapters and mappers under src/infrastructure/providers/` | In progress |
 | MR-003 | ReviewRequestService; provider adapters | `provider adapters and mappers under src/infrastructure/providers/` | In progress |
@@ -150,6 +161,11 @@
 | MR-009 | ReviewRequestService; provider adapters | `provider adapters and mappers under src/infrastructure/providers/` | In progress |
 | MR-010 | ReviewRequestService; provider adapters | `provider adapters and mappers under src/infrastructure/providers/` | In progress |
 | MR-011 | ReviewRequestService; provider adapters | `provider adapters and mappers under src/infrastructure/providers/` | In progress |
+| NFR-PERF-001 | Extension lifecycle and request orchestration | `src/extension.ts; src/application/` | In progress |
+| NFR-PERF-002 | Extension lifecycle and request orchestration | `src/extension.ts; src/application/; webview-ui/src/` | In progress |
+| NFR-PERF-003 | Extension lifecycle and request orchestration | `src/application/; src/infrastructure/providers/` | In progress |
+| NFR-PERF-004 | Extension lifecycle and request orchestration | `src/application/; src/infrastructure/http/` | In progress |
+| NFR-PERF-005 | Extension lifecycle and request orchestration | `src/application/; src/presentation/` | In progress |
 | PIPE-001 | PipelineService; CheckRun/Job adapters | `provider check methods; src/presentation/webview/messageProtocol.ts` | In progress |
 | PIPE-002 | PipelineService; CheckRun/Job adapters | `provider check methods; src/presentation/webview/messageProtocol.ts` | In progress |
 | PIPE-003 | PipelineService; CheckRun/Job adapters | `provider check methods; src/presentation/webview/messageProtocol.ts` | In progress |
@@ -164,15 +180,20 @@
 | PROJ-007 | ProjectService; GitRemoteResolver; WorkspaceStore | `src/application/repositoryService.ts; provider repository methods` | In progress |
 | PROJ-008 | ProjectService; GitRemoteResolver; WorkspaceStore | `src/application/repositoryService.ts; provider repository methods` | In progress |
 | PROJ-009 | ProjectService; GitRemoteResolver; WorkspaceStore | `src/application/repositoryService.ts; provider repository methods` | In progress |
-| SEC-001 | SecretStorage, request guard, redacting logger, Webview security | `src/application/connectionService.ts; src/infrastructure/http/providerHttpClient.ts; src/presentation/webview/messageProtocol.ts` | In progress |
-| SEC-002 | SecretStorage, request guard, redacting logger, Webview security | `src/application/connectionService.ts; src/infrastructure/http/providerHttpClient.ts; src/presentation/webview/messageProtocol.ts` | In progress |
-| SEC-003 | SecretStorage, request guard, redacting logger, Webview security | `src/application/connectionService.ts; src/infrastructure/http/providerHttpClient.ts; src/presentation/webview/messageProtocol.ts` | In progress |
-| SEC-004 | SecretStorage, request guard, redacting logger, Webview security | `src/application/connectionService.ts; src/infrastructure/http/providerHttpClient.ts; src/presentation/webview/messageProtocol.ts` | In progress |
-| SEC-005 | SecretStorage, request guard, redacting logger, Webview security | `src/application/connectionService.ts; src/infrastructure/http/providerHttpClient.ts; src/presentation/webview/messageProtocol.ts` | In progress |
-| SEC-006 | SecretStorage, request guard, redacting logger, Webview security | `src/application/connectionService.ts; src/infrastructure/http/providerHttpClient.ts; src/presentation/webview/messageProtocol.ts` | In progress |
-| SEC-007 | SecretStorage, request guard, redacting logger, Webview security | `src/application/connectionService.ts; src/infrastructure/http/providerHttpClient.ts; src/presentation/webview/messageProtocol.ts` | In progress |
-| SEC-008 | SecretStorage, request guard, redacting logger, Webview security | `src/application/connectionService.ts; src/infrastructure/http/providerHttpClient.ts; src/presentation/webview/messageProtocol.ts` | In progress |
-| SEC-009 | SecretStorage, request guard, redacting logger, Webview security | `src/application/connectionService.ts; src/infrastructure/http/providerHttpClient.ts; src/presentation/webview/messageProtocol.ts` | In progress |
+| NFR-SEC-001 | SecretStorage, request guard, redacting logger, Webview security | `src/application/connectionService.ts; src/infrastructure/http/providerHttpClient.ts; src/presentation/webview/messageProtocol.ts` | In progress |
+| NFR-SEC-002 | SecretStorage, request guard, redacting logger, Webview security | `src/application/connectionService.ts; src/infrastructure/http/providerHttpClient.ts; src/presentation/webview/messageProtocol.ts` | In progress |
+| NFR-SEC-003 | SecretStorage, request guard, redacting logger, Webview security | `src/application/connectionService.ts; src/infrastructure/http/providerHttpClient.ts; src/presentation/webview/messageProtocol.ts` | In progress |
+| NFR-SEC-004 | SecretStorage, request guard, redacting logger, Webview security | `src/application/connectionService.ts; src/infrastructure/http/providerHttpClient.ts; src/presentation/webview/messageProtocol.ts` | In progress |
+| NFR-SEC-005 | SecretStorage, request guard, redacting logger, Webview security | `src/application/connectionService.ts; src/infrastructure/http/providerHttpClient.ts; src/presentation/webview/messageProtocol.ts` | In progress |
+| NFR-SEC-006 | SecretStorage, request guard, redacting logger, Webview security | `src/application/connectionService.ts; src/infrastructure/http/providerHttpClient.ts; src/presentation/webview/messageProtocol.ts` | In progress |
+| NFR-SEC-007 | SecretStorage, request guard, redacting logger, Webview security | `src/application/connectionService.ts; src/infrastructure/http/providerHttpClient.ts; src/presentation/webview/messageProtocol.ts` | In progress |
+| NFR-SEC-008 | SecretStorage, request guard, redacting logger, Webview security | `src/application/connectionService.ts; src/infrastructure/http/providerHttpClient.ts; src/presentation/webview/messageProtocol.ts` | In progress |
+| NFR-SEC-009 | SecretStorage, request guard, redacting logger, Webview security | `src/application/connectionService.ts; src/infrastructure/http/providerHttpClient.ts; src/presentation/webview/messageProtocol.ts` | In progress |
+| NFR-REL-001 | Error handling and state recovery | `src/domain/errors.ts; src/infrastructure/http/providerHttpClient.ts` | In progress |
+| NFR-REL-002 | Error handling and state recovery | `src/domain/errors.ts; src/infrastructure/http/providerHttpClient.ts` | In progress |
+| NFR-REL-003 | Error handling and state recovery | `src/domain/errors.ts; src/infrastructure/http/providerHttpClient.ts` | In progress |
+| NFR-REL-004 | Error handling and state recovery | `src/domain/errors.ts; src/infrastructure/http/providerHttpClient.ts` | In progress |
+| NFR-REL-005 | Error handling and state recovery | `src/domain/errors.ts; src/infrastructure/http/providerHttpClient.ts` | In progress |
 | UI-001 | Commands, Tree Views, Webview components | `package.json contributions; src/presentation/webview/messageProtocol.ts; webview-ui/src/` | In progress |
 | UI-002 | Commands, Tree Views, Webview components | `package.json contributions; src/presentation/webview/messageProtocol.ts; webview-ui/src/` | In progress |
 | UI-003 | Commands, Tree Views, Webview components | `package.json contributions; src/presentation/webview/messageProtocol.ts; webview-ui/src/` | In progress |
@@ -183,6 +204,11 @@
 | UI-008 | Commands, Tree Views, Webview components | `package.json contributions; src/presentation/webview/messageProtocol.ts; webview-ui/src/` | In progress |
 | UI-009 | Commands, Tree Views, Webview components | `package.json contributions; src/presentation/webview/messageProtocol.ts; webview-ui/src/` | In progress |
 | UI-010 | Commands, Tree Views, Webview components | `package.json contributions; src/presentation/webview/messageProtocol.ts; webview-ui/src/` | In progress |
+| NFR-UX-001 | VS Code interaction and accessibility | `src/presentation/; webview-ui/src/` | In progress |
+| NFR-UX-002 | VS Code interaction and accessibility | `src/presentation/; webview-ui/src/` | In progress |
+| NFR-UX-003 | VS Code interaction and accessibility | `src/presentation/; webview-ui/src/` | In progress |
+| NFR-UX-004 | VS Code interaction and accessibility | `src/presentation/; webview-ui/src/` | In progress |
+| NFR-UX-005 | VS Code interaction and accessibility | `src/presentation/; webview-ui/src/` | In progress |
 
 ## Verification evidence
 
@@ -190,7 +216,7 @@ Do not move a row to Verified until named tests pass or manual records capture e
 
 ## Maintenance gate
 
-CI does not yet compare IDs extracted from SRS against this table. Until that validator exists, reviewers must compare manually. The paths above are implementation pointers, not proof of complete behavior or release acceptance.
+CI compares declared SRS requirement and decision IDs against this table, including duplicate and unknown matrix rows. The paths above are implementation pointers, not proof of complete behavior or release acceptance.
 
 
 ## Additional decision traceability
@@ -201,4 +227,4 @@ CI does not yet compare IDs extracted from SRS against this table. Until that va
 | DEC-021 | Compatibility owner | Select and test exact GitLab Self-Managed release floor; external evidence pending | Blocked |
 | DEC-022 | Security / provider adapters | Least-privilege PAT guidance and live endpoint permission tests pending | In progress |
 | DEC-023 | QA / provider adapters | Independent GitHub.com/GitLab.com P0 acceptance remains an external gate | In progress |
-| DEC-024 | Developer / CI | SRS-ID traceability validator not yet implemented | Planned |
+| DEC-024 | Developer / CI | `scripts/check-traceability.mjs` and CI ID comparison | Implemented |
