@@ -173,13 +173,13 @@ Minimum VS Code engine version và chính sách GitHub Enterprise Server/GitLab 
 
 **UI-001 (P0):** Extension PHẢI cung cấp entry point có tên ReviewDock trong Activity Bar hoặc vị trí điều hướng tương đương của VS Code.
 
-**UI-002 (P0):** Extension PHẢI cung cấp view hiển thị project đang chọn và các nhóm Merge Request.
+**UI-002 (P0):** Extension PHẢI cung cấp view hiển thị repository/project đang chọn và các nhóm Pull Request/Merge Request.
 
-**UI-003 (P0):** Người dùng PHẢI có thể mở MR detail từ danh sách MR.
+**UI-003 (P0):** Người dùng PHẢI có thể mở PR/MR detail từ danh sách review requests.
 
-**UI-004 (P0):** MR detail PHẢI cung cấp điều hướng tới Overview, Changes và Discussions.
+**UI-004 (P0):** PR/MR detail PHẢI cung cấp điều hướng tới Overview, Changes và Conversations.
 
-**UI-005 (P1):** MR detail NÊN cung cấp khu vực riêng cho Pipeline và Approvals.
+**UI-005 (P1):** PR/MR detail NÊN cung cấp khu vực riêng cho Checks/Pipeline và Review/Approvals.
 
 **UI-006 (P0):** Các view PHẢI có trạng thái Loading, Empty, Error, Authentication Required và Permission Denied phù hợp.
 
