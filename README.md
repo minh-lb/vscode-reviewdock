@@ -44,14 +44,17 @@ Detailed specifications are maintained in the docs directory.
 | [SRS](./docs/SRS.md) | Software requirements, functional requirements and business rules |
 | [Connection Management](./docs/CONNECTION-MANAGEMENT.md) | Multi-connection model, lifecycle, enabled/disabled behavior and credential isolation |
 | [SDS](./docs/SDS.md) | Software architecture, domain model and component responsibilities |
-| [API Specification](./docs/API-SPEC.md) | GitHub and GitLab API contracts and request isolation |
+| [API Specification](./docs/API-SPEC.md) | GitHub and GitLab API contracts, permissions, pagination and mutation safety |
+| [Provider Capability Matrix](./docs/PROVIDER-CAPABILITY-MATRIX.md) | Provider parity, conversation semantics, API limitations and compatibility policy |
 | [UI/UX Specification](./docs/UI-UX.md) | Connection Manager and review experience |
-| [Test Plan](./docs/TEST-PLAN.md) | Unit, integration, security and end-to-end test scenarios |
+| [Test Plan](./docs/TEST-PLAN.md) | Provider-specific unit, integration, security, E2E and release-gate scenarios |
+| [Requirement Traceability](./docs/REQUIREMENT-TRACEABILITY.md) | Requirement-to-design-to-implementation-to-test mapping |
 | [Technical Decisions](./docs/DECISIONS.md) | Proposed architecture and product decisions requiring approval |
-| [Implementation Plan](./docs/IMPLEMENTATION-PLAN.md) | Milestones and implementation sequence |
+| [Implementation Plan](./docs/IMPLEMENTATION-PLAN.md) | Milestones, dependencies and exit criteria |
+| [Development Guide](./docs/DEVELOPMENT-GUIDE.md) | Local setup, build, debug, test and release workflow |
 
 ## Current scope
 
 The current specification targets GitHub and GitLab. Provider-specific differences in review, approval, pipeline/check and merge capabilities must be represented explicitly; the shared interface must not imply that both providers support identical behavior.
 
-Authentication and provider compatibility details remain subject to the decisions recorded in DECISIONS.md. The specifications are proposals until reviewed and approved.
+Authentication, provider-specific behavior and compatibility policy are documented in PROVIDER-CAPABILITY-MATRIX.md and remain subject to approval in DECISIONS.md. The specifications are proposals until reviewed and approved.
