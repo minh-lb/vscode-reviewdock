@@ -75,16 +75,19 @@ This document records recommended defaults needed to turn the SRS into an implem
 6. If resolution is ambiguous or fails, offer manual connection and repository selection.
 7. Never send a remote URL to a third-party service.
 
-### DEC-005 — GitLab compatibility
+### DEC-005 — Vendor-maintained provider compatibility
 
-**Decision proposed:** use GitLab REST API v4 with GitLab 17.0 as the initial technical floor, and GitHub REST API v3 for GitHub.com plus a GitHub Enterprise Server version selected and tested before release.
+**Decision proposed:** use GitHub REST API v3 and GitLab REST API v4, with compatibility determined by vendor-maintained server releases at the time of each ReviewDock release.
 
-- Do not assume GitHub.com and GitHub Enterprise Server expose identical API versions or capabilities.
+- GitLab Self-Managed: support the current minor release and the previous two vendor-maintained minor releases at release time. Test the oldest and newest releases in that window.
+- GitHub Enterprise Server: support the latest GHES feature release and the oldest feature release still supported by GitHub at release time. Test both.
+- GitHub.com and GitLab.com follow their hosted-service API behavior.
+- Do not assume GitHub.com and GHES expose identical API versions, headers or capabilities.
 - Treat optional response fields as optional and feature-detect endpoint capabilities.
-- Verify all required workflows against the oldest supported GitLab instance, current GitLab.com, GitHub.com and the selected GHES version.
-- Publish the exact tested compatibility matrix before release.
+- Publish exact tested versions, editions and known limitations before release.
+- Re-check the vendor maintenance policy before every release; never retain an unsupported release as the compatibility floor solely for backward compatibility.
 
-GitLab 17.0 is a proposed technical floor, not a statement that this version remains within GitLab's vendor support window.
+**Compatibility snapshot reviewed 2026-11-16:** GitLab maintained releases were 19.3, 19.4 and 19.5; GHES supported releases included 3.19 through 3.22. These are a dated snapshot, not a permanent support promise.
 
 ### DEC-006 — Workspace project model
 
@@ -105,7 +108,7 @@ GitLab 17.0 is a proposed technical floor, not a statement that this version rem
 **Decision proposed:**
 
 - MVP includes general comments and single-line inline comments on both providers, plus replies only for provider-supported thread types. GitHub general issue comments cannot be replied to through the selected REST workflow; GitHub inline review replies are limited to one reply level; GitLab discussion notes support replies.
-- MVP does not expose Approve/Request changes or GitLab Approve/Unapprove actions.
+- MVP does not expose GitHub Approve/Request changes or GitLab Approve/Unapprove actions; these are P1 provider-specific review decisions.
 - GitHub Checks/Actions and GitLab Pipeline/Jobs panels are P1.
 - Approval/review capabilities are provider-specific; missing fields mean unavailable/unknown, not zero or false. GitLab's basic approval-state endpoint is available on Community Edition with a reduced field set; detailed rule fields are edition-dependent.
 - Merge is sent to the selected provider and can be rejected by repository/project rules. The client must not infer approval or check status from missing API data.
@@ -116,10 +119,11 @@ GitLab 17.0 is a proposed technical floor, not a statement that this version rem
 
 - MVP performs immediate merge only.
 - Do not send `auto_merge=true` or deprecated `merge_when_pipeline_succeeds`.
-- Fetch the MR immediately before merge and send its current source HEAD SHA as `sha`.
-- Require an explicit confirmation showing project, MR IID, source branch and target branch.
-- Do not set `should_remove_source_branch=true`; source-branch deletion remains governed by project settings unless a separately approved feature is added.
-- Do not override the project's squash policy. If the server requires or disallows squash, let GitLab enforce it.
+- Fetch the PR/MR immediately before merge and send its current source/head SHA using the provider's expected request field.
+- Require an explicit confirmation showing provider, connection, repository/project, PR number or MR IID, source branch and target branch.
+- Do not set source-branch deletion options; source-branch deletion remains governed by repository/project policy unless a separately approved feature is added.
+- Do not override repository/project squash policy. Let the provider enforce its configured merge method and restrictions.
+- GitHub direct merge does not support merge queues; merge-queue and asynchronous merge workflows are outside MVP.
 - Never retry an ambiguous merge mutation automatically.
 
 
@@ -209,9 +213,9 @@ GitLab 17.0 is a proposed technical floor, not a statement that this version rem
 - [ ] DEC-002 UI architecture approved.
 - [ ] DEC-003 Inline-comment MVP scope approved.
 - [ ] DEC-004 Project discovery approved.
-- [ ] DEC-005 GitLab compatibility floor approved.
+- [ ] DEC-005 Vendor-maintained provider compatibility policy approved.
 - [ ] DEC-006 Workspace project model approved.
-- [ ] DEC-007 / DEC-008 Review, pipeline and approval scope approved.
+- [ ] DEC-007 / DEC-008 Review conversation, review decision, checks/pipeline and approval scope approved.
 - [ ] DEC-009 Merge behavior approved.
 - [ ] DEC-010 Localization approved.
 - [ ] DEC-011 Webview framework approved.
