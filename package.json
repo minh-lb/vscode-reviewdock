@@ -106,6 +106,18 @@
         "title": "ReviewDock: Manage Connections"
       },
       {
+        "command": "reviewdock.openConnectionReviewRequest",
+        "title": "ReviewDock: Open Review Request"
+      },
+      {
+        "command": "reviewdock.loadConnectionTreeMore",
+        "title": "ReviewDock: Load More"
+      },
+      {
+        "command": "reviewdock.retryConnectionTree",
+        "title": "ReviewDock: Retry"
+      },
+      {
         "command": "reviewdock.selectConnection",
         "title": "ReviewDock: Select Connection"
       },
@@ -139,6 +151,13 @@
       }
     ],
     "menus": {
+      "view/item/context": [
+        {
+          "command": "reviewdock.manageConnections",
+          "when": "view == reviewdock.connections && (viewItem == reviewdock.connection.enabled || viewItem == reviewdock.connection.disabled)",
+          "group": "inline"
+        }
+      ],
       "view/title": [
         {
           "command": "reviewdock.addConnection",

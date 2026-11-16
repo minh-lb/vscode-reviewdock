@@ -13,7 +13,7 @@ import { ProviderHttpClient } from './infrastructure/http/providerHttpClient';
 import { VscodeSecretStore, MementoStore } from './infrastructure/storage/vscodeStores';
 import { GitHubAdapter } from './infrastructure/providers/github/githubAdapter';
 import { GitLabAdapter } from './infrastructure/providers/gitlab/gitlabAdapter';
-import { ConnectionsTree } from './presentation/tree/connectionsTree';
+import { ConnectionsTree, type ConnectionNode } from './presentation/tree/connectionsTree';
 import { RequestsTree, type RequestNode } from './presentation/tree/requestsTree';
 import { connectionChoice } from './presentation/tree/connectionSelection';
 import { reviewFilters, selectWorkspaceFolder } from './presentation/tree/treeItems';
@@ -103,7 +103,7 @@ export function activate(context: vscode.ExtensionContext): void {
     return review;
   };
   const repositories = new RepositoryService(connections, providerFor, workspace);
-  const connectionTree: ConnectionsTree = new ConnectionsTree(connections);
+  const connectionTree = new ConnectionsTree(connections, providerFor);
   let activeFolder = selectWorkspaceFolder(allFolders());
   let activeFolderExplicitlySelected = false;
   const requestsTree = new RequestsTree(
@@ -134,7 +134,12 @@ export function activate(context: vscode.ExtensionContext): void {
     }),
   );
 
-  async function openRequest(connectionId: string, summary: ReviewRequestSummary): Promise<void> {
+  async function openRequest(
+    connectionId: string,
+    summary: ReviewRequestSummary,
+    repositoryId?: string,
+    fromConnectionTree = false,
+  ): Promise<void> {
     const connection = connections.getConnection(connectionId);
     if (!connection.enabled)
       throw new AppError(
@@ -142,13 +147,13 @@ export function activate(context: vscode.ExtensionContext): void {
         'connection-disabled',
       );
     const binding = activeFolder ? repositories.getBinding(activeFolder.uri.toString()) : undefined;
-    if (!binding || binding.connectionId !== connectionId)
+    if (!repositoryId && (!binding || binding.connectionId !== connectionId))
       throw new AppError(
         'The review request is no longer bound to the selected workspace folder.',
         'validation',
       );
     if (
-      summary.repositoryId !== binding.repositoryId ||
+      summary.repositoryId !== (repositoryId ?? binding?.repositoryId) ||
       (summary.connectionId && summary.connectionId !== connectionId)
     )
       throw new AppError(
@@ -156,14 +161,27 @@ export function activate(context: vscode.ExtensionContext): void {
         'validation',
       );
     const provider = providerFor(connection);
-    const repository = await provider.getRepository(binding.repositoryId);
+    if (repositoryId && summary.connectionId && summary.connectionId !== connectionId)
+      throw new AppError('The review request belongs to a different connection.', 'validation');
+    const repository = await provider.getRepository(repositoryId ?? binding!.repositoryId);
+    if (
+      repository.id !== summary.repositoryId ||
+      (repository.connectionId && repository.connectionId !== connectionId)
+    )
+      throw new AppError(
+        'The review request belongs to a different repository or connection.',
+        'validation',
+      );
     const panel = openReviewRequestPanel(context.extensionUri, {
       connection,
       repository,
       summary,
       provider,
       review: reviewFor(connection),
-      onDidMutate: () => requestsTree.refresh(),
+      onDidMutate: () => {
+        requestsTree.refresh();
+        if (fromConnectionTree) connectionTree.invalidate(connectionId, repository.id);
+      },
     });
     panels.add(panel);
     panel.onDidDispose(() => panels.delete(panel));
@@ -194,6 +212,30 @@ export function activate(context: vscode.ExtensionContext): void {
       async (summary?: ReviewRequestSummary) => {
         if (!summary) summary = await chooseRequest();
         if (summary) await requestsTree.openSummary(summary);
+      },
+    ],
+    [
+      'reviewdock.openConnectionReviewRequest',
+      async (node?: ConnectionNode) => {
+        if (node?.kind === 'request') {
+          try {
+            await openRequest(node.connection.id, node.summary, node.repository.id, true);
+          } catch (error) {
+            showError(error);
+          }
+        }
+      },
+    ],
+    [
+      'reviewdock.loadConnectionTreeMore',
+      async (node?: ConnectionNode) => {
+        if (node) await connectionTree.loadMore(node);
+      },
+    ],
+    [
+      'reviewdock.retryConnectionTree',
+      async (node?: ConnectionNode) => {
+        if (node) await connectionTree.retry(node);
       },
     ],
     ['reviewdock.openOnProvider', openOnProvider],
@@ -277,8 +319,13 @@ export function activate(context: vscode.ExtensionContext): void {
     }
   }
 
-  async function manageConnections(connection?: Connection): Promise<void> {
-    let target = connection;
+  async function manageConnections(selection?: Connection | ConnectionNode): Promise<void> {
+    let target =
+      selection && 'kind' in selection
+        ? selection.kind === 'connection'
+          ? selection.connection
+          : undefined
+        : selection;
     while (true) {
       const items = connections.listConnections();
       if (!target) {
