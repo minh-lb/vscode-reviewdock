@@ -1,7 +1,7 @@
 # ReviewDock — Multi-provider Test Plan
 
 > **Document ID:** RVD-TEST-001  
-> **Version:** 0.1.0  
+> **Version:** 0.2.0  
 > **Status:** Proposed  
 > **Related:** [SRS.md](./SRS.md), [SDS.md](./SDS.md), [API-SPEC.md](./API-SPEC.md), [UI-UX.md](./UI-UX.md)
 
@@ -75,13 +75,13 @@ No test should require a real PAT in source code, fixtures, CI logs or repositor
 
 Use isolated non-production repositories/projects and dedicated test accounts:
 - GitHub.com: one account with repository read access, one with review-comment write access and one with merge permission.
-- GitHub Enterprise Server: at least one supported test instance before release; verify API root and supported API version.
+- GitHub Enterprise Server: test the latest and oldest still-supported feature release selected by the release compatibility matrix; verify API root and supported API version.
 - GitLab.com: one account with project read access, one with discussion write access and one with merge permission.
-- GitLab Self-Managed: test the proposed compatibility floor and a current supported instance.
+- GitLab Self-Managed: test the oldest and newest vendor-maintained minor releases selected by the release compatibility matrix.
 
 For each provider, prepare an open PR/MR with added, removed and modified lines, at least one review conversation, and a repository/project with merge restrictions for negative tests. Enable GitHub Checks/Actions or GitLab pipelines if P1 tests are enabled.
 
-The proposed GitLab technical floor is 17.0. The exact GitHub Enterprise Server target and complete provider compatibility matrix must be confirmed before release.
+The exact minimum VS Code engine, GHES versions and GitLab Self-Managed maintenance window must be confirmed in PROVIDER-CAPABILITY-MATRIX.md before release. Do not use an unsupported GitLab release as the permanent technical floor.
 
 ### 5.3. Operating system matrix
 
@@ -103,9 +103,11 @@ Required sanitized fixtures:
 - MR detail with missing/preparing diff_refs.
 - Diff version list and a selected version.
 - Diff files: added, modified, deleted, renamed, empty patch, binary, too large and collapsed.
-- Discussion with multiple replies.
-- General note/discussion.
-- Inline discussion with old/new line positions.
+- GitHub general issue comment with no reply relationship.
+- GitHub inline review comment with one top-level reply and a reply-to-reply negative fixture.
+- GitHub review submission distinct from comments.
+- GitLab discussion with multiple reply notes.
+- GitLab general discussion and inline discussion with old/new line positions.
 - Approval response for Community Edition.
 - Approval response for Premium/Ultimate.
 - Pipeline and jobs in pending, running, success, failed, canceled and skipped states.
@@ -169,6 +171,16 @@ Fixtures must contain no real user secrets, private code or production project i
 | UNIT-DIFF-008 | Missing diff SHA | Inline comment disabled |
 | UNIT-DIFF-009 | Diff version changes | Existing composer context becomes stale |
 
+### 7.4A. Conversation capability and normalization
+
+| ID | Scenario | Expected result |
+|---|---|---|
+| UNIT-CONV-001 | Map GitHub issue comment | Kind is github-issue-comment; reply is unsupported |
+| UNIT-CONV-002 | Map GitHub inline review comment | Kind and provider comment ID are preserved; top-level reply capability is supported |
+| UNIT-CONV-003 | Map GitHub reply comment | Parent comment ID is preserved; reply-to-reply capability is unsupported |
+| UNIT-CONV-004 | Map GitLab discussion and notes | Discussion ID, note IDs, parent/thread grouping and resolution state are preserved |
+| UNIT-CONV-005 | Provider omits resolution or reply metadata | State is unknown/not-applicable; never coerced to false or resolved |
+
 ### 7.4. Domain and error mapping
 
 | ID | Scenario | Expected result |
@@ -223,14 +235,23 @@ Fixtures must contain no real user secrets, private code or production project i
 | API-GH-AUTH-003 | Fine-grained token lacks one repository permission | Connection stays valid; operation-level permission error shown |
 | API-GH-REPO-001 | List accessible repositories | Results are scoped to selected connection |
 | API-GH-PR-001 | List and retrieve PR | PR DTO normalized with repository ID and PR number |
-| API-GH-PR-002 | Retrieve PR files with pagination | All pages loaded; missing patches represented explicitly |
+| API-GH-PR-002 | Retrieve PR files with pagination | Pages loaded; missing patches represented explicitly; 3,000-file cap marked partial |
+| API-GH-PR-003 | Search PR by title and number | Search query uses repository and is:pr qualifiers; full PR detail is fetched |
+| API-GH-PR-004 | Filter created/assigned/direct review-requested PRs | author:@me, assignee:@me and user-review-requested:@me are used |
+| API-GH-PR-005 | Search API reaches 1,000 results or rate limit | UI marks results limited; does not claim exhaustive results |
 | API-GH-COM-001 | Create general PR comment | Issue comment endpoint is used |
 | API-GH-COM-002 | Create inline comment on added line | Current head SHA, path, line and RIGHT side sent |
 | API-GH-COM-003 | Create inline comment on removed line | Current head SHA, path, line and LEFT side sent |
 | API-GH-COM-004 | Reply to review comment | Correct review-comment reply endpoint used |
+| API-GH-COM-005 | Create general issue comment | Comment is shown as standalone; no Reply action is exposed |
+| API-GH-COM-006 | Reply to top-level inline review comment | Reply is created and grouped under the top-level comment |
+| API-GH-COM-007 | Attempt reply to an inline reply | UI does not expose the action; adapter rejects unsupported operation locally |
+| API-GH-COM-008 | Create comment on a context line | New-side line and side=RIGHT are sent |
+| API-GH-COM-009 | Resolve GitHub review thread | No resolve/reopen action is exposed by the selected REST adapter |
 | API-GH-MERGE-001 | Merge PR | Current head SHA included |
 | API-GH-MERGE-002 | Head SHA mismatch | 409/conflict shown; no automatic retry |
 | API-GH-MERGE-003 | Merge rejected by rules/permission | Server rejection surfaced accurately |
+| API-GH-MERGE-004 | PR requires a merge queue | Direct merge limitation is surfaced; no implicit queue/async merge is initiated |
 | API-GH-CHECK-001 | Check run SHA differs from PR head | Check is not shown as current |
 | API-GH-PAGE-001 | Pagination Link points to another origin | Link rejected before token is attached |
 
@@ -238,12 +259,18 @@ Fixtures must contain no real user secrets, private code or production project i
 
 | ID | Scenario | Expected result |
 |---|---|---|
-| API-APR-001 | Community Edition approval response | Only returned fields displayed |
-| API-APR-002 | Premium/Ultimate approval state available | Rules and counts displayed |
-| API-APR-003 | Approval endpoint unavailable | MR detail remains usable |
+| API-APR-001 | GitLab Community Edition /approvals response | Basic fields only are displayed; missing rule counts remain unavailable |
+| API-APR-002 | GitLab Enterprise Edition /approvals response | Returned approval counts/rules are displayed without inferring missing fields |
+| API-APR-003 | GitLab detailed approval-state endpoint unavailable/forbidden | Basic approval panel remains usable |
+| API-APR-004 | CE approved=true with one approval and no rule fields | UI displays provider-reported approval state, not an inferred rule count |
+| API-APR-005 | EE approval rules and approvals_left returned | Rule satisfaction is displayed only from returned provider fields |
 | API-PIPE-001 | MR pipelines returned | Pipeline summary mapped |
 | API-PIPE-002 | Pipeline SHA differs from MR head | Pipeline marked as not current |
 | API-PIPE-003 | Jobs request returns paginated results | Job list loads pages |
+| API-GH-REVIEW-001 | GitHub review state is retrieved | Review submissions are distinct from general/inline comments |
+| API-GH-REVIEW-002 | GitHub review permission is missing | Operation-level permission error shown; connection remains valid |
+| API-GH-CHECK-002 | Check Runs request lacks Checks:read | Checks panel shows permission state; PR detail remains usable |
+| API-GH-CHECK-003 | Actions workflow request lacks Actions:read | Workflow panel shows permission state; no false failed state |
 
 ## 9. Extension and Webview tests
 
@@ -266,6 +293,9 @@ Fixtures must contain no real user secrets, private code or production project i
 | EXT-015 | Execute a provider command using a disabled connection | Local ConnectionDisabledError; no credential lookup or outbound HTTP request |
 | EXT-016 | Disable a connection with pending reads | Pending reads are cancelled where possible; stale results are ignored |
 | EXT-017 | Disable a connection after a mutation was submitted | UI does not claim rollback; outcome is reconciled after re-enabling |
+| EXT-018 | Render a GitHub general issue comment | No Reply or Resolve action is shown |
+| EXT-019 | Keyboard-only review workflow | Connection, PR/MR list, diff and comment controls are reachable and operable |
+| EXT-020 | Accessibility and theme inspection | Status is not color-only; controls have accessible labels and follow VS Code theme tokens |
 
 ## 10. Manual end-to-end scenarios
 
@@ -291,69 +321,150 @@ Expected:
 - Disconnecting one connection does not affect another.
 
 
-### E2E-002 — Discover and open MR
+### E2E-002A — Discover and open a GitHub PR
 
-1. Open ReviewDock.
-2. Select Review requested.
-3. Load more results.
-4. Search by title.
-5. Open an MR.
-
-Expected:
-- Correct MR results and pagination.
-- MR detail displays metadata and current state.
-- No unrelated project's MR appears in the active project view.
-
-### E2E-003 — Review changed files
-
-1. Open Changes.
-2. Navigate through added, modified, deleted and renamed files.
-3. Inspect line numbers and hunks.
-4. Open a binary or oversized diff.
+1. Bind a workspace folder to a GitHub connection and repository.
+2. Load open PRs and paginate.
+3. Search by title and PR number.
+4. Exercise Created by me, Assigned to me and direct Review requested from me.
+5. Open a PR and refresh its detail.
 
 Expected:
-- File state and diff are accurate.
-- Unsupported patch is explained.
+- PR results are scoped to the selected connection/repository.
+- Search uses GitHub Search API qualifiers; full PR detail is fetched before displaying full metadata.
+- Search caps/rate limits are represented as limited results, not complete results.
+- PR number is always scoped by repository and connection.
+
+### E2E-002B — Discover and open a GitLab MR
+
+1. Bind a workspace folder to a GitLab connection and project.
+2. Load open MRs and paginate.
+3. Exercise Created by me, Assigned to me and Review requested from me.
+4. Search by title and IID.
+5. Open an MR and refresh its detail.
+
+Expected:
+- MR list scopes and search parameters match GitLab API behavior.
+- Pagination and MR IID are scoped by project and connection.
+- Missing fields are displayed as unknown rather than false.
+
+### E2E-003A — Review GitHub PR changes
+
+1. Open a PR with added, modified, deleted and renamed files.
+2. Navigate the changed-file list and inspect line numbers/hunks.
+3. Open a binary or large patch.
+4. Use a PR with more than 3,000 changed files if the test environment can safely provide one, or validate the documented API cap with a fixture.
+
+Expected:
+- File state and diff mapping are accurate.
+- Missing patch text is explicitly unavailable.
+- A result at the 3,000-file API cap is marked partial.
 - Non-diff rows cannot receive comments.
 
-### E2E-004 — Comment and reply
+### E2E-003B — Review GitLab MR changes
 
-1. Add a general comment.
-2. Add a comment on an added line.
-3. Add a comment on a removed line.
-4. Reply to a discussion.
+1. Open an MR with added, modified, deleted and renamed files.
+2. Navigate the changed-file list and inspect line numbers/hunks.
+3. Open a binary, collapsed or too-large diff.
+4. Verify diff version metadata is associated with rendered rows.
+
+Expected:
+- File state and diff mapping are accurate.
+- Collapsed/too-large or unsupported patches are explained.
+- Inline commenting remains disabled when required SHAs or line positions are missing.
+
+### E2E-004A — GitHub comments and review replies
+
+1. Create a general PR timeline comment.
+2. Verify that no Reply action is shown for the general issue comment.
+3. Create an inline comment on an added line, a removed line and a context line.
+4. Reply to a top-level inline review comment.
+5. Verify that a reply-to-reply action is not exposed.
+6. Refresh the PR in GitHub Web.
+
+Expected:
+- General comments use the Issues Comments API.
+- Inline comments use the Pull Request Review Comments API and correct side/line/head SHA.
+- Only a top-level inline review comment can receive a reply.
+- No GitHub REST Resolve/Reopen action is shown.
+- All comments appear on the correct resource and line.
+
+### E2E-004B — GitLab discussions and replies
+
+1. Create a general MR discussion.
+2. Create inline discussions on added, removed and context lines.
+3. Reply to a discussion.
+4. Resolve/reopen a discussion if the account and project permit it.
 5. Refresh the MR in GitLab Web.
 
 Expected:
-- All comments appear at the correct thread/line.
-- No duplicate comments are created.
-- The UI shows the server response.
+- Discussion grouping and note IDs are preserved.
+- General and inline discussion replies use the correct discussion ID.
+- Resolve/reopen appears only when the provider permits it.
+- No duplicate notes are created.
 
-### E2E-005 — Stale diff protection
+### E2E-005A — GitHub stale diff protection
 
-1. Open an MR diff in ReviewDock.
+1. Open a PR diff and prepare an inline review comment.
+2. Push a new commit to the PR head from another session.
+3. Attempt to submit using the old head SHA and line context.
+
+Expected:
+- ReviewDock refreshes PR detail and compares current head SHA.
+- Submission is blocked when the head SHA changed.
+- Draft text is preserved; it is never posted as a general issue comment.
+
+### E2E-005B — GitLab stale diff protection
+
+1. Open an MR diff and prepare an inline discussion.
 2. Push a new commit to the source branch from another session.
-3. Attempt to submit a comment using the old diff context.
+3. Attempt to submit using the old diff version.
 
 Expected:
 - ReviewDock detects the changed diff version or GitLab rejects the stale position.
 - Draft text is preserved.
-- No comment is silently posted as a general note.
+- No comment is silently posted as a general discussion.
 
-### E2E-006 — Merge success
+### E2E-006A — GitHub PR merge success
 
-1. Use a test MR that is mergeable for the current user.
-2. Click Merge.
-3. Verify the confirmation identifies project, IID and target branch.
-4. Confirm merge.
-5. Refresh state.
+1. Use a test PR that is mergeable for the current account and repository rules.
+2. Click Merge and inspect provider, connection, repository, PR number and branches.
+3. Confirm merge.
+4. Refresh PR state.
 
 Expected:
-- Request includes the current source SHA.
-- MR becomes merged only after GitLab confirms.
-- No auto-merge or source-branch deletion option is silently enabled.
+- Request includes the current PR head SHA.
+- PR becomes merged only after GitHub confirms.
+- No auto-merge, merge queue or source-branch deletion option is silently enabled.
 
-### E2E-007 — Merge rejection
+### E2E-006B — GitLab MR merge success
+
+1. Use a test MR that is mergeable for the current account and project rules.
+2. Click Merge and inspect provider, connection, project, MR IID and branches.
+3. Confirm merge.
+4. Refresh MR state.
+
+Expected:
+- Request includes the current source HEAD SHA.
+- MR becomes merged only after GitLab confirms.
+- No auto-merge-when-pipeline-succeeds or source-branch deletion option is silently enabled.
+
+### E2E-007A — GitHub merge rejection
+
+Run separate tests for:
+- Insufficient repository permission.
+- Protected branch or repository rule rejection.
+- Stale head SHA.
+- Closed PR.
+- Merge queue required.
+
+Expected:
+- GitHub rejection is displayed.
+- No false success notification or implicit queue action occurs.
+- PR state is refreshed.
+- No automatic retry occurs.
+
+### E2E-007B — GitLab merge rejection
 
 Run separate tests for:
 - Insufficient permission.
@@ -397,15 +508,17 @@ Expected:
 | SEC-TEST-005 | External link with javascript/data scheme | Blocked |
 | SEC-TEST-006 | Log HTTP error containing sensitive header | Header redacted |
 | SEC-TEST-007 | Disconnect one connection | Corresponding SecretStorage key removed |
-| SEC-TEST-008 | User lacks merge permission | Merge is rejected by GitLab; no bypass path exists |
+| SEC-TEST-008 | User lacks merge permission | Merge is rejected by the provider; no bypass path exists |
+| SEC-TEST-009 | GitHub general comment and inline review comment are normalized | Resource kind and reply capability are preserved; no synthetic general-comment thread |
+| SEC-TEST-010 | Inspect VS Code logs, Webview messages and CI artifacts | No PAT, private diff body or comment content is exposed |
 
 ## 12. Performance and resilience checks
 
 Initial targets (to be validated and adjusted after baseline measurement):
 
-- Extension activation does not wait for GitLab network.
+- Extension activation does not wait for GitHub or GitLab network.
 - Show a loading state immediately when a network-backed view opens.
-- With a normal network and a response under 1 MB, MR list first page should render within 2 seconds after the response is received.
+- With a normal network and a response under 1 MB, PR/MR list first page should render within 2 seconds after the response is received.
 - Large diffs should be paginated/lazy-loaded and must not block extension host event processing.
 - Changing MR/project cancels obsolete read requests.
 - Rate-limit and transient server errors do not create request storms.
@@ -414,17 +527,36 @@ Initial targets (to be validated and adjusted after baseline measurement):
 ## 13. Release gates
 
 MVP release is blocked until:
-- All P0 test cases pass for both GitHub and GitLab.
+- All P0 common test cases pass, and every P0 provider-specific workflow passes against both GitHub and GitLab. A provider-specific unsupported capability must pass its negative test.
 - All P0 SRS requirements map to at least one test or inspection.
 - GitHub inline review comment mapping and GitLab diff position mapping are verified against real test environments.
 - GitHub PR head SHA and GitLab MR source SHA preconditions are verified against real test environments.
 - Secret handling and Webview security tests pass.
 - No known critical/high severity security defect remains.
 - Windows, macOS and Linux smoke tests pass.
-- Compatibility floor and tested GitLab versions are documented.
+- Compatibility floor and tested VS Code, GHES and GitLab versions are documented.
 - Manual test results are recorded in the release checklist.
 
-## 14. Traceability
+
+## 15. CI and release automation checks
+
+| ID | Scenario | Expected result |
+|---|---|---|
+| CI-001 | Pull request CI runs lint and formatting checks | Both pass; failure blocks merge |
+| CI-002 | Pull request CI runs TypeScript strict typecheck | No type errors |
+| CI-003 | Pull request CI runs unit and mocked provider integration tests | All required tests pass without live credentials |
+| CI-004 | Pull request CI builds extension and Webview bundles | Build succeeds reproducibly from lockfile |
+
+## 16. Additional performance checks
+
+| ID | Scenario | Expected result |
+|---|---|---|
+| PERF-001 | Extension activation with all providers unreachable | Activation completes without waiting for network |
+| PERF-002 | Open a large PR/MR diff | Diff is paginated/lazy-loaded; extension host remains responsive |
+| PERF-003 | Switch repository while multiple reads are pending | Obsolete requests are cancelled or ignored |
+| PERF-004 | Repeated rate-limit/network failures | Bounded retries; no request storm |
+
+## 17. Traceability
 
 Maintain a test-to-requirement mapping as implementation progresses:
 
@@ -432,10 +564,10 @@ Maintain a test-to-requirement mapping as implementation progresses:
 |---|---|
 | AUTH / CONN | API-AUTH, API-GH-AUTH, UNIT-CONN, E2E-001, SEC-TEST |
 | PROJ | UNIT-PROJ, API-PROJ, API-GH-REPO, E2E-001 |
-| PR / MR / DETAIL | API-MR, API-GH-PR, E2E-002 |
-| DIFF | UNIT-DIFF, API-DIFF, E2E-003, E2E-005 |
-| DISC / REVIEW COMMENTS | API-DISC, API-GH-COM, E2E-004 |
-| MERGE | API-MERGE, API-GH-MERGE, E2E-006, E2E-007 |
+| PR / MR / DETAIL | API-MR, API-GH-PR, E2E-002A/B |
+| DIFF | UNIT-DIFF, API-DIFF, API-GH-PR, E2E-003A/B, E2E-005A/B |
+| DISC / REVIEW COMMENTS | UNIT-CONV, API-DISC, API-GH-COM, E2E-004A/B |
+| MERGE | API-MERGE, API-GH-MERGE, E2E-006A/B, E2E-007A/B |
 | APR / PIPE | API-APR, API-PIPE |
 | UI / NFR | EXT, SEC-TEST, performance checks |
 
