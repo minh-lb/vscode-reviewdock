@@ -356,7 +356,7 @@ A feature is done when:
 - No known critical regression remains.
 
 
-## 10. Cross-provider implementation gates
+## 11. Cross-provider implementation gates
 
 - M0 establishes strict TypeScript, deterministic tests, provider HTTP harnesses, extension-host/Webview tests, CI and reproducible VSIX packaging. Record exact commands in [DEVELOPMENT-GUIDE.md](./DEVELOPMENT-GUIDE.md).
 - M1 completes independent GitHub/GitLab clients, account isolation, origin validation and repository/project binding before M2.

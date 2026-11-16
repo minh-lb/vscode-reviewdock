@@ -191,3 +191,14 @@ Move to Implemented only after code exists and review is complete. Move to Verif
 ## Maintenance gate
 
 CI should compare IDs extracted from SRS against this table and fail on missing/duplicate IDs. Until that validator exists, reviewers must compare manually. Replace family references with concrete test IDs as tests become concrete. The matrix records planned traceability, not proof of implementation.
+
+
+## Additional decision traceability
+
+| ID | Design/approval owner | Implementation / verification evidence | Status |
+|---|---|---|---|
+| DEC-020 | Product owner + compatibility owner | Select GHES floor; run provider compatibility suite | Blocked |
+| DEC-021 | Product owner + compatibility owner | Select GitLab Self-Managed floor; run provider compatibility suite | Blocked |
+| DEC-022 | Security/architecture owner | Approve least-privilege GitHub PAT permission matrix and endpoint tests | Blocked |
+| DEC-023 | Product owner + QA | Approve independent GitHub.com/GitLab.com P0 acceptance gate | Proposed |
+| DEC-024 | Developer/CI owner | Implement SRS-ID validator and CI failure test | Planned |
