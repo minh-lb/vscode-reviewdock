@@ -354,3 +354,14 @@ A feature is done when:
 - Logs contain no secret or sensitive source data.
 - Documentation, PROVIDER-CAPABILITY-MATRIX.md and REQUIREMENT-TRACEABILITY.md are updated.
 - No known critical regression remains.
+
+
+## 10. Cross-provider implementation gates
+
+- M0 establishes strict TypeScript, deterministic tests, provider HTTP harnesses, extension-host/Webview tests, CI and reproducible VSIX packaging. Record exact commands in [DEVELOPMENT-GUIDE.md](./DEVELOPMENT-GUIDE.md).
+- M1 completes independent GitHub/GitLab clients, account isolation, origin validation and repository/project binding before M2.
+- M2-M5 are not complete until P0 workflows pass independently on GitHub.com and GitLab.com.
+- M3 verifies inline positions against real test resources on both providers; mocks alone are insufficient.
+- M5 verifies merge rejection and ambiguous-timeout reconciliation on both providers using disposable resources.
+- M7 tests every Enterprise/Self-Managed version claimed. Untested versions are excluded from compatibility claims.
+- Maintain [REQUIREMENT-TRACEABILITY.md](./REQUIREMENT-TRACEABILITY.md) and [PROVIDER-CAPABILITY-MATRIX.md](./PROVIDER-CAPABILITY-MATRIX.md) as living release gates.

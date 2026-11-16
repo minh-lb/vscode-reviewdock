@@ -229,3 +229,17 @@ This document records recommended defaults needed to turn the SRS into an implem
 - [ ] DEC-019 Minimum VS Code engine approved.
 
 **Implementation rule:** begin work on a feature only after its relevant proposed decisions are approved. Foundation work that does not depend on unresolved decisions may proceed independently.
+
+
+## 9. Additional release-blocking decisions
+
+| ID | Decision | Required choice/evidence | Status |
+|---|---|---|---|
+| DEC-017 | Minimum VS Code engine | Select engine and verify APIs/Webview behavior | Open |
+| DEC-018 | Minimum GitHub Enterprise Server | Select version; validate auth, PR, diff, review comment and merge | Open |
+| DEC-019 | Minimum GitLab Self-Managed | Select version; validate diff versions, discussions, inline positions and merge | Open |
+| DEC-020 | GitHub PAT permission matrix | Approve least-privilege read, comment/review and merge permissions | Open |
+| DEC-021 | Cross-provider release gate | Require independent P0 evidence on GitHub.com and GitLab.com | Proposed |
+| DEC-022 | Traceability enforcement | Add CI validation for SRS IDs vs traceability rows | Open |
+
+These decisions block associated compatibility/release claims. P1 capabilities may remain deferred when documented in the capability matrix and UI.
