@@ -8,7 +8,7 @@ Tài liệu dự án ReviewDock — extension cho Visual Studio Code để quả
 |---|---|---|
 | [SRS.md](./SRS.md) | Software requirements for GitHub/GitLab multi-provider workflows and connection management. | Draft v1.0.2 |
 | [DECISIONS.md](./DECISIONS.md) | Proposed MVP defaults and technical decisions requiring Product Owner approval. | Proposed |
-| [CONNECTION-MANAGEMENT.md](./CONNECTION-MANAGEMENT.md) | Connection model, fields, provider/server selection, authentication, lifecycle, workspace binding, isolation and acceptance criteria. | Proposed |
+| [CONNECTION-MANAGEMENT.md](./CONNECTION-MANAGEMENT.md) | Connection model, fields, provider/server selection, authentication, enabled/disabled lifecycle, workspace binding, isolation and acceptance criteria. | Proposed |
 | [SDS.md](./SDS.md) | Software architecture, components, domain models, runtime flows, state and security design. | Proposed |
 | [API-SPEC.md](./API-SPEC.md) | GitHub REST API v3 and GitLab REST API v4 endpoints, authentication, pagination and mutation safety. | Proposed |
 | [UI-UX.md](./UI-UX.md) | Navigation, MR detail, diff/discussion layouts, wireframes, states and accessibility. | Proposed |
