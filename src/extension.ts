@@ -15,6 +15,7 @@ import { GitHubAdapter } from './infrastructure/providers/github/githubAdapter';
 import { GitLabAdapter } from './infrastructure/providers/gitlab/gitlabAdapter';
 import { ConnectionsTree } from './presentation/tree/connectionsTree';
 import { RequestsTree, type RequestNode } from './presentation/tree/requestsTree';
+import { connectionChoice } from './presentation/tree/connectionSelection';
 import { reviewFilters, selectWorkspaceFolder } from './presentation/tree/treeItems';
 import { openReviewRequestPanel } from './presentation/webview/reviewRequestPanel';
 
@@ -444,19 +445,39 @@ export function activate(context: vscode.ExtensionContext): void {
     if (bound) {
       const current = connections.listConnections().find((item) => item.id === bound.connectionId);
       if (current?.enabled) return current;
+      await vscode.window.showWarningMessage(
+        current
+          ? `The workspace is bound to disabled connection “${current.displayName}”. Enable it or use Select Connection to change the binding.`
+          : 'The workspace connection binding is unresolved. Use Select Connection to choose another account; ReviewDock will not switch accounts automatically.',
+      );
+      return undefined;
     }
     const enabled = connections.listConnections().filter((item) => item.enabled);
     if (!enabled.length) {
       await vscode.window.showInformationMessage('Add or enable a ReviewDock connection first.');
       return undefined;
     }
+    const choice = connectionChoice(false, enabled, {
+      github: connections.getDefaultConnection('github'),
+      gitlab: connections.getDefaultConnection('gitlab'),
+    });
+    if (choice.kind === 'blocked') return undefined;
+    if (choice.kind === 'selected') return choice.connection;
     const chosen = await vscode.window.showQuickPick(
-      enabled.map((item) => ({
+      choice.connections.map((item) => ({
         label: item.displayName,
         description: `${item.provider} · @${item.accountLogin ?? 'unknown'} · ${new URL(item.serverUrl).host}${connections.getDefaultConnection(item.provider)?.id === item.id ? ' · Default' : ''}`,
         item,
       })),
-      { placeHolder: `Choose connection for ${folder.name}` },
+      {
+        placeHolder:
+          choice.connections.length === 2 &&
+          choice.connections.every(
+            (item) => item.id === connections.getDefaultConnection(item.provider)?.id,
+          )
+            ? `Choose a provider default for ${folder.name}`
+            : `Choose connection for ${folder.name}`,
+      },
     );
     return chosen?.item;
   }

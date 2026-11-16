@@ -8,6 +8,7 @@ import {
   selectWorkspaceFolder,
   statusLabel,
 } from '../../src/presentation/tree/treeItems';
+import { connectionChoice } from '../../src/presentation/tree/connectionSelection';
 
 const connection: Connection = {
   id: 'conn-1',
@@ -68,5 +69,22 @@ describe('navigation item mapping', () => {
     expect(
       selectWorkspaceFolder([...folders, { uri: { toString: () => 'file:///workspace/tools' } }]),
     ).toBeUndefined();
+  });
+
+  it('applies provider defaults only for folders without a binding', () => {
+    const github = { id: 'gh', provider: 'github' as const, enabled: true };
+    const gitlab = { id: 'gl', provider: 'gitlab' as const, enabled: true };
+    expect(connectionChoice(false, [github, gitlab], { github })).toEqual({
+      kind: 'selected',
+      connection: github,
+    });
+    expect(connectionChoice(false, [github, gitlab], { github, gitlab })).toEqual({
+      kind: 'choose',
+      connections: [github, gitlab],
+    });
+    expect(connectionChoice(true, [github, gitlab], { github })).toEqual({ kind: 'blocked' });
+    expect(
+      connectionChoice(false, [github, gitlab], { github: { ...github, enabled: false } }),
+    ).toEqual({ kind: 'choose', connections: [github, gitlab] });
   });
 });
