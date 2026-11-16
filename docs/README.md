@@ -6,19 +6,20 @@ Tài liệu dự án ReviewDock — extension cho Visual Studio Code để quả
 
 | Document | Description | Status |
 |---|---|---|
-| [Product & Software Specification](./SPEC.md) | Product overview, personas, functional/non-functional requirements, workflows, architecture baseline, security, acceptance criteria và roadmap. | Draft v0.1.0 |
+| [Software Requirements Specification](./SRS.md) | Phạm vi hệ thống, actors, yêu cầu chức năng và phi chức năng, giao diện ngoài, quy tắc nghiệp vụ, bảo mật, xác minh và các quyết định còn mở. | Draft v1.0.0 |
 
 ## Project status
 
 - Product name: ReviewDock
 - Repository: minh-lb/vscode-reviewdock
-- Current stage: Product specification
+- Current stage: Requirements definition
 - Implementation: Not started
 - Specification owner: Project maintainer
 
 ## Working agreement
 
-1. Xác nhận yêu cầu và các open decisions trong SPEC trước khi bắt đầu implementation.
-2. Cập nhật SPEC khi scope, behavior hoặc acceptance criteria thay đổi.
-3. Không xem requirement ở trạng thái Draft là quyết định đã được chốt.
-4. Mọi thay đổi có ảnh hưởng tới kiến trúc hoặc behavior nên được ghi lại trong tài liệu trước khi triển khai.
+1. Review và xác nhận các quyết định còn mở trong SRS trước khi bắt đầu implementation.
+2. Mọi requirement phải có ID để truy vết tới design, implementation task và test case.
+3. Cập nhật SRS khi scope, behavior hoặc acceptance criteria thay đổi.
+4. Không xem requirement ở trạng thái Draft là quyết định đã được phê duyệt.
+5. Không bắt đầu implementation cho tới khi Product Owner chấp thuận baseline yêu cầu.
