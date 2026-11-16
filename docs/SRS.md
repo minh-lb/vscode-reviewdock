@@ -15,7 +15,7 @@
 | Thuộc tính | Giá trị |
 |---|---|
 | Document ID | RVD-SRS-001 |
-| Version | 1.0.1-draft |
+| Version | 1.0.2-draft |
 | Product | ReviewDock |
 | Target platform | Visual Studio Code Extension |
 | Primary integration | GitHub REST API v3 + GitLab REST API v4 |
