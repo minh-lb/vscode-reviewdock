@@ -558,7 +558,7 @@ MVP release is blocked until:
 | PERF-003 | Switch repository while multiple reads are pending | Obsolete requests are cancelled or ignored |
 | PERF-004 | Repeated rate-limit/network failures | Bounded retries; no request storm |
 
-## 14. Traceability
+## 17. Traceability
 
 Maintain a test-to-requirement mapping as implementation progresses:
 
