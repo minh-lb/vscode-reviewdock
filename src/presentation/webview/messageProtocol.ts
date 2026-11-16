@@ -3,11 +3,14 @@ import type {
   CheckSummary,
   DiffFilePage,
   Page,
+  ReviewCommit,
   ProviderCapabilityDescriptor,
   ReviewConversation,
   ReviewRequestContext,
   ReviewRequestDetail,
   ReviewRequestSummary,
+  MetadataOptionKind,
+  ProviderUser,
 } from '../../domain/models';
 
 type ContextBound = { contextId: string };
@@ -15,14 +18,16 @@ export type WebviewRequest =
   | (ContextBound & { type: 'ready' })
   | (ContextBound & {
       type: 'selectTab';
-      tab: 'overview' | 'changes' | 'conversations' | 'checks' | 'approvals';
+      tab: 'overview' | 'changes' | 'conversations' | 'checks' | 'approvals' | 'commits';
     })
   | (ContextBound & { type: 'refresh' })
   | (ContextBound & { type: 'loadMoreFiles' })
   | (ContextBound & { type: 'loadMoreConversations' })
+  | (ContextBound & { type: 'loadMoreCommits' })
   | (ContextBound & { type: 'openExternal' })
   | (ContextBound & { type: 'openLink'; url: string })
   | (ContextBound & { type: 'openCheck'; checkId: string })
+  | (ContextBound & { type: 'openCommit'; commitId: string })
   | (ContextBound & { type: 'addGeneralComment'; body: string })
   | (ContextBound & {
       type: 'addInlineComment';
@@ -38,7 +43,24 @@ export type WebviewRequest =
       };
     })
   | (ContextBound & { type: 'reply'; conversationId: string; body: string })
-  | (ContextBound & { type: 'merge'; expectedHeadSha: string });
+  | (ContextBound & { type: 'merge'; expectedHeadSha: string })
+  | (ContextBound & {
+      type: 'editMetadata';
+      title?: string;
+      description?: string;
+      assigneeIds?: string[];
+      reviewerIds?: string[];
+      labels?: string[];
+    })
+  | (ContextBound & {
+      type: 'listMetadataOptions';
+      kind: MetadataOptionKind;
+      search?: string;
+      page?: number;
+    })
+  | (ContextBound & { type: 'deleteComment'; conversationId: string; commentId?: string })
+  | (ContextBound & { type: 'setThreadResolved'; conversationId: string; resolved: boolean })
+  | (ContextBound & { type: 'loadMarkdownContent'; path: string });
 
 export type WebviewMessage =
   | {
@@ -49,6 +71,7 @@ export type WebviewMessage =
       providerName: string;
       connectionName: string;
       accountLogin: string;
+      accountId?: string;
       serverHost: string;
       repositoryName: string;
       capabilities: ProviderCapabilityDescriptor;
@@ -62,7 +85,21 @@ export type WebviewMessage =
   | { type: 'mutationState'; uncertain: boolean }
   | { type: 'notice'; level: 'info' | 'warning' | 'error' | 'success'; message: string }
   | { type: 'stale'; message: string }
-  | { type: 'merged'; message: string };
+  | { type: 'merged'; message: string }
+  | {
+      type: 'metadataOptions';
+      requestId: number;
+      kind: MetadataOptionKind;
+      result: Page<ProviderUser | string>;
+    }
+  | {
+      type: 'markdownContent';
+      path: string;
+      oldContent?: string;
+      newContent?: string;
+      error?: string;
+    }
+  | { type: 'commits'; requestId: number; result?: Page<ReviewCommit>; error?: string };
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -84,23 +121,29 @@ export function parseWebviewRequest(value: unknown): WebviewRequest | undefined 
     case 'refresh':
     case 'loadMoreFiles':
     case 'loadMoreConversations':
+    case 'loadMoreCommits':
     case 'openExternal':
       return { type: value.type, contextId };
     case 'openCheck':
       return isText(value.checkId, 500) && !!value.checkId
         ? { type: 'openCheck', contextId, checkId: value.checkId }
         : undefined;
+    case 'openCommit':
+      return isText(value.commitId, 500) && !!value.commitId
+        ? { type: 'openCommit', contextId, commitId: value.commitId }
+        : undefined;
     case 'openLink':
       return isText(value.url, 2048) && /^https:\/\//i.test(value.url)
         ? { type: 'openLink', contextId, url: value.url }
         : undefined;
     case 'selectTab':
-      return ['overview', 'changes', 'conversations', 'checks', 'approvals'].includes(
+      return ['overview', 'changes', 'conversations', 'checks', 'approvals', 'commits'].includes(
         String(value.tab),
       )
         ? {
             type: 'selectTab',
-            tab: value.tab as 'overview' | 'changes' | 'conversations' | 'checks' | 'approvals',
+            tab: value.tab as
+              'overview' | 'changes' | 'conversations' | 'checks' | 'approvals' | 'commits',
             contextId,
           }
         : undefined;
@@ -152,6 +195,68 @@ export function parseWebviewRequest(value: unknown): WebviewRequest | undefined 
     case 'merge':
       return isText(value.expectedHeadSha, 200) && !!value.expectedHeadSha
         ? { type: value.type, contextId, expectedHeadSha: value.expectedHeadSha }
+        : undefined;
+    case 'editMetadata': {
+      const result: Extract<WebviewRequest, { type: 'editMetadata' }> = {
+        type: value.type,
+        contextId,
+      };
+      for (const key of ['title', 'description'] as const) {
+        if (value[key] !== undefined) {
+          if (!isText(value[key], key === 'title' ? 256 : 20_000)) return undefined;
+          result[key] = value[key];
+        }
+      }
+      for (const key of ['assigneeIds', 'reviewerIds', 'labels'] as const) {
+        if (value[key] !== undefined) {
+          if (
+            !Array.isArray(value[key]) ||
+            value[key].length > 100 ||
+            !value[key].every((item) => isText(item, 500))
+          )
+            return undefined;
+          result[key] = value[key] as string[];
+        }
+      }
+      return Object.keys(result).length > 2 ? result : undefined;
+    }
+    case 'listMetadataOptions':
+      return ['assignees', 'reviewers', 'labels'].includes(String(value.kind)) &&
+        (value.search === undefined || isText(value.search, 200)) &&
+        (value.page === undefined || (Number.isSafeInteger(value.page) && Number(value.page) > 0))
+        ? {
+            type: value.type,
+            contextId,
+            kind: value.kind as MetadataOptionKind,
+            ...(value.search === undefined ? {} : { search: value.search }),
+            ...(value.page === undefined ? {} : { page: Number(value.page) }),
+          }
+        : undefined;
+    case 'deleteComment':
+      return isText(value.conversationId, 500) &&
+        !!value.conversationId &&
+        (value.commentId === undefined || (isText(value.commentId, 500) && !!value.commentId))
+        ? {
+            type: value.type,
+            contextId,
+            conversationId: value.conversationId,
+            ...(value.commentId === undefined ? {} : { commentId: value.commentId }),
+          }
+        : undefined;
+    case 'setThreadResolved':
+      return isText(value.conversationId, 500) &&
+        !!value.conversationId &&
+        typeof value.resolved === 'boolean'
+        ? {
+            type: value.type,
+            contextId,
+            conversationId: value.conversationId,
+            resolved: value.resolved,
+          }
+        : undefined;
+    case 'loadMarkdownContent':
+      return isText(value.path, 4096) && !!value.path
+        ? { type: value.type, contextId, path: value.path }
         : undefined;
     default:
       return undefined;

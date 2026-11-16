@@ -7,6 +7,8 @@ import type {
   DiffFilePage,
   MergeInput,
   MergeResult,
+  MetadataOptionQuery,
+  PageInfo,
   Page,
   ProviderCapabilityDescriptor,
   ProviderType,
@@ -18,10 +20,13 @@ import type {
   ReviewConversation,
   ReviewDecision,
   ReviewRequestContext,
+  ReviewCommit,
   ReviewRequestDetail,
   ReviewRequestQuery,
   ReviewRequestSummary,
   SubmitReviewDecisionInput,
+  ReviewRequestMetadataInput,
+  ReviewFileContentContext,
 } from '../domain/models';
 
 /** Implemented by GitHub/GitLab adapters. Unsupported conditional operations reject with UnsupportedCapabilityError. */
@@ -62,6 +67,37 @@ export interface ReviewConversationManagement {
     conversationId: string,
     resolved: boolean,
   ): Promise<void>;
+}
+/** Optional write/query surface keeps existing provider doubles and alternate providers compatible. */
+export interface ReviewRequestManagement {
+  updateMetadata(context: ReviewRequestContext, input: ReviewRequestMetadataInput): Promise<void>;
+  listMetadataOptions(query: MetadataOptionQuery): Promise<{
+    items: ProviderUser[] | string[];
+    page: PageInfo;
+  }>;
+  deleteComment(
+    context: ReviewRequestContext,
+    resourceType: ReviewConversation['resourceType'],
+    conversationId: string,
+    commentId?: string,
+  ): Promise<void>;
+}
+export interface GitHubThreadManagement {
+  setConversationResolved(
+    context: ReviewRequestContext,
+    threadId: string,
+    resolved: boolean,
+  ): Promise<void>;
+}
+export interface ReviewFileContentProvider {
+  getFileContent(input: ReviewFileContentContext): Promise<string>;
+}
+export interface ReviewCommitProvider {
+  listCommits(
+    context: ReviewRequestContext,
+    page?: number,
+    perPage?: number,
+  ): Promise<Page<ReviewCommit>>;
 }
 export interface ReviewDecisionPort {
   submitReviewDecision(input: SubmitReviewDecisionInput): Promise<ReviewComment | void>;

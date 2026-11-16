@@ -258,6 +258,60 @@ describe('GitLabAdapter', () => {
       systemNote: true,
     });
     expect(page.items[0].replies).toMatchObject([{ id: '12', body: 'reply' }]);
+    expect(page.items[0].rootCommentId).toBe('11');
+    expect(page.items[0].parentId).toBeUndefined();
+  });
+
+  it('updates only supplied MR metadata and deletes a discussion note by native note ID', async () => {
+    const { adapter, request } = fixture([{}, undefined]);
+    await adapter.updateMetadata(
+      { repositoryId: 'team/app', reviewRequestId: '3' },
+      {
+        title: 'Updated title',
+        labels: ['bug', 'ready'],
+      },
+    );
+    await adapter.deleteComment(
+      { repositoryId: 'team/app', reviewRequestId: '3' },
+      'gitlab-discussion',
+      'discussion-id',
+      'note-id',
+    );
+    const calls = request.mock.calls as unknown as Array<
+      [Connection, string, { method?: string; body?: BodyInit | null }?]
+    >;
+    expect(calls[0]?.[1]).toBe('projects/team%2Fapp/merge_requests/3');
+    expect(calls[0]?.[2]?.method).toBe('PUT');
+    expect(JSON.parse(String(calls[0]?.[2]?.body))).toEqual({
+      title: 'Updated title',
+      labels: 'bug,ready',
+    });
+    expect(calls[1]?.[1]).toBe(
+      'projects/team%2Fapp/merge_requests/3/discussions/discussion-id/notes/note-id',
+    );
+    expect(calls[1]?.[2]?.method).toBe('DELETE');
+  });
+
+  it('loads full MR file content using the exact displayed diff refs', async () => {
+    const { adapter, request } = fixture([
+      [{ id: 1, base_commit_sha: 'base', start_commit_sha: 'start', head_commit_sha: 'head' }],
+      'full markdown',
+    ]);
+    const context = {
+      repositoryId: '7',
+      reviewRequestId: '3',
+      headSha: 'head',
+      diffVersion: { baseSha: 'base', startSha: 'start', headSha: 'head' },
+    };
+    await expect(
+      adapter.getFileContent({ ...context, path: 'docs/readme.md', side: 'old' }),
+    ).resolves.toBe('full markdown');
+    const calls = request.mock.calls as unknown as Array<
+      [Connection, string, { responseText?: boolean }?]
+    >;
+    expect(calls[0]?.[1]).toContain('/versions?page=1&per_page=1');
+    expect(calls[1]?.[1]).toContain('/repository/files/docs%2Freadme.md/raw?ref=base');
+    expect(calls[1]?.[2]?.responseText).toBe(true);
   });
 
   it('posts inline discussions with exact GitLab paths, line sides and version SHAs', async () => {

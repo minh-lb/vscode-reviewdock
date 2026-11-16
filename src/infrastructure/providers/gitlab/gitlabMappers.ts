@@ -157,6 +157,7 @@ export function mapGitLabComment(raw: Json, discussionId: string): ReviewComment
     createdAt: str(raw.created_at),
     ...(raw.updated_at ? { updatedAt: str(raw.updated_at) } : {}),
     ...(raw.web_url ? { webUrl: str(raw.web_url) } : {}),
+    ...(raw.system === true ? { systemNote: true } : {}),
     ...(mappedPosition ? { position: mappedPosition } : {}),
   };
 }
@@ -168,6 +169,7 @@ export function mapGitLabDiscussion(raw: Json): ReviewConversation {
   return {
     ...rootComment,
     id: str(raw.id),
+    ...(root.id == null ? {} : { rootCommentId: str(root.id) }),
     threadId: str(raw.id),
     resolved: typeof raw.resolved === 'boolean' ? raw.resolved : null,
     ...(root.system === true ? { systemNote: true } : {}),

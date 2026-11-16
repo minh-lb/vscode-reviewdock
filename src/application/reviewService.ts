@@ -1,4 +1,10 @@
-import type { ReviewProvider } from './ports';
+import type {
+  ReviewCommitProvider,
+  ReviewConversationManagement,
+  ReviewFileContentProvider,
+  ReviewProvider,
+  ReviewRequestManagement,
+} from './ports';
 import { mapGitHubReviewLine, mapGitLabDiscussionPosition, parseUnifiedDiff } from '../domain/diff';
 import { AppError, UnsupportedCapabilityError, ValidationError } from '../domain/errors';
 import type {
@@ -17,6 +23,11 @@ import type {
   ReviewRequestContext,
   ReviewRequestDetail,
   ReviewRequestQuery,
+  ReviewRequestMetadataInput,
+  MetadataOptionQuery,
+  ReviewFileContentContext,
+  ReviewCommit,
+  Page,
 } from '../domain/models';
 
 /** Application use cases for reading and safely mutating one provider review request. */
@@ -29,6 +40,13 @@ export class ReviewService {
 
   list(query: ReviewRequestQuery) {
     return this.provider.listReviewRequests(query);
+  }
+
+  commits(context: ReviewRequestContext, page = 1): Promise<Page<ReviewCommit>> {
+    this.requireSupported(this.provider.getCapabilities(context).commits, 'commit history');
+    const provider = this.provider as ReviewProvider & Partial<ReviewCommitProvider>;
+    if (!provider.listCommits) throw new UnsupportedCapabilityError('commit history');
+    return provider.listCommits(context, page);
   }
 
   detail(context: ReviewRequestContext): Promise<ReviewRequestDetail> {
@@ -48,6 +66,169 @@ export class ReviewService {
   }
   approvals(context: ReviewRequestContext): Promise<ApprovalState> {
     return this.provider.getApprovalState(context);
+  }
+
+  metadataOptions(query: MetadataOptionQuery) {
+    const management = this.provider as ReviewProvider & Partial<ReviewRequestManagement>;
+    if (!management.listMetadataOptions) throw new UnsupportedCapabilityError('metadata options');
+    return management.listMetadataOptions(query);
+  }
+
+  updateMetadata(context: ReviewRequestContext, input: ReviewRequestMetadataInput): Promise<void> {
+    const capability = this.provider.getCapabilities(context).editMetadata;
+    this.requireSupported(capability, 'review request metadata editing');
+    const management = this.provider as ReviewProvider & Partial<ReviewRequestManagement>;
+    if (!management.updateMetadata) throw new UnsupportedCapabilityError('metadata editing');
+    if (input.title !== undefined && !input.title.trim())
+      throw new ValidationError('Title is required', 'title');
+    return this.mutate(
+      context,
+      'edit-metadata',
+      input,
+      (dispatch) => {
+        dispatch();
+        return management.updateMetadata!(context, input);
+      },
+      async () => {
+        await this.detail(context);
+      },
+    );
+  }
+
+  deleteComment(
+    context: ReviewRequestContext,
+    conversationId: string,
+    commentId?: string,
+  ): Promise<void> {
+    return this.mutate(
+      context,
+      'delete-comment',
+      { conversationId, commentId },
+      async (dispatch) => {
+        const conversation = await this.findConversation(context, conversationId);
+        if (!conversation)
+          throw new ValidationError('The selected comment could not be found', 'conversationId');
+        if (conversation.systemNote || conversation.resourceType === 'github-review')
+          throw new UnsupportedCapabilityError('delete this comment');
+        const target = commentId
+          ? conversation.replies.find((reply) => reply.id === commentId)
+          : conversation;
+        if (!target)
+          throw new ValidationError('The selected reply could not be found', 'commentId');
+        if (target.systemNote) throw new UnsupportedCapabilityError('delete system notes');
+        const capability =
+          this.provider.getCapabilities(context).deleteByResource?.[conversation.resourceType];
+        this.requireSupported(capability, 'delete this comment');
+        const currentUser = await this.provider.getCurrentUser();
+        const targetAuthor = target.author.id || target.author.login;
+        if (
+          !targetAuthor ||
+          (targetAuthor !== currentUser.id && target.author.login !== currentUser.login)
+        )
+          throw new AppError(
+            'Only comments written by the connected account can be deleted',
+            'operation-not-allowed',
+          );
+        const management = this.provider as ReviewProvider & Partial<ReviewRequestManagement>;
+        if (!management.deleteComment) throw new UnsupportedCapabilityError('delete comments');
+        dispatch();
+        return management.deleteComment(
+          context,
+          conversation.resourceType,
+          conversationId,
+          commentId ?? conversation.rootCommentId,
+        );
+      },
+      () => this.refreshConversations(context),
+    );
+  }
+
+  setThreadResolved(
+    context: ReviewRequestContext,
+    conversationId: string,
+    resolved: boolean,
+  ): Promise<void> {
+    return this.mutate(
+      context,
+      'resolve-thread',
+      { conversationId, resolved },
+      async (dispatch) => {
+        const conversation = await this.findConversation(context, conversationId);
+        if (!conversation?.threadId)
+          throw new ValidationError('The selected thread could not be found', 'conversationId');
+        if (
+          this.provider.provider === 'github' &&
+          ((resolved && conversation.canResolve !== true) ||
+            (!resolved && conversation.canUnresolve !== true))
+        )
+          throw new AppError(
+            'The connected account cannot change this thread state',
+            'operation-not-allowed',
+          );
+        this.requireSupported(
+          this.provider.getCapabilities(context).resolveThreads,
+          'resolve threads',
+        );
+        const management = this.provider as ReviewProvider & Partial<ReviewConversationManagement>;
+        if (!management.setConversationResolved)
+          throw new UnsupportedCapabilityError('resolve threads');
+        dispatch();
+        return management.setConversationResolved(context, conversation.threadId, resolved);
+      },
+      () => this.refreshConversations(context),
+    );
+  }
+
+  async markdownContent(
+    context: ReviewRequestContext,
+    path: string,
+  ): Promise<{ oldContent?: string; newContent?: string; error?: string }> {
+    const freshFiles = await this.allFiles(context);
+    const files = freshFiles.files;
+    const file = files.find((item) => item.path === path || item.previousPath === path);
+    if (!file)
+      throw new ValidationError('The requested file is not part of the current diff', 'path');
+    const detail = await this.detail(context);
+    if (!context.headSha || context.headSha !== detail.headSha)
+      throw new AppError(
+        'The review request changed. Refresh the diff before viewing full file content.',
+        'conflict',
+      );
+    if (
+      !context.diffVersion ||
+      !freshFiles.version ||
+      !sameVersion(context.diffVersion, freshFiles.version)
+    )
+      throw new AppError(
+        'The displayed diff changed. Refresh before viewing full file content.',
+        'conflict',
+      );
+    const provider = this.provider as ReviewProvider & Partial<ReviewFileContentProvider>;
+    if (!provider.getFileContent) throw new UnsupportedCapabilityError('full file content');
+    const read = async (side: 'old' | 'new', filePath?: string): Promise<string | undefined> => {
+      if (!filePath) return undefined;
+      const input: ReviewFileContentContext = {
+        ...context,
+        path: filePath,
+        side,
+        ...(detail.baseSha ? { baseSha: detail.baseSha } : {}),
+      };
+      return provider.getFileContent!(input);
+    };
+    const [oldResult, newResult] = await Promise.allSettled([
+      read('old', file.change === 'added' ? undefined : (file.previousPath ?? file.path)),
+      read('new', file.change === 'removed' ? undefined : file.path),
+    ]);
+    const oldContent = oldResult.status === 'fulfilled' ? oldResult.value : undefined;
+    const newContent = newResult.status === 'fulfilled' ? newResult.value : undefined;
+    const error = [oldResult, newResult].some((result) => result.status === 'rejected')
+      ? 'Full file content could not be loaded for one or more revisions.'
+      : undefined;
+    return {
+      ...(oldContent === undefined ? {} : { oldContent }),
+      ...(newContent === undefined ? {} : { newContent }),
+      ...(error ? { error } : {}),
+    };
   }
 
   /** Reconcile provider state after an ambiguous mutation before allowing another write. */
@@ -228,9 +409,14 @@ export class ReviewService {
     if (
       this.provider.provider === 'gitlab' &&
       (!context.diffVersion || !version || !sameVersion(context.diffVersion, version))
-    ) {
+    )
       throw new AppError('The merge request diff changed. Refresh it and try again.', 'conflict');
-    }
+    if (
+      this.provider.provider === 'github' &&
+      context.diffVersion &&
+      (!version || !sameVersion(context.diffVersion, version))
+    )
+      throw new AppError('The pull request diff changed. Refresh it and try again.', 'conflict');
     if (this.provider.provider === 'gitlab' && version?.headSha !== headSha) {
       throw new AppError(
         'The merge request diff version does not match its current head. Refresh and try again.',

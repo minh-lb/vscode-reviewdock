@@ -75,6 +75,37 @@ export interface ReviewRequestDetail extends ReviewRequestSummary {
   closedAt?: string;
   mergedAt?: string;
 }
+export interface ReviewCommit {
+  id: string;
+  sha: string;
+  message: string;
+  author?: ProviderUser;
+  authorName?: string;
+  authorEmail?: string;
+  authoredAt?: string;
+  committedAt?: string;
+  webUrl?: string;
+}
+export interface ReviewRequestMetadataInput {
+  title?: string;
+  description?: string;
+  assigneeIds?: string[];
+  reviewerIds?: string[];
+  labels?: string[];
+}
+export type MetadataOptionKind = 'assignees' | 'reviewers' | 'labels';
+export interface MetadataOptionQuery {
+  repositoryId: string;
+  reviewRequestId: string;
+  kind: MetadataOptionKind;
+  search?: string;
+  page?: number;
+}
+export interface ReviewFileContentContext extends ReviewRequestContext {
+  path: string;
+  side: 'old' | 'new';
+  baseSha?: string;
+}
 export interface ReviewRequestContext {
   repositoryId: string;
   reviewRequestId: string;
@@ -124,6 +155,8 @@ export interface ReviewConversation {
   resourceType: ConversationResourceType;
   reviewState?: 'approved' | 'changes-requested' | 'commented' | 'dismissed' | 'pending';
   threadId?: string;
+  /** Provider-native root comment ID when conversation ID represents a discussion/thread. */
+  rootCommentId?: string;
   parentId?: string;
   replyToId?: string;
   position?: DiffPosition;
@@ -134,6 +167,8 @@ export interface ReviewConversation {
   webUrl?: string;
   systemNote?: boolean;
   resolved?: boolean | null;
+  canResolve?: boolean;
+  canUnresolve?: boolean;
   replies: ReviewComment[];
 }
 export interface ReviewComment {
@@ -148,6 +183,7 @@ export interface ReviewComment {
   updatedAt?: string;
   webUrl?: string;
   position?: DiffPosition;
+  systemNote?: boolean;
 }
 export interface CheckSummary {
   id: string;
@@ -252,4 +288,7 @@ export interface ProviderCapabilityDescriptor {
   approvals: ProviderCapability;
   reviewDecisions: ProviderCapability;
   merge: ProviderCapability;
+  commits?: ProviderCapability;
+  editMetadata?: ProviderCapability;
+  deleteByResource?: Partial<Record<ConversationResourceType, ProviderCapability>>;
 }

@@ -260,6 +260,157 @@ describe('GitHubAdapter contract', () => {
     expect(inline.replies.map((reply) => reply.id)).toEqual(['41']);
   });
 
+  it('maps GitHub GraphQL thread IDs and viewer permissions without breaking REST conversations', async () => {
+    const { adapter } = setup((path) => {
+      if (path.startsWith('/repositories/')) return { data: repo };
+      if (
+        path.endsWith('/issues/5/comments?per_page=100') ||
+        path.endsWith('/pulls/5/reviews?per_page=100')
+      )
+        return [];
+      if (path.endsWith('/pulls/5/comments?per_page=100'))
+        return [{ id: 40, body: 'inline', user: { id: 1, login: 'octo' }, created_at: 'now' }];
+      if (path === 'https://api.github.com/graphql')
+        return {
+          data: {
+            data: {
+              repository: {
+                pullRequest: {
+                  reviewThreads: {
+                    nodes: [
+                      {
+                        id: 'PRRT_thread',
+                        isResolved: true,
+                        viewerCanResolve: false,
+                        viewerCanUnresolve: true,
+                        comments: { nodes: [{ databaseId: 40 }] },
+                      },
+                    ],
+                    pageInfo: { hasNextPage: false, endCursor: null },
+                  },
+                },
+              },
+            },
+          },
+        };
+      return [];
+    });
+    const result = await adapter.listConversations({ repositoryId: '17', reviewRequestId: '5' });
+    expect(result.items[0]).toMatchObject({
+      threadId: 'PRRT_thread',
+      resolved: true,
+      canResolve: false,
+      canUnresolve: true,
+    });
+  });
+
+  it('updates selected metadata by stable IDs and adds reviewers without removing existing users or teams', async () => {
+    const { adapter, calls } = setup((path) => {
+      if (path.startsWith('/repositories/')) return { data: repo };
+      if (path.includes('/assignees?')) return [{ id: 2, login: 'ada' }];
+      if (path.includes('/collaborators?'))
+        return [
+          { id: 2, login: 'ada' },
+          { id: 3, login: 'grace' },
+        ];
+      if (path.endsWith('/requested_reviewers'))
+        return { users: [{ id: 2, login: 'ada' }], teams: [{ slug: 'platform' }] };
+      return {};
+    });
+    await adapter.updateMetadata(
+      { repositoryId: '17', reviewRequestId: '5' },
+      {
+        title: 'Renamed',
+        assigneeIds: ['2'],
+        reviewerIds: ['2', '3'],
+        labels: ['bug'],
+      },
+    );
+    const pull = calls.find((call) => call.path.endsWith('/pulls/5') && call.method === 'PATCH');
+    expect(JSON.parse(pull!.body!)).toEqual({ title: 'Renamed' });
+    const issue = calls.find((call) => call.path.endsWith('/issues/5'));
+    expect(JSON.parse(issue!.body!)).toEqual({ assignees: ['ada'], labels: ['bug'] });
+    const reviewerPost = calls.find(
+      (call) => call.path.endsWith('/requested_reviewers') && call.method === 'POST',
+    );
+    expect(JSON.parse(reviewerPost!.body!)).toEqual({ reviewers: ['grace'] });
+    expect(
+      calls.some((call) => call.method === 'DELETE' && call.path.endsWith('/requested_reviewers')),
+    ).toBe(false);
+  });
+
+  it('retrieves full content by immutable GitHub merge base and head SHAs', async () => {
+    const { adapter, calls } = setup((path) => {
+      if (path.startsWith('/repositories/')) return { data: repo };
+      if (path.endsWith('/pulls/5')) return { data: pr() };
+      if (path.includes('/compare/')) return { merge_base_commit: { sha: 'merge-base-1' } };
+      if (path.includes('/contents/src/a.ts?'))
+        return { size: 3, encoding: 'base64', content: 'bmV3' };
+      return [];
+    });
+    const diffVersion = { baseSha: 'merge-base-1', startSha: 'base-1', headSha: 'head-1' };
+    await expect(
+      adapter.getFileContent({
+        repositoryId: '17',
+        reviewRequestId: '5',
+        headSha: 'head-1',
+        diffVersion,
+        path: 'src/a.ts',
+        side: 'new',
+      }),
+    ).resolves.toBe('new');
+    expect(calls.some((call) => call.path.includes('/contents/src/a.ts?ref=head-1'))).toBe(true);
+    expect(
+      await adapter.getFileContent({
+        repositoryId: '17',
+        reviewRequestId: '5',
+        headSha: 'head-1',
+        diffVersion,
+        path: 'src/a.ts',
+        side: 'old',
+      }),
+    ).toBe('new');
+    expect(calls.some((call) => call.path.includes('/contents/src/a.ts?ref=merge-base-1'))).toBe(
+      true,
+    );
+  });
+
+  it('routes GitHub comment deletion by resource and resolves with the GraphQL thread node ID', async () => {
+    const { adapter, calls } = setup((path) => {
+      if (path === 'https://api.github.com/graphql')
+        return {
+          data: {
+            data: { unresolveReviewThread: { thread: { id: 'thread-node', isResolved: false } } },
+          },
+        };
+      return {};
+    });
+    await adapter.deleteComment(
+      { repositoryId: '17', reviewRequestId: '5' },
+      'github-issue-comment',
+      '90',
+    );
+    await adapter.deleteComment(
+      { repositoryId: '17', reviewRequestId: '5' },
+      'github-review-comment',
+      '40',
+      '41',
+    );
+    await adapter.setConversationResolved(
+      { repositoryId: '17', reviewRequestId: '5' },
+      'thread-node',
+      false,
+    );
+    await expect(
+      adapter.deleteComment({ repositoryId: '17', reviewRequestId: '5' }, 'github-review', '70'),
+    ).rejects.toMatchObject({ code: 'unsupported-capability' });
+    expect(calls.find((call) => call.path.endsWith('/issues/comments/90'))?.method).toBe('DELETE');
+    expect(calls.find((call) => call.path.endsWith('/pulls/comments/41'))?.method).toBe('DELETE');
+    const mutation = calls.find((call) => call.path === 'https://api.github.com/graphql');
+    expect(mutation?.body).toContain('unresolveReviewThread');
+    expect(mutation?.body).toContain('thread-node');
+  });
+
   it('sends exact inline/reply/decision/merge payloads and rejects stale merge SHA', async () => {
     const { adapter, calls } = setup((path) => {
       if (path.startsWith('/repositories/')) return { data: repo };

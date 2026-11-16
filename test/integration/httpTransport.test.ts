@@ -38,6 +38,60 @@ describe('ProviderHttpClient', () => {
     expect(response.data.ok).toBe(true);
   });
 
+  it('allows only the exact HTTPS GraphQL endpoint with GitHub credentials', async () => {
+    const fetch = vi.fn(async () => new Response('{"data":{"ok":true}}', { status: 200 }));
+    const client = new ProviderHttpClient(secretStore(), fetch as typeof globalThis.fetch);
+    await client.request(connection(), 'https://api.github.com/graphql', {
+      method: 'POST',
+      graphql: true,
+      body: JSON.stringify({ query: '{ viewer { login } }' }),
+    });
+    expect(String(fetch.mock.calls[0]?.[0])).toBe('https://api.github.com/graphql');
+    expect(new Headers(fetch.mock.calls[0]?.[1]?.headers).get('authorization')).toBe(
+      'Bearer secret-token',
+    );
+    await expect(
+      client.request(connection(), 'https://api.github.com/graphql', { method: 'POST' }),
+    ).rejects.toMatchObject({ code: 'validation' });
+    await expect(
+      client.request(connection(), 'https://attacker.example/graphql', {
+        method: 'POST',
+        graphql: true,
+      }),
+    ).rejects.toMatchObject({ code: 'validation' });
+    await expect(
+      client.request(connection(), 'https://api.github.com/graphql/extra', {
+        method: 'POST',
+        graphql: true,
+      }),
+    ).rejects.toMatchObject({ code: 'validation' });
+    await expect(
+      client.request(connection(), 'https://api.github.com/graphql?query=private', {
+        method: 'POST',
+        graphql: true,
+      }),
+    ).rejects.toMatchObject({ code: 'validation' });
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('routes GHES GraphQL to its exact configured path prefix', async () => {
+    const fetch = vi.fn(async () => new Response('{"data":{"ok":true}}', { status: 200 }));
+    const client = new ProviderHttpClient(secretStore(), fetch as typeof globalThis.fetch);
+    await client.request(
+      connection({ serverUrl: 'https://ghe.example/prefix' }),
+      'https://ghe.example/prefix/api/graphql',
+      { method: 'POST', graphql: true, body: '{}' },
+    );
+    expect(String(fetch.mock.calls[0]?.[0])).toBe('https://ghe.example/prefix/api/graphql');
+    await expect(
+      client.request(
+        connection({ serverUrl: 'https://ghe.example/prefix' }),
+        'https://ghe.example/prefix/other/graphql',
+        { method: 'POST', graphql: true, body: '{}' },
+      ),
+    ).rejects.toMatchObject({ code: 'validation' });
+  });
+
   it('rejects an off-prefix pagination URL before reading the secret', async () => {
     const get = vi.fn(async () => 'secret-token');
     const fetch = vi.fn();

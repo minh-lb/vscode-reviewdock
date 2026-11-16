@@ -17,10 +17,20 @@ import type {
   ReviewRequestDetail,
   ReviewRequestQuery,
   ReviewRequestSummary,
+  MetadataOptionQuery,
+  ReviewRequestMetadataInput,
+  ReviewFileContentContext,
   SubmitReviewDecisionInput,
 } from '../../../domain/models';
-import type { ReviewProvider, ReviewConversationManagement } from '../../../application/ports';
+import type {
+  ReviewProvider,
+  ReviewConversationManagement,
+  ReviewRequestManagement,
+  ReviewFileContentProvider,
+  ReviewCommitProvider,
+} from '../../../application/ports';
 import { ProviderHttpClient } from '../../http/providerHttpClient';
+import { listGitLabCommits } from '../reviewCommits';
 import {
   mapGitLabComment,
   mapGitLabDiff,
@@ -136,11 +146,22 @@ const form = (fields: Record<string, string | number | undefined>): URLSearchPar
     if (value !== undefined) body.set(key, String(value));
   return body;
 };
+const sameDiffVersion = (left: DiffVersion, right: DiffVersion) =>
+  left.baseSha === right.baseSha &&
+  left.startSha === right.startSha &&
+  left.headSha === right.headSha;
 const notFoundFeature = (error: unknown): boolean =>
   error instanceof AppError &&
   (error.code === 'not-found' || error.code === 'operation-not-allowed');
 
-export class GitLabAdapter implements ReviewProvider, ReviewConversationManagement {
+export class GitLabAdapter
+  implements
+    ReviewProvider,
+    ReviewConversationManagement,
+    ReviewRequestManagement,
+    ReviewFileContentProvider,
+    ReviewCommitProvider
+{
   readonly provider = 'gitlab' as const;
 
   constructor(
@@ -428,6 +449,100 @@ export class GitLabAdapter implements ReviewProvider, ReviewConversationManageme
     );
   }
 
+  async listMetadataOptions(query: MetadataOptionQuery) {
+    const { page, perPage } = normalizedPage(query.page, 50);
+    const labels = query.kind === 'labels';
+    const path = labels
+      ? queryPath(`projects/${param(query.repositoryId)}/labels`, {
+          search: query.search,
+          page,
+          per_page: perPage,
+        })
+      : queryPath(`projects/${param(query.repositoryId)}/members/all`, {
+          query: query.search,
+          page,
+          per_page: perPage,
+        });
+    const response = await this.http.request<Json[]>(this.connection, path);
+    const items = asArray<Json>(response.data);
+    return {
+      items: labels ? items.map((item) => String(item.name ?? '')) : items.map(mapGitLabUser),
+      page: pageInfo(response, page, perPage),
+    };
+  }
+
+  async updateMetadata(
+    context: ReviewRequestContext,
+    input: ReviewRequestMetadataInput,
+  ): Promise<void> {
+    await this.http.request(
+      this.connection,
+      endpoint(context.repositoryId, context.reviewRequestId),
+      {
+        method: 'PUT',
+        body: JSON.stringify({
+          ...(input.title === undefined ? {} : { title: input.title }),
+          ...(input.description === undefined ? {} : { description: input.description }),
+          ...(input.assigneeIds === undefined
+            ? {}
+            : { assignee_ids: input.assigneeIds.map(Number) }),
+          ...(input.reviewerIds === undefined
+            ? {}
+            : { reviewer_ids: input.reviewerIds.map(Number) }),
+          ...(input.labels === undefined ? {} : { labels: input.labels.join(',') }),
+        }),
+      },
+    );
+  }
+
+  async deleteComment(
+    context: ReviewRequestContext,
+    resourceType: ReviewConversation['resourceType'],
+    conversationId: string,
+    commentId?: string,
+  ): Promise<void> {
+    if (resourceType !== 'gitlab-discussion' || !commentId)
+      throw new UnsupportedCapabilityError('delete this comment');
+    await this.http.request(
+      this.connection,
+      endpoint(
+        context.repositoryId,
+        context.reviewRequestId,
+        `/discussions/${param(conversationId)}/notes/${param(commentId)}`,
+      ),
+      { method: 'DELETE' },
+    );
+  }
+
+  async getFileContent(input: ReviewFileContentContext): Promise<string> {
+    const version = await this.getLatestDiffVersion(input.repositoryId, input.reviewRequestId);
+    if (
+      !version ||
+      !input.diffVersion ||
+      !sameDiffVersion(version, input.diffVersion) ||
+      (input.headSha && input.headSha !== version.headSha)
+    )
+      throw new AppError(
+        'Merge request diff changed; refresh before viewing full file content.',
+        'conflict',
+      );
+    const ref = input.side === 'old' ? version.baseSha : version.headSha;
+    const { data } = await this.http.request<string>(
+      this.connection,
+      queryPath(`projects/${param(input.repositoryId)}/repository/files/${param(input.path)}/raw`, {
+        ref,
+      }),
+      { responseText: true },
+    );
+    if (Buffer.byteLength(data, 'utf8') > 1_000_000)
+      throw new ValidationError('This file is too large to display as full content', 'path');
+    return data;
+  }
+
+  async listCommits(context: ReviewRequestContext, page?: number, perPage?: number) {
+    return listGitLabCommits(this.http, this.connection, context, page, perPage);
+  }
+
   async getChecks(context: ReviewRequestContext): Promise<CheckSummary[]> {
     const result: CheckSummary[] = [];
     const currentHeadPipelines: Json[] = [];
@@ -675,6 +790,17 @@ export class GitLabAdapter implements ReviewProvider, ReviewConversationManageme
         'GitLab supports approve; request-changes and review-submission comments are unsupported',
       ),
       merge: cap('supported'),
+      editMetadata: cap(
+        'conditional',
+        'The user must have permission to update this merge request.',
+      ),
+      commits: cap('supported'),
+      deleteByResource: {
+        'gitlab-discussion': cap(
+          'conditional',
+          'The user must own the note and have permission to delete it.',
+        ),
+      },
     };
   }
 }

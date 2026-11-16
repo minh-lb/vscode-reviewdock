@@ -1,4 +1,10 @@
-import type { ReviewProvider } from '../../../application/ports';
+import type {
+  ReviewProvider,
+  ReviewConversationManagement,
+  ReviewRequestManagement,
+  ReviewFileContentProvider,
+  ReviewCommitProvider,
+} from '../../../application/ports';
 import type { Connection } from '../../../domain/models';
 import type {
   ApprovalState,
@@ -24,9 +30,13 @@ import type {
   ReviewRequestQuery,
   ReviewRequestSummary,
   SubmitReviewDecisionInput,
+  MetadataOptionQuery,
+  ReviewRequestMetadataInput,
+  ReviewFileContentContext,
 } from '../../../domain/models';
 import { AppError, UnsupportedCapabilityError, ValidationError } from '../../../domain/errors';
 import { ProviderHttpClient } from '../../http/providerHttpClient';
+import { listGitHubCommits } from '../reviewCommits';
 import {
   groupGitHubConversations,
   mapGitHubApprovalState,
@@ -65,6 +75,16 @@ function pageInfo(
     ...(incomplete ? { incomplete: true } : {}),
   };
 }
+function sameDiffVersion(
+  left: NonNullable<DiffFilePage['diffVersion']>,
+  right: NonNullable<DiffFilePage['diffVersion']>,
+): boolean {
+  return (
+    left.baseSha === right.baseSha &&
+    left.startSha === right.startSha &&
+    left.headSha === right.headSha
+  );
+}
 function linkNext(headers: Headers): string | undefined {
   const link = headers.get('link');
   if (!link) return undefined;
@@ -76,7 +96,14 @@ function linkNext(headers: Headers): string | undefined {
 }
 
 /** GitHub REST API v3 adapter. All HTTP and credential handling remains in ProviderHttpClient. */
-export class GitHubAdapter implements ReviewProvider {
+export class GitHubAdapter
+  implements
+    ReviewProvider,
+    ReviewConversationManagement,
+    ReviewRequestManagement,
+    ReviewFileContentProvider,
+    ReviewCommitProvider
+{
   readonly provider = 'github' as const;
   private readonly repositories = new Map<string, RepositoryRef>();
 
@@ -195,6 +222,77 @@ export class GitHubAdapter implements ReviewProvider {
     const repo = await this.repository(context.repositoryId);
     const path = `${this.repoPath(repo)}/pulls/${encodePath(context.reviewRequestId)}`;
     return { repo, path };
+  }
+
+  private graphqlUrl(): string {
+    const server = new URL(this.connection.serverUrl);
+    return server.hostname === 'github.com' && server.pathname === '/'
+      ? 'https://api.github.com/graphql'
+      : `${this.connection.serverUrl.replace(/\/$/, '')}/api/graphql`;
+  }
+
+  private async graphql<T>(
+    query: string,
+    variables: Record<string, unknown>,
+    cancellable = false,
+  ): Promise<T> {
+    const { data } = await this.request<{ data?: T; errors?: unknown[] }>(this.graphqlUrl(), {
+      method: 'POST',
+      graphql: true,
+      cancellable,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query, variables }),
+    });
+    if (!data.data || data.errors?.length)
+      throw new AppError('GitHub GraphQL request failed', 'provider-server');
+    return data.data;
+  }
+
+  private async reviewThreads(
+    repository: RepositoryRef,
+    number: string,
+  ): Promise<
+    Map<number, { id: string; resolved?: boolean; canResolve?: boolean; canUnresolve?: boolean }>
+  > {
+    const result = new Map<
+      number,
+      { id: string; resolved?: boolean; canResolve?: boolean; canUnresolve?: boolean }
+    >();
+    const query = `query($owner:String!,$name:String!,$number:Int!,$cursor:String){repository(owner:$owner,name:$name){pullRequest(number:$number){reviewThreads(first:100,after:$cursor){nodes{id isResolved viewerCanResolve viewerCanUnresolve comments(first:100){nodes{databaseId}}} pageInfo{hasNextPage endCursor}}}}}`;
+    let cursor: string | null = null;
+    for (;;) {
+      const data: Json = await this.graphql<Json>(
+        query,
+        { owner: repository.owner, name: repository.name, number: Number(number), cursor },
+        true,
+      );
+      const connection: Json = data.repository?.pullRequest?.reviewThreads;
+      if (!connection || !Array.isArray(connection.nodes))
+        throw new AppError('GitHub did not return pull request review threads', 'provider-server');
+      for (const thread of connection.nodes) {
+        if (typeof thread.id !== 'string') continue;
+        const value = {
+          id: thread.id,
+          ...(typeof thread.isResolved === 'boolean' ? { resolved: thread.isResolved } : {}),
+          ...(typeof thread.viewerCanResolve === 'boolean'
+            ? { canResolve: thread.viewerCanResolve }
+            : {}),
+          ...(typeof thread.viewerCanUnresolve === 'boolean'
+            ? { canUnresolve: thread.viewerCanUnresolve }
+            : {}),
+        };
+        for (const comment of thread.comments?.nodes ?? [])
+          if (Number.isSafeInteger(comment.databaseId))
+            result.set(Number(comment.databaseId), value);
+      }
+      if (connection.pageInfo?.hasNextPage !== true) return result;
+      if (
+        typeof connection.pageInfo.endCursor !== 'string' ||
+        connection.pageInfo.endCursor === cursor
+      )
+        throw new AppError('GitHub review thread pagination did not advance', 'provider-server');
+      cursor = connection.pageInfo.endCursor;
+    }
   }
 
   async getCurrentUser(): Promise<ProviderUser> {
@@ -384,7 +482,7 @@ export class GitHubAdapter implements ReviewProvider {
     );
     const count = (requestedPage - 1) * size + files.length;
     const limited = count >= 3000 || requestedPage * size > 3000;
-    return {
+    const result: DiffFilePage = {
       items: files.map(mapGitHubFile),
       page: pageInfo(
         requestedPage,
@@ -396,6 +494,24 @@ export class GitHubAdapter implements ReviewProvider {
       ),
       ...(limited ? { truncated: true } : {}),
     };
+    if (context.headSha) result.diffVersion = await this.currentDiffVersion(context);
+    return result;
+  }
+
+  private async currentDiffVersion(
+    context: ReviewRequestContext,
+  ): Promise<NonNullable<DiffFilePage['diffVersion']>> {
+    const detail = await this.getReviewRequest(context.repositoryId, context.reviewRequestId);
+    if (!detail.headSha || !detail.baseSha || detail.headSha !== context.headSha)
+      throw new AppError('Pull request changed; refresh before using its diff.', 'conflict');
+    const repo = await this.repository(context.repositoryId);
+    const { data } = await this.request<Json>(
+      `${this.repoPath(repo)}/compare/${encodePath(detail.baseSha)}...${encodePath(detail.headSha)}`,
+    );
+    const mergeBaseSha = String(data.merge_base_commit?.sha ?? '');
+    if (!mergeBaseSha)
+      throw new AppError('GitHub did not provide the diff base revision.', 'provider-server');
+    return { baseSha: mergeBaseSha, startSha: detail.baseSha, headSha: detail.headSha };
   }
 
   async listConversations(query: ConversationQuery): Promise<Page<ReviewConversation>> {
@@ -409,7 +525,30 @@ export class GitHubAdapter implements ReviewProvider {
       this.allPages<Json>(`${path}/reviews`, perPage),
       this.allPages<Json>(`${path}/comments`, perPage),
     ]);
-    const conversations = groupGitHubConversations(issues.items, reviews.items, comments.items);
+    let threadMap = new Map<
+      number,
+      { id: string; resolved?: boolean; canResolve?: boolean; canUnresolve?: boolean }
+    >();
+    try {
+      threadMap = await this.reviewThreads(repo, query.reviewRequestId);
+    } catch {
+      /* Preserve REST conversations when GraphQL is unavailable; thread controls stay hidden. */
+    }
+    const conversations = groupGitHubConversations(issues.items, reviews.items, comments.items).map(
+      (item) => {
+        if (item.resourceType !== 'github-review-comment') return item;
+        const thread = threadMap.get(Number(item.id));
+        if (!thread) return item;
+        return {
+          ...item,
+          threadId: thread.id,
+          ...(thread.resolved === undefined ? {} : { resolved: thread.resolved }),
+          ...(thread.canResolve === undefined ? {} : { canResolve: thread.canResolve }),
+          ...(thread.canUnresolve === undefined ? {} : { canUnresolve: thread.canUnresolve }),
+          replies: item.replies.map((reply) => ({ ...reply, threadId: thread.id })),
+        };
+      },
+    );
     const page = Math.max(1, query.page ?? 1),
       start = (page - 1) * perPage;
     return {
@@ -424,6 +563,187 @@ export class GitHubAdapter implements ReviewProvider {
         conversations.length,
       ),
     };
+  }
+
+  async listMetadataOptions(query: MetadataOptionQuery) {
+    const { repo } = await this.requestContext(query);
+    const page = Math.max(1, query.page ?? 1),
+      perPage = 50;
+    const path =
+      query.kind === 'labels'
+        ? `${this.repoPath(repo)}/labels`
+        : query.kind === 'assignees'
+          ? `${this.repoPath(repo)}/assignees`
+          : `${this.repoPath(repo)}/collaborators?affiliation=all`;
+    const { items, capped } = await this.allPages<Json>(path, PER_PAGE_MAX, 2000);
+    const normalized = items
+      .filter((item) => query.kind !== 'labels' || item.name)
+      .filter(
+        (item) =>
+          !query.search ||
+          String(query.kind === 'labels' ? item.name : item.login)
+            .toLowerCase()
+            .includes(query.search.toLowerCase()),
+      );
+    const mapped: ProviderUser[] | string[] =
+      query.kind === 'labels'
+        ? normalized.map((item) => String(item.name))
+        : normalized.map(mapGitHubUser);
+    const start = (page - 1) * perPage;
+    return {
+      items: mapped.slice(start, start + perPage),
+      page: pageInfo(
+        page,
+        perPage,
+        start + perPage < mapped.length || capped,
+        mapped.length,
+        capped,
+        capped,
+      ),
+    };
+  }
+
+  async updateMetadata(
+    context: ReviewRequestContext,
+    input: ReviewRequestMetadataInput,
+  ): Promise<void> {
+    const { repo, path } = await this.requestContext(context);
+    const resolveLogins = async (kind: 'assignees' | 'reviewers', ids: string[]) => {
+      if (!ids.length) return [];
+      const endpoint =
+        kind === 'assignees'
+          ? `${this.repoPath(repo)}/assignees`
+          : `${this.repoPath(repo)}/collaborators?affiliation=all`;
+      const { items } = await this.allPages<Json>(endpoint, PER_PAGE_MAX, 2000);
+      const users = new Map(items.map((user) => [String(user.id), String(user.login ?? '')]));
+      return ids.map((id) => {
+        const login = users.get(id);
+        if (!login)
+          throw new ValidationError(
+            `Selected ${kind.slice(0, -1)} is no longer available`,
+            `${kind}Ids`,
+          );
+        return login;
+      });
+    };
+    let dispatched = false;
+    try {
+      if (input.title !== undefined || input.description !== undefined) {
+        dispatched = true;
+        await this.request(path, {
+          method: 'PATCH',
+          body: JSON.stringify({
+            ...(input.title === undefined ? {} : { title: input.title }),
+            ...(input.description === undefined ? {} : { body: input.description }),
+          }),
+        });
+      }
+      if (input.assigneeIds !== undefined || input.labels !== undefined) {
+        const assignees =
+          input.assigneeIds === undefined
+            ? undefined
+            : await resolveLogins('assignees', input.assigneeIds);
+        dispatched = true;
+        await this.request(`${this.repoPath(repo)}/issues/${encodePath(context.reviewRequestId)}`, {
+          method: 'PATCH',
+          body: JSON.stringify({
+            ...(assignees === undefined ? {} : { assignees }),
+            ...(input.labels === undefined ? {} : { labels: input.labels }),
+          }),
+        });
+      }
+      if (input.reviewerIds !== undefined) {
+        const requestedLogins = await resolveLogins('reviewers', input.reviewerIds);
+        const { data: current } = await this.request<Json>(`${path}/requested_reviewers`);
+        const currentLogins = (Array.isArray(current.users) ? current.users : [])
+          .map((user: Json) => String(user.login ?? ''))
+          .filter(Boolean);
+        const add = requestedLogins.filter((login) => !currentLogins.includes(login));
+        const remove = currentLogins.filter((login) => !requestedLogins.includes(login));
+        if (add.length) {
+          dispatched = true;
+          await this.request(`${path}/requested_reviewers`, {
+            method: 'POST',
+            body: JSON.stringify({ reviewers: add }),
+          });
+        }
+        if (remove.length) {
+          dispatched = true;
+          await this.request(`${path}/requested_reviewers`, {
+            method: 'DELETE',
+            body: JSON.stringify({ reviewers: remove }),
+          });
+        }
+      }
+    } catch (error) {
+      if (dispatched)
+        throw new AppError(
+          'GitHub metadata update may be partially applied; refresh before retrying.',
+          'unknown',
+          { cause: error },
+        );
+      throw error;
+    }
+  }
+
+  async deleteComment(
+    context: ReviewRequestContext,
+    resourceType: ReviewConversation['resourceType'],
+    conversationId: string,
+    commentId?: string,
+  ): Promise<void> {
+    const { repo } = await this.requestContext(context);
+    const id = commentId ?? conversationId;
+    if (resourceType === 'github-issue-comment') {
+      await this.request(`${this.repoPath(repo)}/issues/comments/${encodePath(id)}`, {
+        method: 'DELETE',
+      });
+    } else if (resourceType === 'github-review-comment') {
+      await this.request(`${this.repoPath(repo)}/pulls/comments/${encodePath(id)}`, {
+        method: 'DELETE',
+      });
+    } else throw new UnsupportedCapabilityError('delete this comment');
+  }
+
+  async setConversationResolved(
+    _context: ReviewRequestContext,
+    threadId: string,
+    resolved: boolean,
+  ): Promise<void> {
+    const field = resolved ? 'resolveReviewThread' : 'unresolveReviewThread';
+    await this.graphql(
+      `mutation($threadId:ID!){${field}(input:{threadId:$threadId}){thread{id isResolved}}}`,
+      { threadId },
+    );
+  }
+
+  async getFileContent(input: ReviewFileContentContext): Promise<string> {
+    if (!input.diffVersion || !input.headSha || input.diffVersion.headSha !== input.headSha)
+      throw new AppError('Displayed diff revision is unavailable; refresh the diff.', 'conflict');
+    const version = await this.currentDiffVersion(input);
+    if (!sameDiffVersion(version, input.diffVersion))
+      throw new AppError(
+        'Pull request head changed; refresh the diff before viewing file content.',
+        'conflict',
+      );
+    const { repo } = await this.requestContext(input);
+    const ref = input.side === 'new' ? version.headSha : version.baseSha;
+    if (!ref)
+      throw new AppError('GitHub did not provide an immutable base revision.', 'provider-server');
+    const path = input.path.split('/').map(encodePath).join('/');
+    const { data } = await this.request<Json>(
+      `${this.repoPath(repo)}/contents/${path}?ref=${encodeURIComponent(ref)}`,
+    );
+    if (typeof data.size === 'number' && data.size > 1_000_000)
+      throw new ValidationError('This file is too large to display as full content', 'path');
+    if (data.encoding !== 'base64' || typeof data.content !== 'string')
+      throw new AppError('GitHub did not return full file content.', 'provider-server');
+    return Buffer.from(data.content.replace(/\s/g, ''), 'base64').toString('utf8');
+  }
+
+  async listCommits(context: ReviewRequestContext, page?: number, perPage?: number) {
+    const repository = await this.repository(context.repositoryId);
+    return listGitHubCommits(this.http, this.connection, repository, context, page, perPage);
   }
 
   async createGeneralComment(input: CreateGeneralCommentInput): Promise<ReviewComment> {
@@ -597,11 +917,31 @@ export class GitHubAdapter implements ReviewProvider {
         'github-review-comment': supported,
         'github-review': unsupported,
       },
-      resolveThreads: unsupported,
+      resolveThreads: {
+        support: 'conditional',
+        reason:
+          'GitHub GraphQL permissions and repository policy determine whether threads can be resolved.',
+      },
       checks: supported,
       approvals: { support: 'unknown' },
       reviewDecisions: supported,
       merge: supported,
+      editMetadata: {
+        support: 'conditional',
+        reason: 'The user must have permission to update pull request metadata.',
+      },
+      commits: { support: 'supported' },
+      deleteByResource: {
+        'github-issue-comment': {
+          support: 'conditional',
+          reason: 'The user must own the comment and have permission to delete it.',
+        },
+        'github-review-comment': {
+          support: 'conditional',
+          reason: 'The user must own the comment and have permission to delete it.',
+        },
+        'github-review': unsupported,
+      },
     };
   }
 }

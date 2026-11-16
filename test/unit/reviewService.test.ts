@@ -67,6 +67,147 @@ function provider(overrides: Partial<ReviewProvider> = {}): ReviewProvider {
 }
 
 describe('ReviewService', () => {
+  it('deletes only an owned comment using its provider resource identity', async () => {
+    const conversation: ReviewConversation = {
+      id: 'discussion',
+      provider: 'gitlab',
+      resourceType: 'gitlab-discussion',
+      threadId: 'discussion',
+      rootCommentId: 'note-root',
+      author: { id: 'user-1', login: 'me' },
+      body: 'root',
+      createdAt: '',
+      replies: [],
+    };
+    const listConversations = vi.fn().mockResolvedValue({
+      items: [conversation],
+      page: { page: 1, perPage: 100, hasNextPage: false },
+    });
+    const deleteComment = vi.fn().mockResolvedValue(undefined);
+    const p = provider({
+      provider: 'gitlab',
+      getCurrentUser: vi.fn().mockResolvedValue({ id: 'user-1', login: 'me' }),
+      listConversations,
+      getCapabilities: vi.fn().mockReturnValue({
+        resolveThreads: { support: 'conditional' },
+        deleteByResource: { 'gitlab-discussion': { support: 'conditional' } },
+      }),
+    }) as ReviewProvider & { deleteComment: typeof deleteComment };
+    p.deleteComment = deleteComment;
+    await new ReviewService(p).deleteComment(context, 'discussion');
+    expect(deleteComment).toHaveBeenCalledWith(
+      context,
+      'gitlab-discussion',
+      'discussion',
+      'note-root',
+    );
+    const notOwner = provider({
+      getCurrentUser: vi.fn().mockResolvedValue({ id: 'other', login: 'other' }),
+      listConversations,
+      getCapabilities: vi
+        .fn()
+        .mockReturnValue({ deleteByResource: { 'gitlab-discussion': { support: 'conditional' } } }),
+    });
+    await expect(
+      new ReviewService(notOwner).deleteComment(context, 'discussion'),
+    ).rejects.toMatchObject({ code: 'operation-not-allowed' });
+  });
+
+  it('resolves only a GitHub thread with confirmed viewer permission', async () => {
+    const setConversationResolved = vi.fn().mockResolvedValue(undefined);
+    const conversation: ReviewConversation = {
+      id: 'root',
+      provider: 'github',
+      resourceType: 'github-review-comment',
+      threadId: 'node-thread',
+      canResolve: true,
+      author: { id: 'u1', login: 'author' },
+      body: 'body',
+      createdAt: '',
+      replies: [],
+    };
+    const p = provider({
+      listConversations: vi.fn().mockResolvedValue({
+        items: [conversation],
+        page: { page: 1, perPage: 100, hasNextPage: false },
+      }),
+      getCapabilities: vi.fn().mockReturnValue({ resolveThreads: { support: 'conditional' } }),
+    }) as ReviewProvider & { setConversationResolved: typeof setConversationResolved };
+    p.setConversationResolved = setConversationResolved;
+    await new ReviewService(p).setThreadResolved(context, 'root', true);
+    expect(setConversationResolved).toHaveBeenCalledWith(context, 'node-thread', true);
+    const unknown = provider({
+      listConversations: vi.fn().mockResolvedValue({
+        items: [{ ...conversation, canResolve: undefined }],
+        page: { page: 1, perPage: 100, hasNextPage: false },
+      }),
+      getCapabilities: vi.fn().mockReturnValue({ resolveThreads: { support: 'conditional' } }),
+    }) as ReviewProvider & { setConversationResolved: typeof setConversationResolved };
+    unknown.setConversationResolved = setConversationResolved;
+    await expect(
+      new ReviewService(unknown).setThreadResolved(context, 'root', true),
+    ).rejects.toMatchObject({ code: 'operation-not-allowed' });
+  });
+
+  it('replies to a GitLab root discussion by discussion ID, not its native root note ID', async () => {
+    const conversation: ReviewConversation = {
+      id: 'discussion-id',
+      provider: 'gitlab',
+      resourceType: 'gitlab-discussion',
+      threadId: 'discussion-id',
+      rootCommentId: 'root-note-id',
+      author: { id: 'u1', login: 'author' },
+      body: 'root',
+      createdAt: '',
+      replies: [],
+    };
+    const replyToConversation = vi.fn().mockResolvedValue({ id: 'reply-id' });
+    const p = provider({
+      provider: 'gitlab',
+      listConversations: vi.fn().mockResolvedValue({
+        items: [conversation],
+        page: { page: 1, perPage: 100, hasNextPage: false },
+      }),
+      getCapabilities: vi
+        .fn()
+        .mockReturnValue({ replyByResource: { 'gitlab-discussion': { support: 'supported' } } }),
+      replyToConversation,
+    });
+    await new ReviewService(p).reply(context, 'discussion-id', 'reply');
+    expect(replyToConversation).toHaveBeenCalledWith(
+      expect.objectContaining({ conversationId: 'discussion-id', body: 'reply' }),
+    );
+  });
+
+  it('loads full file content only for a current changed path and immutable revisions', async () => {
+    const getFileContent = vi.fn(async ({ side }: { side: 'old' | 'new' }) =>
+      side === 'old' ? 'old text' : 'new text',
+    );
+    const version = { baseSha: 'merge-base', startSha: 'base-1', headSha: 'head-1' };
+    const p = provider({
+      listChangedFiles: vi.fn().mockResolvedValue({ ...files, diffVersion: version }),
+      getReviewRequest: vi.fn().mockResolvedValue({ ...detail, baseSha: 'base-1' }),
+    });
+    Object.assign(p, { getFileContent });
+    const content = await new ReviewService(p).markdownContent(
+      { ...context, diffVersion: version },
+      'src/a.ts',
+    );
+    expect(content).toEqual({ oldContent: 'old text', newContent: 'new text' });
+    expect(getFileContent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        path: 'src/a.ts',
+        side: 'old',
+        headSha: 'head-1',
+        baseSha: 'base-1',
+        diffVersion: version,
+      }),
+    );
+    await expect(
+      new ReviewService(p).markdownContent({ ...context, diffVersion: version }, 'outside.txt'),
+    ).rejects.toMatchObject({ code: 'validation' });
+  });
+
   it('refreshes detail and all diff pages and rejects an inline anchor from an obsolete head', async () => {
     const p = provider({
       getReviewRequest: vi.fn().mockResolvedValue({ ...detail, headSha: 'head-2' }),

@@ -7,6 +7,10 @@ export interface HttpRequestOptions {
   headers?: HeadersInit;
   body?: BodyInit | null;
   signal?: AbortSignal;
+  /** Allow only the provider's exact GraphQL endpoint; never relax the configured API host guard. */
+  graphql?: boolean;
+  cancellable?: boolean;
+  responseText?: boolean;
 }
 
 export interface HttpResponse<T> {
@@ -84,7 +88,7 @@ export class ProviderHttpClient {
   /** Cancel in-flight reads for a connection when it is disabled. Submitted mutations are left alone. */
   cancelConnection(connectionId: string): void {
     for (const request of this.pending.get(connectionId) ?? [])
-      if (request.method === 'GET' || request.method === 'HEAD')
+      if (request.method === 'GET' || request.method === 'HEAD' || request.method === 'SAFE_POST')
         request.controller.abort(new Error('connection disabled'));
   }
 
@@ -94,7 +98,7 @@ export class ProviderHttpClient {
     options: HttpRequestOptions = {},
   ): Promise<HttpResponse<T>> {
     await this.assertUsable(connection);
-    this.validateUrl(connection, pathOrUrl);
+    this.validateUrl(connection, pathOrUrl, options.graphql === true);
     const credential = await this.secrets.get(connection.id);
     if (!credential)
       throw new AppError('This connection has no saved credential', 'authentication');
@@ -133,7 +137,7 @@ export class ProviderHttpClient {
     connectionId?: string,
     allowUnhealthy = false,
   ): Promise<HttpResponse<T>> {
-    const url = this.validateUrl(connection, pathOrUrl);
+    const url = this.validateUrl(connection, pathOrUrl, options.graphql === true);
     const headers = new Headers(options.headers);
     headers.delete('Authorization');
     headers.delete('PRIVATE-TOKEN');
@@ -162,7 +166,10 @@ export class ProviderHttpClient {
     const abort = () => controller.abort(options.signal?.reason);
     options.signal?.addEventListener('abort', abort, { once: true });
     if (options.signal?.aborted) abort();
-    const method = (options.method ?? 'GET').toUpperCase();
+    const method =
+      options.cancellable && (options.method ?? 'GET').toUpperCase() === 'POST'
+        ? 'SAFE_POST'
+        : (options.method ?? 'GET').toUpperCase();
     const pending = connectionId ? (this.pending.get(connectionId) ?? new Set()) : undefined;
     if (connectionId && pending) {
       pending.add({ controller, method });
@@ -198,7 +205,11 @@ export class ProviderHttpClient {
         );
       }
       const data =
-        response.status === 204 ? undefined : await response.json().catch(() => undefined);
+        response.status === 204
+          ? undefined
+          : options.responseText
+            ? await response.text().catch(() => undefined)
+            : await response.json().catch(() => undefined);
       if (data === undefined && response.status !== 204)
         throw new AppError('Provider returned an invalid JSON response', 'provider-server');
       return { data: data as T, status: response.status, headers: response.headers };
@@ -230,16 +241,31 @@ export class ProviderHttpClient {
   private validateUrl(
     connection: Pick<Connection, 'provider' | 'serverUrl'>,
     pathOrUrl: string,
+    graphql = false,
   ): URL {
     const base = new URL(apiBaseUrl(connection));
     const url = /^https?:\/\//i.test(pathOrUrl)
       ? new URL(pathOrUrl)
       : new URL(pathOrUrl.replace(/^\/+/, ''), `${base.href.replace(/\/+$/, '')}/`);
     const prefix = base.pathname.replace(/\/+$/, '');
+    const graphqlPath =
+      connection.provider === 'github'
+        ? base.hostname === 'api.github.com'
+          ? '/graphql'
+          : `${base.pathname.replace(/\/api\/v3\/?$/i, '')}/api/graphql`
+        : undefined;
+    const isGraphql =
+      graphql &&
+      graphqlPath !== undefined &&
+      url.pathname === graphqlPath &&
+      !url.search &&
+      !url.hash;
     if (
       url.protocol !== 'https:' ||
       url.origin !== base.origin ||
-      !(url.pathname === prefix || url.pathname.startsWith(`${prefix}/`)) ||
+      (graphql && !isGraphql) ||
+      (!graphql && graphqlPath !== undefined && url.pathname === graphqlPath) ||
+      (!(url.pathname === prefix || url.pathname.startsWith(`${prefix}/`)) && !isGraphql) ||
       url.username ||
       url.password
     )

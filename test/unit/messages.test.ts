@@ -52,4 +52,39 @@ describe('Webview message protocol', () => {
       parseWebviewRequest({ type: 'selectTab', contextId: 'panel-a', tab: 'secrets' }),
     ).toBeUndefined();
   });
+
+  it('validates metadata edits, picker paging, comment deletion and full-content requests', () => {
+    expect(
+      parseWebviewRequest({
+        type: 'editMetadata',
+        contextId: 'p',
+        title: 'Changed',
+        labels: ['bug'],
+      }),
+    ).toEqual({ type: 'editMetadata', contextId: 'p', title: 'Changed', labels: ['bug'] });
+    expect(parseWebviewRequest({ type: 'editMetadata', contextId: 'p' })).toBeUndefined();
+    expect(
+      parseWebviewRequest({
+        type: 'listMetadataOptions',
+        contextId: 'p',
+        kind: 'reviewers',
+        search: 'al',
+        page: 2,
+      }),
+    ).toMatchObject({ type: 'listMetadataOptions', kind: 'reviewers', page: 2 });
+    expect(
+      parseWebviewRequest({
+        type: 'deleteComment',
+        contextId: 'p',
+        conversationId: 'root',
+        commentId: 'reply',
+      }),
+    ).toMatchObject({ type: 'deleteComment', conversationId: 'root', commentId: 'reply' });
+    expect(
+      parseWebviewRequest({ type: 'loadMarkdownContent', contextId: 'p', path: 'README.md' }),
+    ).toMatchObject({ type: 'loadMarkdownContent', path: 'README.md' });
+    expect(
+      parseWebviewRequest({ type: 'loadMarkdownContent', contextId: 'p', path: '' }),
+    ).toBeUndefined();
+  });
 });

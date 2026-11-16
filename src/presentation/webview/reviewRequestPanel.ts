@@ -11,6 +11,8 @@ import type {
   ReviewRequestContext,
   ReviewRequestDetail,
   ReviewRequestSummary,
+  ReviewCommit,
+  Page,
 } from '../../domain/models';
 import type { ReviewService } from '../../application/reviewService';
 import type { ReviewProvider } from '../../application/ports';
@@ -55,6 +57,8 @@ export function openReviewRequestPanel(
   let conversationPages = 1;
   let conversations: ReviewConversation[] = [];
   let checks: CheckSummary[] = [];
+  let commits: ReviewCommit[] = [];
+  let commitPage: Page<ReviewCommit> | undefined;
   let mutationPending = false;
   let initializationGeneration = 0;
   const requestIds = new Map<string, number>();
@@ -92,6 +96,7 @@ export function openReviewRequestPanel(
         providerName: options.connection.provider === 'github' ? 'GitHub' : 'GitLab',
         connectionName: options.connection.displayName,
         accountLogin: options.connection.accountLogin ?? '',
+        ...(options.connection.accountId ? { accountId: options.connection.accountId } : {}),
         serverHost: new URL(options.connection.serverUrl).host,
         repositoryName: options.repository.fullName,
         capabilities: capabilities(),
@@ -160,9 +165,29 @@ export function openReviewRequestPanel(
         post({ type: 'notice', level: 'error', message: safeMessage(error) });
     }
   };
+  const loadCommits = async (append = false) => {
+    const id = pageRequest('commits');
+    const page = append ? (commitPage?.page.page ?? 0) + 1 : 1;
+    post({ type: 'busy', action: 'commits', busy: true });
+    try {
+      const result = await options.review.commits(context, page);
+      if (!isLatest('commits', id)) return;
+      commitPage = result;
+      commits = append ? [...commits, ...result.items] : result.items;
+      post({ type: 'commits', requestId: id, result: { ...result, items: commits } });
+      post({ type: 'busy', action: 'commits', busy: false });
+    } catch (error) {
+      if (isLatest('commits', id)) {
+        post({ type: 'commits', requestId: id, error: safeMessage(error) });
+        post({ type: 'busy', action: 'commits', busy: false });
+      }
+    }
+  };
   const refresh = async () => {
+    initializationGeneration += 1;
     const id = pageRequest('refresh');
-    for (const name of ['files', 'conversations', 'checks', 'approvals']) pageRequest(name);
+    for (const name of ['files', 'conversations', 'checks', 'approvals', 'commits'])
+      pageRequest(name);
     post({ type: 'busy', action: 'refresh', busy: true });
     try {
       await options.review.reconcile(context);
@@ -174,6 +199,8 @@ export function openReviewRequestPanel(
       filePages = 1;
       conversations = [];
       conversationPages = 1;
+      commits = [];
+      commitPage = undefined;
       await initialize();
       await Promise.all([loadFiles(), loadConversations()]);
       post({ type: 'busy', action: 'refresh', busy: false });
@@ -200,6 +227,7 @@ export function openReviewRequestPanel(
       if (message.tab === 'conversations') await loadConversations();
       if (message.tab === 'checks') await loadChecks();
       if (message.tab === 'approvals') await loadApprovals();
+      if (message.tab === 'commits') await loadCommits();
       return;
     }
     if (message.type === 'refresh') {
@@ -212,6 +240,10 @@ export function openReviewRequestPanel(
     }
     if (message.type === 'loadMoreConversations') {
       await loadConversations(true);
+      return;
+    }
+    if (message.type === 'loadMoreCommits') {
+      await loadCommits(true);
       return;
     }
     if (message.type === 'openExternal') {
@@ -240,6 +272,20 @@ export function openReviewRequestPanel(
         });
       return;
     }
+    if (message.type === 'openCommit') {
+      const commit = commits.find((item) => item.id === message.commitId);
+      const uri = commit?.webUrl
+        ? trustedProviderUri(commit.webUrl, options.connection.serverUrl)
+        : undefined;
+      if (uri) await vscode.env.openExternal(uri);
+      else
+        post({
+          type: 'notice',
+          level: 'warning',
+          message: 'The commit link is unavailable or does not belong to this provider host.',
+        });
+      return;
+    }
     if (message.type === 'openLink') {
       try {
         const url = new URL(message.url);
@@ -257,6 +303,48 @@ export function openReviewRequestPanel(
           level: 'warning',
           message: 'The link is invalid and was not opened.',
         });
+      }
+      return;
+    }
+    if (message.type === 'listMetadataOptions') {
+      const requestId = pageRequest(`metadata:${message.kind}`);
+      const generation = initializationGeneration;
+      try {
+        const result = await options.review.metadataOptions({
+          ...context,
+          kind: message.kind,
+          ...(message.search === undefined ? {} : { search: message.search }),
+          ...(message.page === undefined ? {} : { page: message.page }),
+        });
+        if (
+          !disposed &&
+          generation === initializationGeneration &&
+          requestIds.get(`metadata:${message.kind}`) === requestId
+        )
+          post({ type: 'metadataOptions', requestId, kind: message.kind, result });
+      } catch (error) {
+        post({ type: 'notice', level: 'error', message: safeMessage(error) });
+      }
+      return;
+    }
+    if (message.type === 'loadMarkdownContent') {
+      const generation = initializationGeneration;
+      const requestId = pageRequest(`markdown:${message.path}`);
+      try {
+        const content = await options.review.markdownContent(context, message.path);
+        if (
+          !disposed &&
+          generation === initializationGeneration &&
+          requestIds.get(`markdown:${message.path}`) === requestId
+        )
+          post({ type: 'markdownContent', path: message.path, ...content });
+      } catch (error) {
+        if (
+          !disposed &&
+          generation === initializationGeneration &&
+          requestIds.get(`markdown:${message.path}`) === requestId
+        )
+          post({ type: 'markdownContent', path: message.path, error: safeMessage(error) });
       }
       return;
     }
@@ -286,6 +374,44 @@ export function openReviewRequestPanel(
         await loadConversations();
         options.onDidMutate?.();
         post({ type: 'notice', level: 'success', message: 'Reply sent.' });
+      } else if (message.type === 'editMetadata') {
+        post({ type: 'busy', action: 'metadata', busy: true });
+        await options.review.updateMetadata(context, {
+          ...(message.title === undefined ? {} : { title: message.title }),
+          ...(message.description === undefined ? {} : { description: message.description }),
+          ...(message.assigneeIds === undefined ? {} : { assigneeIds: message.assigneeIds }),
+          ...(message.reviewerIds === undefined ? {} : { reviewerIds: message.reviewerIds }),
+          ...(message.labels === undefined ? {} : { labels: message.labels }),
+        });
+        await refresh();
+        options.onDidMutate?.();
+        post({ type: 'notice', level: 'success', message: 'Review request updated.' });
+      } else if (message.type === 'deleteComment') {
+        const answer = await vscode.window.showWarningMessage(
+          'Delete this comment permanently?',
+          {
+            modal: true,
+            detail: `${options.connection.displayName} · ${options.repository.fullName} · ${nativeName(options.connection.provider)} ${detail?.number ?? ''}`,
+          },
+          'Delete comment',
+        );
+        if (answer === 'Delete comment') {
+          post({ type: 'busy', action: 'deleteComment', busy: true });
+          await options.review.deleteComment(context, message.conversationId, message.commentId);
+          await loadConversations();
+          options.onDidMutate?.();
+          post({ type: 'notice', level: 'success', message: 'Comment deleted.' });
+        }
+      } else if (message.type === 'setThreadResolved') {
+        post({ type: 'busy', action: 'resolveThread', busy: true });
+        await options.review.setThreadResolved(context, message.conversationId, message.resolved);
+        await loadConversations();
+        options.onDidMutate?.();
+        post({
+          type: 'notice',
+          level: 'success',
+          message: message.resolved ? 'Thread resolved.' : 'Thread reopened.',
+        });
       } else if (message.type === 'merge') {
         if (!detail) throw new AppError('Review request details are not loaded', 'validation');
         const answer = await vscode.window.showWarningMessage(
