@@ -263,7 +263,7 @@ Responsibilities:
 
 - Use a discriminated-union message protocol.
 - Validate message type and payload on receipt.
-- Bind the Webview to one MR context at a time.
+- Bind the Webview to one PR/MR context at a time.
 - Do not pass token, SecretStorage handles, arbitrary URLs or unrestricted API methods to the Webview.
 - Re-check permissions and current data in the extension host before every mutation.
 
@@ -300,14 +300,14 @@ type ReviewRequestSummary = {
   number: number;
   title: string;
   state: "open" | "closed" | "merged";
-  draft: boolean;
+  draft?: boolean; // undefined means provider did not supply the field
   author: UserSummary;
   sourceBranch: string;
   targetBranch: string;
   headSha?: string;
-  reviewers: UserSummary[];
-  assignees: UserSummary[];
-  labels: string[];
+  reviewers?: UserSummary[]; // undefined = unavailable; [] = explicitly none
+  assignees?: UserSummary[]; // undefined = unavailable; [] = explicitly none
+  labels?: string[]; // undefined = unavailable; [] = explicitly none
   updatedAt: string;
   webUrl: string;
 };
@@ -424,7 +424,7 @@ Never reuse cache entries across two accounts or connections, even when host and
 
 - PR/MR list/detail may be shown from cache with a visible stale indicator.
 - Diff comments require a current diff version.
-- Merge always requires a fresh MR fetch and current SHA.
+- Merge always requires a fresh PR/MR fetch and current source/head SHA.
 - A failed refresh must not silently convert stale data into current data.
 - Mutations invalidate related list/detail/discussion cache entries.
 
@@ -604,12 +604,12 @@ Use a typed error model with at least:
 - ProviderServerError (5xx)
 - UnsupportedCapabilityError
 
-Each error should include operation, HTTP status if available, provider request ID if present and a safe user-facing message. It must not include the token or full request headers.
+Each error should include operation, HTTP status if available, provider request ID if present and a safe user-facing message. It must not include the token or full request headers. HTTP 401 must be classified with provider context: validate the authenticated-user endpoint before marking the connection invalid, because some GitLab mutation endpoints can use 401 for operation-level permission failure.
 
 ## 10. Concurrency and cancellation
 
 - Every view load receives a cancellation token.
-- Changing project or MR cancels requests for the previous selection.
+- Changing repository/project or PR/MR cancels requests for the previous selection.
 - Read-only requests may run concurrently with a small per-instance limit (proposed maximum: 4).
 - Mutation requests are serialized per MR to avoid duplicate user actions.
 - Do not retry POST/PUT merge/comment operations automatically.
