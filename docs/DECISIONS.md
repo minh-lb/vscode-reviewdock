@@ -48,7 +48,7 @@ This document records recommended defaults needed to turn the SRS into an implem
 **Decision proposed:**
 
 - Activity Bar and MR/project navigation use native VS Code views and TreeView.
-- MR detail, tabs, diff rendering and discussion composer use a local React Webview.
+- PR/MR detail, tabs, diff rendering and conversation composer use a local React Webview.
 - Opening a file in the local workspace uses the native VS Code editor.
 - The Webview receives only the data required to render the current view. It never receives access tokens or unrestricted API capabilities.
 - Use a strict Content Security Policy, local bundled assets and validated message contracts.
