@@ -1,51 +1,74 @@
-# ReviewDock — GitLab API Specification
+# ReviewDock — GitHub and GitLab API Specification
 
 > **Document ID:** RVD-API-001  
 > **Version:** 0.1.0  
-> **Status:** Proposed — verify against the selected GitLab compatibility matrix  
-> **API:** GitLab REST API v4  
-> **Related:** [SRS.md](./SRS.md), [SDS.md](./SDS.md), [DECISIONS.md](./DECISIONS.md)
+ > **Status:** Proposed — verify against the GitHub/GitLab compatibility matrix  
+> **API:** GitHub REST API v3 + GitLab REST API v4  
+> **Related:** [SRS.md](./SRS.md), [SDS.md](./SDS.md), [DECISIONS.md](./DECISIONS.md), [CONNECTION-MANAGEMENT.md](./CONNECTION-MANAGEMENT.md)
 
 ## 1. Purpose
 
-This document defines the GitLab REST API operations required by ReviewDock MVP and P1. It specifies endpoint paths, parameters, request behavior, response fields used by the extension, error handling and safety constraints.
+This document defines the GitHub REST API v3 and GitLab REST API v4 operations required by ReviewDock MVP and P1. It specifies endpoint paths, parameters, request behavior, response fields used by the extension, error handling and safety constraints.
 
-GitLab documentation is the authoritative contract. The implementation must not depend on undocumented fields or deprecated endpoints.
+The selected connection determines the provider adapter, API base URL, authentication scheme and endpoint set. Provider documentation is authoritative; the implementation must not depend on undocumented fields or deprecated endpoints.
 
 ## 2. Connection and authentication
 
-### 2.1. Base URL
+### 2.1. Provider base URLs
 
-For a configured GitLab instance:
+| Provider/server | Base URL | API root |
+|---|---|---|
+| GitHub.com | https://github.com | https://api.github.com |
+| GitHub Enterprise Server | User-configured HTTPS URL | {serverUrl}/api/v3 |
+| GitLab.com | https://gitlab.com | {serverUrl}/api/v4 |
+| GitLab Self-Managed | User-configured HTTPS URL | {serverUrl}/api/v4 |
 
-- GitLab.com base URL: https://gitlab.com
-- Self-Managed base URL: user-configured HTTPS origin, optionally including an installation context path if supported by that instance.
-- API root: {baseUrl}/api/v4
+Normalize each server URL once. Reject URL credentials, query strings and fragments. HTTPS is required for MVP. Provider and server URL are immutable for a saved connection; changing server requires a new connection.
 
-Normalize the configured base URL once. Reject URLs containing credentials, query strings or fragments. HTTPS is required for MVP.
+### 2.2. GitHub authentication
 
-### 2.2. MVP authentication
+Use a GitHub Personal Access Token with:
 
-Use a Personal Access Token (PAT) in the request header:
+~~~http
+Authorization: Bearer <token>
+Accept: application/vnd.github+json
+X-GitHub-Api-Version: 2026-03-10
+~~~
+
+Prefer a fine-grained PAT restricted to the repositories ReviewDock needs. Required permissions vary by endpoint: reading PRs, writing review comments, creating issue comments and merging can require different repository permissions. Use GitHub's endpoint permission documentation and the X-Accepted-GitHub-Permissions response header; do not assume one universal permission set. Avoid requesting broad classic-token scopes when a fine-grained token is sufficient.
+
+For GitHub Enterprise Server, use its supported API version and API root; do not assume the GitHub.com API version header is supported by every GHES release.
+
+### 2.3. GitLab authentication
+
+Use a GitLab Personal Access Token:
 
 ~~~http
 PRIVATE-TOKEN: <token>
 Accept: application/json
 ~~~
 
-Proposed required scope for full MVP: **api**. The read_api scope is not sufficient for creating discussions/comments and merging. The api scope is broad; disclose this clearly in the connection UI and recommend a dedicated token with an expiry date.
+The proposed full-MVP scope is **api** because the extension creates discussions/comments and requests merges. This scope is broad; disclose it and recommend a dedicated expiring token. OAuth is deferred for MVP.
 
-OAuth 2.0 is deferred. Do not implement both authentication methods in the first release unless DEC-001 is changed.
+### 2.4. Connection validation
 
-### 2.3. Connection validation
-
-| Operation | Method and endpoint | Purpose |
+| Provider | Method and endpoint | Purpose |
 |---|---|---|
-| Current user | GET /user | Validate token and obtain current user identity |
-| Project lookup | GET /projects/:id | Resolve and validate selected project |
-| Project search | GET /projects?membership=true&search={query} | Manual project discovery |
+| GitHub | GET /user | Validate token and obtain stable account ID/login |
+| GitLab | GET /user | Validate token and obtain stable account ID/username |
+| GitHub | GET /repos/{owner}/{repo} | Resolve and validate a selected repository |
+| GitLab | GET /projects/:id | Resolve and validate a selected project |
 
-Only persist the PAT after GET /user succeeds. The extension must not log the token or return it to the Webview.
+Persist the credential only after authenticated-user validation succeeds. Store one secret per immutable connection ID; never expose it to the Webview.
+
+### 2.5. Request routing isolation
+
+- Resolve provider adapter and credential from connection ID, not from a display name or current global setting.
+- Attach only the selected provider's authentication header.
+- Validate every request URL against the selected connection's API origin and path prefix before attaching credentials.
+- Do not forward credentials across redirects to another origin.
+- Follow pagination links only when they remain on the same configured API origin/path prefix.
+- A valid authenticated-user response with a later 403/permission failure means the connection can remain connected; report the operation-level permission error.
 
 ## 3. Common request and response rules
 
@@ -94,7 +117,7 @@ For MR diffs and discussions, support pagination even if the UI initially loads 
 
 Capture GitLab request ID headers where available for diagnostics, but never capture credentials or comment/diff contents.
 
-## 4. Project API
+## 4. GitLab Project API
 
 ### 4.1. Resolve a project by path or ID
 
@@ -130,7 +153,7 @@ Rules:
 5. Do not match a remote to a different host based only on repository name.
 6. If parsing or lookup is ambiguous, request manual selection.
 
-## 5. Merge Request API
+## 5. GitLab Merge Request API
 
 ### 5.1. List project merge requests
 
@@ -228,7 +251,7 @@ Use the latest collected diff version. Required SHA mapping:
 
 Do not substitute MR sha or diff_refs fields for version metadata without verifying they represent the same diff version. The version list may be empty or still preparing; inline commenting must remain disabled until all required SHAs and line positions are available.
 
-## 6. Discussions and comments API
+## 6. GitLab Discussions and comments API
 
 ### 6.1. List MR discussions
 
@@ -319,7 +342,7 @@ P1 only:
 
 Only allow operations on notes owned by the current user and only when GitLab accepts the operation. Do not include edit/delete in MVP UI.
 
-## 7. Approval API — P1
+## 7. GitLab Approval API — P1
 
 ### 7.1. Retrieve approval state
 
@@ -359,7 +382,7 @@ POST /projects/:project_id/merge_requests/:iid/unapprove
 
 When approving, send the current MR HEAD SHA in the sha parameter when available. GitLab rejects a mismatched SHA with 409. Approval is not part of MVP and must not be confused with creating a comment.
 
-## 8. Pipeline API — P1
+## 8. GitLab Pipeline API — P1
 
 ### 8.1. List pipelines for an MR
 
@@ -391,7 +414,7 @@ Use:
 
 Do not retrieve job logs in MVP. Link to GitLab Web for full job details.
 
-## 9. Merge API
+## 9. GitLab Merge API
 
 ### 9.1. Immediate merge
 
@@ -463,8 +486,168 @@ Client-side checks improve UX only; GitLab enforces all approvals, pipelines, br
 - Approval response shape depends on GitLab edition/tier.
 - Maintain contract fixtures for the oldest supported version and a current version.
 
-## 12. Official references
 
+
+## 13. GitHub REST API v3
+
+This section defines the GitHub adapter. It uses GitHub.com REST API v3 and the corresponding REST API v3 root on GitHub Enterprise Server. Use the current API version supported by the target host.
+
+### 13.1. Repository discovery
+
+~~~http
+GET /user/repos?visibility=all&affiliation=owner,collaborator,organization_member&sort=updated&per_page=100
+GET /repos/{owner}/{repo}
+~~~
+
+Use repository response fields:
+- id, node_id, name, full_name
+- owner
+- private, archived, default_branch
+- html_url
+
+Use numeric repository ID as the stable provider repository identifier. Do not assume repository names are unique across owners or servers.
+
+### 13.2. List and retrieve Pull Requests
+
+~~~http
+GET /repos/{owner}/{repo}/pulls?state=open&sort=updated&direction=desc&per_page=100
+GET /repos/{owner}/{repo}/pulls/{pull_number}
+GET /repos/{owner}/{repo}/pulls/{pull_number}/files?per_page=100
+~~~
+
+Normalize these fields where available:
+- number, id, title, body, state, draft
+- user, assignees, requested_reviewers
+- head.ref, head.sha, base.ref
+- merged, mergeable, mergeable_state
+- created_at, updated_at, closed_at, merged_at
+- html_url
+- changed file fields: filename, previous_filename, status, additions, deletions, changes, patch, blob_url/raw_url when returned
+
+GitHub Pull Request numbers are repository-scoped. Store connection ID and repository ID with every PR. The files endpoint can be paginated and may omit patch text for binary or large files; show an explicit unavailable diff state.
+
+### 13.3. General comments and review conversations
+
+List general timeline comments:
+
+~~~http
+GET /repos/{owner}/{repo}/issues/{issue_number}/comments?per_page=100
+~~~
+
+List submitted reviews and inline review comments:
+
+~~~http
+GET /repos/{owner}/{repo}/pulls/{pull_number}/reviews?per_page=100
+GET /repos/{owner}/{repo}/pulls/{pull_number}/comments?per_page=100
+~~~
+
+Create a general PR timeline comment:
+
+~~~http
+POST /repos/{owner}/{repo}/issues/{issue_number}/comments
+Content-Type: application/json
+
+{ "body": "<comment text>" }
+~~~
+
+Create a single-line inline review comment:
+
+~~~http
+POST /repos/{owner}/{repo}/pulls/{pull_number}/comments
+Content-Type: application/json
+
+{
+  "body": "<comment text>",
+  "commit_id": "<current head SHA>",
+  "path": "src/file.ts",
+  "line": 42,
+  "side": "RIGHT"
+}
+~~~
+
+For a removed line use the LEFT side. For an added line use RIGHT. The line number is the line in the diff, not the line number inferred from a rendered row index. Use the current PR head commit SHA. Multi-line comments using start_line/start_side are deferred until separately approved.
+
+Reply to an inline review comment:
+
+~~~http
+POST /repos/{owner}/{repo}/pulls/{pull_number}/comments/{comment_id}/replies
+Content-Type: application/json
+
+{ "body": "<reply text>" }
+~~~
+
+GitHub general issue comments and inline review comments are different resource types. The domain adapter may normalize them into a common review-conversation view, but must preserve provider IDs and semantics. Do not assume GitLab-style resolve/reopen behavior exists for every GitHub review thread through REST API.
+
+### 13.4. Review decision — P1
+
+~~~http
+POST /repos/{owner}/{repo}/pulls/{pull_number}/reviews
+Content-Type: application/json
+
+{
+  "commit_id": "<current head SHA>",
+  "event": "APPROVE"
+}
+~~~
+
+Supported review events include provider-defined states such as APPROVE, REQUEST_CHANGES and COMMENT. This is P1; MVP must not infer approval from a comment. Confirm the current head SHA and endpoint permissions before submitting a review decision.
+
+### 13.5. Checks and GitHub Actions — P1
+
+~~~http
+GET /repos/{owner}/{repo}/commits/{ref}/check-runs?per_page=100
+GET /repos/{owner}/{repo}/commits/{ref}/status
+GET /repos/{owner}/{repo}/actions/runs?head_sha={sha}&per_page=100
+~~~
+
+Display check/workflow status only when it belongs to the current PR head SHA. Check Runs and Actions workflow runs are related but distinct resources; preserve their source/type in the normalized status model. Link to GitHub Web for full job/log details in P1.
+
+### 13.6. Merge a Pull Request
+
+MVP direct merge endpoint:
+
+~~~http
+PUT /repos/{owner}/{repo}/pulls/{pull_number}/merge
+Content-Type: application/json
+
+{
+  "sha": "<current head SHA>"
+}
+~~~
+
+Optional merge_method values are provider-specific and must be omitted unless the approved UX explicitly asks the user to choose a supported method. Do not set any bypass-rules option. GitHub's server remains authoritative for repository rules, permissions, checks, reviews and merge queue policies.
+
+Behavior:
+- Re-fetch PR detail immediately before merge.
+- Require explicit confirmation with provider, connection, repository, PR number, source and target branches.
+- Send current head SHA.
+- On 409, refresh and require a new user action.
+- On 403/405/422, show GitHub's rejection reason.
+- On timeout, refresh PR state before allowing another attempt.
+- Do not automatically retry a merge mutation.
+
+GitHub also documents an asynchronous merge endpoint for merge queues and stacked PR workflows. It is not part of the immediate-merge MVP; evaluate it as a separate P1/P2 capability rather than silently changing merge semantics.
+
+### 13.7. GitHub pagination, rate limits and permissions
+
+- Use the Link response header and follow rel="next" URLs only after origin/path validation.
+- Respect rate-limit headers and Retry-After where provided.
+- Use the endpoint's documented fine-grained PAT permissions. A valid token can still lack permission for one repository or operation.
+- Capture request IDs and safe rate-limit metadata for diagnostics; never log tokens, private diff bodies or review content.
+- Preserve 403, 404, 409, 422 and rate-limit distinctions in provider error mapping.
+
+
+## 14. Official references
+
+- [GitHub REST API overview and authentication](https://docs.github.com/en/rest)
+- [GitHub REST API authentication](https://docs.github.com/en/rest/authentication/authenticating-to-the-rest-api)
+- [GitHub repository API](https://docs.github.com/en/rest/repos/repos)
+- [GitHub Pull Requests API](https://docs.github.com/en/rest/pulls/pulls)
+- [GitHub pull request review comments API](https://docs.github.com/en/rest/pulls/comments)
+- [GitHub pull request reviews API](https://docs.github.com/en/rest/pulls/reviews)
+- [GitHub fine-grained PAT permissions](https://docs.github.com/en/rest/authentication/permissions-required-for-fine-grained-personal-access-tokens)
+- [GitHub Checks API](https://docs.github.com/en/rest/checks/runs)
+- [GitHub Actions workflow runs API](https://docs.github.com/en/rest/actions/workflow-runs)
 - [REST API overview, authentication and pagination](https://docs.gitlab.com/api/rest/)
 - [Projects API](https://docs.gitlab.com/api/projects/)
 - [Merge Requests API](https://docs.gitlab.com/api/merge_requests/)
