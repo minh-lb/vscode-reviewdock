@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="data:," />
+    <title>ReviewDock Webview Preview</title>
+    <link rel="stylesheet" href="../../webview-ui/dist/index.css" />
+    <style>
+      body {
+        margin: 0;
+        font-family: system-ui, sans-serif;
+      }
+      :root {
+        color-scheme: dark;
+        --vscode-font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        --vscode-font-size: 13px;
+        --vscode-editor-font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+        --vscode-editor-background: #1e1e1e;
+        --vscode-foreground: #cccccc;
+        --vscode-descriptionForeground: #9d9d9d;
+        --vscode-panel-border: #454545;
+        --vscode-widget-border: #454545;
+        --vscode-sideBar-background: #252526;
+        --vscode-focusBorder: #007fd4;
+        --vscode-button-background: #0e639c;
+        --vscode-button-foreground: #ffffff;
+        --vscode-button-hoverBackground: #1177bb;
+        --vscode-input-background: #3c3c3c;
+        --vscode-input-border: #3c3c3c;
+        --vscode-input-foreground: #cccccc;
+        --vscode-list-hoverBackground: #2a2d2e;
+        --vscode-diffEditor-insertedLineBackground: #2ea04326;
+        --vscode-diffEditor-removedLineBackground: #f8514926;
+        --vscode-editor-lineHighlightBackground: #ffffff0a;
+        --vscode-editorWarning-foreground: #cca700;
+        --vscode-errorForeground: #f48771;
+        --vscode-gitDecoration-addedResourceForeground: #81b88b;
+        --vscode-gitDecoration-deletedResourceForeground: #c74e39;
+        --vscode-testing-iconPassed: #73c991;
+        --vscode-textLink-foreground: #3794ff;
+      }
+      #host-controls {
+        padding: 12px;
+        background: #252526;
+        color: #eee;
+      }
+      #host-controls button {
+        margin-right: 8px;
+      }
+      #outgoing {
+        max-height: 120px;
+        overflow: auto;
+        margin: 8px 0 0;
+        font-size: 12px;
+      }
+    </style>
+    <script src="preview.js" defer></script>
+    <script src="../../webview-ui/dist/index.js" defer></script>
+  </head>
+  <body>
+    <aside id="host-controls">
+      <button data-fixture="initialize">Initialize review</button>
+      <button data-fixture="files">Load sample diff</button>
+      <button data-fixture="conversations">Load discussions</button>
+      <pre id="outgoing" aria-live="polite">Host messages appear here.</pre>
+    </aside>
+    <div id="root"></div>
+  </body>
+</html>

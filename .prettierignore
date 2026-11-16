@@ -5,3 +5,5 @@ dist/**
 webview-ui/dist/**
 out/**
 coverage/**
+.vscode-test/**
+.playwright-mcp/**

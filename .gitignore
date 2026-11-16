@@ -5,3 +5,4 @@ coverage/
 *.vsix
 .vscode-test/
 .agents/
+.playwright-mcp/
