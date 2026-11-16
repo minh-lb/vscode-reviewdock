@@ -30,12 +30,13 @@ The matrix is a product and implementation contract. It does not imply that GitH
 | GitHub.com / GitLab.com | Supported | Supported | P0 |
 | Enterprise / Self-Managed host | GHES API root `/api/v3`; version-dependent | Self-Managed API root `/api/v4`; version-dependent | P0 only within the published compatibility matrix |
 | Repository/project discovery | `GET /user/repos`, `GET /repos/{owner}/{repo}` | `GET /projects`, `GET /projects/:id` | P0; scoped to the selected connection |
-| Review request list | Repository PR list endpoint | Project or authenticated-user MR list endpoint | P0; provider-specific filters |
+| Review request list | Repository PR list endpoint; `state=open|closed|all` | Project or authenticated-user MR list endpoint | P0; provider-specific filters |
 | Created by me | Search API qualifier `author:@me` | MR list scope `created_by_me` | P0 |
 | Assigned to me | Search API qualifier `assignee:@me` | MR list scope `assigned_to_me` | P0 |
 | Review requested from me | Search API qualifier `user-review-requested:@me` | MR list scope `reviews_for_me` | P0; GitHub direct user requests are covered; team-request behavior must be separately verified |
 | Search by title | Search Issues API with `is:pr` and `in:title` | MR list `search` and `in=title` | P0; GitHub search has a 1,000-result cap and a separate rate limit |
-| Search by PR/MR number | Fetch PR by repository-scoped number | Fetch MR by project-scoped IID | P0; never treat either number as globally unique |
+| Search by PR/MR number | Exact numeric input uses PR detail endpoint; title search uses Search Issues API | Exact IID uses MR detail endpoint; title search uses MR list search | P0; never treat either number as globally unique |
+| Closed vs merged state | API `state=closed` contains both; classify by `merged`/`merged_at` | API exposes `state=closed` and `state=merged` | P0; never treat every closed GitHub PR as merged |
 | Review request detail | Pull Requests API | Merge Requests API | P0 |
 | File list and diff | PR files endpoint; patch may be omitted | MR diffs endpoint; diff may be collapsed or too large | P0 with explicit unavailable/partial states |
 | General timeline comment | Issue comment endpoint | Top-level MR discussion | P0 |
