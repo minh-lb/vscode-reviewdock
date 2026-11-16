@@ -31,6 +31,7 @@ For source development, use `npm run typecheck`, `npm run lint`, `npm test`, `np
 1. Open the ReviewDock Activity Bar view and choose **Add Connection**.
 2. Select GitHub or GitLab, enter the server URL and a personal access token, then validate and save the connection.
 3. Grant only the scopes/permissions needed for the operations you use. Read access is needed to browse; comment/reply and merge operations require corresponding provider permissions. ReviewDock displays operation-level provider errors when an otherwise valid token lacks a permission.
+   ReviewDock validates account identity only; it does not inspect the PAT's granted permissions or scopes. Insufficient access is reported by the affected provider operation.
 4. Choose a connection and repository/project for the active workspace folder. ReviewDock does not silently switch accounts when a binding is blocked or a remote matches multiple accounts.
 
 For multiple workspace folders, select the connection and repository for each folder. With no enabled connection/default or no binding, ReviewDock asks you to configure one before loading requests.
