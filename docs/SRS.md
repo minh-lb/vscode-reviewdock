@@ -3,7 +3,7 @@
 > **Mã tài liệu:** RVD-SRS-001  
 > **Sản phẩm:** ReviewDock  
 > **Loại tài liệu:** Software Requirements Specification  
-> **Phiên bản:** 1.0.2-draft  
+> **Phiên bản:** 1.0.3-draft  
 > **Trạng thái:** Draft — chờ Product Owner xác nhận  
 > **Repository:** [minh-lb/vscode-reviewdock](https://github.com/minh-lb/vscode-reviewdock)  
 > **Ngày:** 2026-11-16
@@ -15,7 +15,7 @@
 | Thuộc tính | Giá trị |
 |---|---|
 | Document ID | RVD-SRS-001 |
-| Version | 1.0.2-draft |
+| Version | 1.0.3-draft |
 | Product | ReviewDock |
 | Target platform | Visual Studio Code Extension |
 | Primary integration | GitHub REST API v3 + GitLab REST API v4 |
@@ -30,6 +30,7 @@
 | 1.0.0-draft | 2026-11-16 | Chuẩn hóa thành SRS |
 | 1.0.1-draft | 2026-11-16 | Đồng bộ scope inline comment MVP và liên kết bộ tài liệu thiết kế/kiểm thử |
 | 1.0.2-draft | 2026-11-16 | Mở rộng sang GitHub + GitLab và đặc tả multi-connection |
+| 1.0.3-draft | 2026-11-16 | Bổ sung trạng thái cấu hình Enabled/Disabled độc lập với connection health |
 
 ## 1. Giới thiệu
 
@@ -229,6 +230,11 @@ Minimum VS Code engine version và minimum GitLab version là các quyết đị
 | AUTH-012 | P0 | Hệ thống KHÔNG ĐƯỢC lưu credential trong settings.json, workspace file, source code hoặc Webview state. |
 | AUTH-013 | P0 | Hệ thống KHÔNG ĐƯỢC gửi credential của connection tới provider/server khác với connection đã chọn. |
 | AUTH-014 | P0 | Nếu provider + server + account identity đã tồn tại, hệ thống NÊN cảnh báo duplicate nhưng vẫn cho phép nhiều account khác nhau trên cùng server. |
+| AUTH-015 | P0 | Mỗi connection PHẢI có thuộc tính cấu hình enabled độc lập với status; connection mới mặc định enabled. |
+| AUTH-016 | P0 | Người dùng PHẢI có thể enable/disable từng connection độc lập mà không cần xóa hoặc tạo lại connection. |
+| AUTH-017 | P0 | Connection disabled KHÔNG ĐƯỢC dùng để chọn active connection, remote discovery, default resolution hoặc gửi bất kỳ provider API request nào. |
+| AUTH-018 | P0 | Disable PHẢI giữ nguyên credential, cấu hình, last-known status và workspace binding; không tự động chuyển binding sang connection khác. |
+| AUTH-019 | P0 | Enable lại KHÔNG ĐƯỢC mặc định coi credential đã hợp lệ hoặc tự động validate; trạng thái xác thực hiện có tiếp tục quyết định khả năng sử dụng. |
 
 ### 4.2. Repository và workspace binding
 
@@ -352,6 +358,8 @@ Minimum VS Code engine version và minimum GitLab version là các quyết đị
 | BR-006 | Dữ liệu cache có thể cũ; thao tác ghi quan trọng phải refresh trạng thái cần thiết trước khi thực hiện. |
 | BR-007 | Không có thao tác ghi nào được thực hiện ngầm hoặc chỉ dựa trên việc mở một MR. |
 | BR-008 | Không được dùng ReviewDock để né tránh branch protection hoặc policy của project. |
+| BR-009 | Connection disabled bị loại khỏi mọi luồng chọn connection và request tới provider; workspace binding liên quan được giữ lại nhưng phải chặn thao tác cho đến khi người dùng enable hoặc gán connection khác. |
+| BR-010 | enabled là trạng thái cấu hình do người dùng quản lý; status là trạng thái kết nối/xác thực được quan sát gần nhất. Hai thuộc tính không được ghi đè hoặc suy diễn lẫn nhau. |
 
 ## 6. Yêu cầu dữ liệu
 
@@ -381,6 +389,8 @@ Minimum VS Code engine version và minimum GitLab version là các quyết đị
 **DATA-005 (P0):** Hệ thống KHÔNG ĐƯỢC ghi token, private diff hoặc comment content vào diagnostic log.
 
 **DATA-006 (P0):** Cache key PHẢI bao gồm connection ID, provider, server URL, repository/project ID và review request ID để cô lập dữ liệu giữa các account/host.
+
+**DATA-007 (P0):** Thuộc tính enabled PHẢI được lưu trong connection registry không nhạy cảm; không lưu chung với credential và không được suy ra từ status.
 
 ## 7. Yêu cầu phi chức năng
 
@@ -562,6 +572,7 @@ Các mục sau PHẢI được Product Owner xác nhận trước khi chốt bas
 | DEC-008 | Pipeline và approval UI | MVP hay P1 | P1 |
 | DEC-009 | Merge options | Squash, merge-when-pipeline-succeeds | Chỉ hỗ trợ option người dùng chọn rõ ràng |
 | DEC-010 | Localization | English-only hay English + Vietnamese | English UI ban đầu; tài liệu có thể song ngữ |
+| DEC-016 | Connection enablement | Có hỗ trợ bật/tắt độc lập từng connection hay không | Có; mặc định enabled, disabled không được phát sinh API request và không tự động failover |
 
 ## Phụ lục A — Phân kỳ triển khai dự kiến
 
