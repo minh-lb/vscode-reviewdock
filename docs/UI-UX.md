@@ -181,7 +181,7 @@ Enabled state is a user-controlled configuration, not a connection-health status
 
 ## 4. Pull Request / Merge Request detail surface
 
-### 3.1. Layout
+### 5.1. Layout
 
 The detail surface is a local React Webview panel. It has a compact header, tab navigation and a scrollable content area. The provider-native title is shown (Pull Request for GitHub, Merge Request for GitLab).
 
@@ -210,7 +210,7 @@ P1 tabs:
 
 If a P1 capability is unsupported by the current GitLab edition/version, show a concise "Not available on this instance" state rather than a misleading empty result.
 
-### 3.2. Header
+### 4.2. Header
 
 Display:
 - Provider, connection name, account login and repository/project path.
@@ -226,7 +226,7 @@ Primary action:
 - Disabled state with a short reason when the current server state clearly blocks merge.
 - The button must not claim mergeability based only on stale or incomplete data.
 
-### 3.3. Overview tab
+### 4.3. Overview tab
 
 ~~~text
 ┌─ Overview ──────────────────────────────────────────────────────────┐
@@ -271,7 +271,7 @@ Rules:
 └───────────────────────────────┴────────────────────────────────────┘
 ~~~
 
-### 4.2. File list
+### 5.2. File list
 
 Each file row shows:
 - Status: added, modified, deleted or renamed.
@@ -281,7 +281,7 @@ Each file row shows:
 
 Selecting a file scrolls the diff pane to that file. The file list supports keyboard navigation.
 
-### 4.3. Diff display
+### 5.3. Diff display
 
 MVP:
 - Unified diff rendering.
@@ -294,7 +294,7 @@ MVP:
 
 Side-by-side display may be added after the unified renderer and line mapping are stable. Do not make side-by-side mode a release blocker.
 
-### 4.4. Inline comment interaction
+### 5.4. Inline comment interaction
 
 1. User activates the comment affordance on a changed/context line.
 2. A composer appears next to the selected line or in a docked composer region.
@@ -315,7 +315,7 @@ Side-by-side display may be added after the unified renderer and line mapping ar
 
 Only a line represented in the current GitLab diff can be selected. Hunk headers and non-code metadata are not commentable. MVP supports single-line comments only.
 
-### 4.5. Discussion display
+### 5.5. Discussion display
 
 - Display thread root and replies together.
 - Show author, timestamp, body and resolved state.
@@ -378,7 +378,7 @@ MVP does not expose approve/unapprove actions.
 
 ## 8. Merge interaction
 
-### 7.1. Confirmation dialog
+### 8.1. Confirmation dialog
 
 ~~~text
 ┌─ Confirm merge ─────────────────────────────────────────────────────┐
@@ -395,7 +395,7 @@ MVP does not expose approve/unapprove actions.
 └────────────────────────────────────────────────────────────────────┘
 ~~~
 
-### 7.2. Safety behavior
+### 8.2. Safety behavior
 
 - Show provider, connection name, repository/project, PR number or MR IID, source and target branches.
 - Require explicit confirmation.
@@ -450,7 +450,7 @@ Every data-driven view must support:
 - Open external links only after URL validation and through the extension host.
 
 
-## 13. Provider-specific interaction semantics
+## 12. Provider-specific interaction semantics
 
 ### 13.1. Provider identity and terminology
 
@@ -495,7 +495,7 @@ Do not display a disabled-looking reply control for a GitHub general issue comme
 - If GitHub requires a merge queue or GitLab exposes a conditional/unsupported merge state, show the provider's explanation and link to the provider Web page.
 - The server remains authoritative; client-side merge eligibility is informational only.
 
-## 14. UX acceptance checklist
+## 13. UX acceptance checklist
 
 - [ ] User can identify provider, connection name, account and active repository/project.
 - [ ] User can create multiple GitHub/GitLab connections and manage each independently.
