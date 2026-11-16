@@ -1,9 +1,9 @@
 # ReviewDock — Implementation Plan
 
 > **Document ID:** RVD-PLAN-001  
-> **Version:** 0.1.0  
+> **Version:** 0.2.0  
 > **Status:** Proposed plan — start after Product Owner approves the implementation baseline  
-> **Related:** [SRS.md](./SRS.md), [DECISIONS.md](./DECISIONS.md), [SDS.md](./SDS.md), [API-SPEC.md](./API-SPEC.md), [UI-UX.md](./UI-UX.md), [TEST-PLAN.md](./TEST-PLAN.md)
+> **Related:** [SRS.md](./SRS.md), [DECISIONS.md](./DECISIONS.md), [SDS.md](./SDS.md), [API-SPEC.md](./API-SPEC.md), [UI-UX.md](./UI-UX.md), [TEST-PLAN.md](./TEST-PLAN.md), [PROVIDER-CAPABILITY-MATRIX.md](./PROVIDER-CAPABILITY-MATRIX.md), [REQUIREMENT-TRACEABILITY.md](./REQUIREMENT-TRACEABILITY.md), [DEVELOPMENT-GUIDE.md](./DEVELOPMENT-GUIDE.md)
 
 ## 1. Purpose
 
@@ -15,12 +15,12 @@ It is a sequencing plan, not a delivery-date commitment. Estimate tasks after th
 
 Build the MVP in vertical slices. Each slice must include:
 - Domain/application logic.
-- GitLab API integration where required.
+- provider API integration where required.
 - UI states.
 - Automated tests.
 - Documentation updates.
 
-Do not build all UI first and defer API validation until the end. The GitLab diff/discussion integration is the highest technical risk and should be prototyped early.
+Do not build all UI first and defer API validation until the end. Provider-specific diff/comment semantics are the highest technical risk. Prototype GitHub line/side mapping and GitLab diff-version position mapping early, and verify conversation reply semantics on both providers.
 
 ## 3. Proposed repository structure
 
@@ -30,11 +30,15 @@ Do not build all UI first and defer API validation until the end. The GitLab dif
 │   ├── README.md
 │   ├── SRS.md
 │   ├── DECISIONS.md
+│   ├── CONNECTION-MANAGEMENT.md
 │   ├── SDS.md
 │   ├── API-SPEC.md
+│   ├── PROVIDER-CAPABILITY-MATRIX.md
 │   ├── UI-UX.md
 │   ├── TEST-PLAN.md
-│   └── IMPLEMENTATION-PLAN.md
+│   ├── REQUIREMENT-TRACEABILITY.md
+│   ├── IMPLEMENTATION-PLAN.md
+│   └── DEVELOPMENT-GUIDE.md
 ├── src/
 │   ├── extension.ts
 │   ├── commands/
@@ -88,21 +92,23 @@ Use pinned dependency versions and a lockfile. Keep runtime dependencies minimal
 
 Tasks:
 - [ ] Approve SRS and proposed decisions.
-- [ ] Confirm minimum VS Code engine and GitLab compatibility floor.
+- [ ] Approve DEC-005 and DEC-019; confirm the minimum VS Code engine and vendor-maintained GHES/GitLab compatibility policy.
+- [ ] Create PROVIDER-CAPABILITY-MATRIX.md and REQUIREMENT-TRACEABILITY.md baselines (maintain as implementation proceeds).
+- [ ] Implement the required npm scripts and DEVELOPMENT-GUIDE.md setup/debug workflow.
 - [ ] Create extension manifest and activation entry point.
 - [ ] Configure TypeScript strict mode.
 - [ ] Configure esbuild for extension host and Webview bundles.
 - [ ] Configure ESLint and Prettier.
 - [ ] Configure Vitest and @vscode/test-electron.
 - [ ] Add CI for lint, typecheck, unit tests and build.
-- [ ] Add contribution/development instructions.
+- [ ] Add contribution/development instructions and F5 Extension Development Host launch configuration.
 
 Dependencies: none.
 
 Exit criteria:
 - Extension compiles and can be launched in Extension Development Host.
 - CI passes on pull requests.
-- No GitLab token or project secret is required to build/test.
+- No GitHub/GitLab token or project secret is required to install, build, lint or run mocked tests.
 
 ### M1 — Connection and project selection
 
@@ -138,87 +144,87 @@ Exit criteria:
 - No token is sent to another provider, connection or host.
 - Repository bindings survive restart without storing credentials.
 
-### M2 — Merge Request discovery and detail
+### M2 — Pull Request / Merge Request discovery and detail
 
-**Goal:** make MR data discoverable and readable.
+**Goal:** make GitHub PRs and GitLab MRs discoverable and readable through provider-native queries.
 
 Tasks:
-- [ ] Implement MR list endpoint adapter.
-- [ ] Implement state and scope filters.
-- [ ] Implement title/IID search with debounce and cancellation.
+- [ ] Implement GitHub PR list adapter and GitLab MR list adapter.
+- [ ] Implement state filters and provider-native scopes (GitHub Search Issues qualifiers; GitLab MR list scopes).
+- [ ] Implement title/number search with debounce and cancellation; surface GitHub Search API cap/rate-limit states.
 - [ ] Implement pagination.
 - [ ] Implement native Activity Bar and Tree Views.
-- [ ] Implement MR detail retrieval and normalized models.
+- [ ] Implement PR/MR detail retrieval and normalized models that preserve provider/repository identity.
 - [ ] Implement Webview panel lifecycle and message protocol.
 - [ ] Implement Overview tab.
 - [ ] Implement loading, empty, permission, stale and error states.
-- [ ] Add tests for filters, pagination, cancellation and DTO mapping.
+- [ ] Add GitHub/GitLab contract tests for filters, pagination, cancellation and DTO mapping.
 
 Dependencies: M1.
 
 Exit criteria:
-- User can browse, filter, search and open MR.
-- MR detail reflects GitLab response.
+- User can browse, filter, search and open PR/MR on both providers.
+- PR/MR detail reflects the selected provider response without leaking provider DTOs into the domain.
 - Switching project/MR does not show results from the previous selection.
 
-### M3 — Diff viewer and inline comments
+### M3 — Provider-aware diff viewer and inline comments
 
-**Goal:** deliver the core code review experience.
+**Goal:** deliver the core code review experience with separate, verified GitHub and GitLab line-position mappers.
 
 Tasks:
-- [ ] Implement diff version retrieval.
-- [ ] Implement paginated file diff retrieval.
+- [ ] Implement GitLab diff-version retrieval and GitHub current-head/diff metadata retrieval.
+- [ ] Implement paginated GitHub PR files and GitLab MR diffs retrieval; represent provider result caps/partial responses.
 - [ ] Implement unified diff parser.
-- [ ] Implement old/new line mapping for added, removed and context lines.
+- [ ] Implement shared unified-diff row parsing plus GitHub line/side mapping and GitLab old/new position mapping.
 - [ ] Build Webview file navigator and diff renderer.
 - [ ] Display existing diff discussions at line anchors.
 - [ ] Implement single-line inline comment composer.
-- [ ] Implement stale diff revalidation before comment submission.
+- [ ] Implement GitHub PR head-SHA and GitLab diff-version SHA revalidation before comment submission.
 - [ ] Handle binary, collapsed, oversized and missing patches.
 - [ ] Add parser fixtures and line mapping tests.
-- [ ] Verify inline comment positions against a real GitLab test project.
+- [ ] Verify GitHub line/side and GitLab old/new position mapping against non-production test repositories/projects.
 
-Dependencies: M2 and approval of DEC-002/DEC-003/DEC-005/DEC-012.
+Dependencies: M2 and approval of DEC-002/DEC-003/DEC-005/DEC-012/DEC-017.
 
 Exit criteria:
-- All commentable rows map to exact GitLab line positions.
-- Added, removed and context line comments are accepted by GitLab.
+- All commentable rows map to exact provider-specific positions; unsupported rows are not commentable.
+- Added, removed and context line comments are accepted by both providers using their native position contract.
 - Stale diff prevents submission and preserves the draft.
 - Unsupported diff states are explicit and do not crash the Webview.
 
-### M4 — Discussions and general comments
+### M4 — Provider-aware conversations and comments
 
-**Goal:** complete the review conversation workflow.
+**Goal:** complete general-comment, inline-comment and reply workflows without flattening GitHub/GitLab conversation semantics.
 
 Tasks:
-- [ ] Implement discussions list and pagination.
-- [ ] Implement general discussion creation.
-- [ ] Implement reply to discussion.
-- [ ] Render thread grouping, author and timestamps.
+- [ ] Implement GitHub issue comments/review comments/reviews retrieval and GitLab discussions/notes retrieval with pagination.
+- [ ] Implement GitHub general issue comments and GitLab top-level discussions.
+- [ ] Implement replies only for supported conversation kinds: GitHub top-level inline review comments; GitLab discussion notes.
+- [ ] Render provider-native resource kind, thread grouping, parent IDs, author, timestamps, system notes and resolution state.
 - [ ] Implement submit-pending and duplicate-submit protection.
 - [ ] Implement ambiguous timeout recovery by refreshing discussions.
-- [ ] Add API and end-to-end tests.
+- [ ] Add GitHub/GitLab API and provider-specific E2E tests, including negative tests for unsupported reply/resolve actions.
 
-Dependencies: M2 and M3.
+Dependencies: M2 and M3 plus approval of DEC-017.
 
 Exit criteria:
-- General comments and replies appear in GitLab.
-- Discussion thread grouping is preserved.
+- General comments and supported replies appear on the correct GitHub/GitLab resource.
+- GitHub issue comments, inline review comments and GitLab discussions remain distinguishable; thread grouping is preserved where the provider supplies it.
 - Ambiguous POST results do not trigger automatic duplicate submissions.
 
-### M5 — Merge operation
+### M5 — Provider-aware merge operation
 
-**Goal:** allow safe, explicit immediate merge.
+**Goal:** allow safe, explicit immediate merge for GitHub PRs and GitLab MRs.
 
 Tasks:
-- [ ] Implement merge eligibility presentation from fresh MR data.
+- [ ] Implement merge eligibility presentation from fresh PR/MR data while keeping provider status values distinct.
 - [ ] Implement merge confirmation dialog.
 - [ ] Re-fetch MR immediately before merge.
-- [ ] Send current source HEAD SHA.
+- [ ] Send current PR head SHA or GitLab source HEAD SHA according to the selected provider endpoint.
 - [ ] Implement typed handling for 401/403/405/409/422 and timeout.
 - [ ] Refresh MR list/detail after success or rejection.
 - [ ] Add tests for merge success, SHA mismatch, policy rejection and ambiguous timeout.
-- [ ] Verify against a non-production GitLab test project.
+- [ ] Verify against non-production GitHub and GitLab test repositories/projects.
 
 Dependencies: M2 and approval of DEC-009.
 
@@ -226,19 +232,19 @@ Exit criteria:
 - Merge requires explicit confirmation.
 - Request includes current SHA.
 - No auto-merge or implicit source-branch deletion is requested.
-- GitLab rejection is shown accurately.
+- Provider rejection is shown accurately.
 - No automatic retry of ambiguous merge mutations.
 
-### M6 — P1 capabilities
+### M6 — P1 provider-specific review, approval and checks capabilities
 
 **Goal:** add pipeline and approval visibility after MVP core workflows are stable.
 
 Tasks:
-- [ ] Implement MR pipeline list.
-- [ ] Implement pipeline job list.
+- [ ] Implement GitLab MR pipeline list and GitHub Check Runs/commit status list.
+- [ ] Implement GitLab pipeline jobs and GitHub Actions workflow run summaries.
 - [ ] Match pipeline SHA to MR head SHA.
-- [ ] Implement basic approval state.
-- [ ] Feature-detect detailed approval state and edition/tier limitations.
+- [ ] Implement GitLab basic approval state and GitHub review decision state.
+- [ ] Feature-detect GitLab CE/EE approval fields and GitHub review permission/capability limitations.
 - [ ] Add unsupported-capability states.
 - [ ] Add P1 tests.
 
@@ -256,12 +262,12 @@ Exit criteria:
 Tasks:
 - [ ] Run full test plan.
 - [ ] Run Windows/macOS/Linux smoke tests.
-- [ ] Run GitLab compatibility matrix.
+- [ ] Run the published VS Code, GitHub.com, GHES, GitLab.com and GitLab Self-Managed compatibility matrix.
 - [ ] Review Webview CSP and message validation.
 - [ ] Review token storage and log redaction.
 - [ ] Verify keyboard navigation and high-contrast theme.
 - [ ] Measure activation and large-diff performance.
-- [ ] Add user documentation and screenshots.
+- [ ] Add user documentation, DEVELOPMENT-GUIDE.md and sanitized screenshots.
 - [ ] Configure Marketplace metadata and icon.
 - [ ] Package VSIX and verify installation.
 - [ ] Prepare release notes and known limitations.
@@ -271,7 +277,7 @@ Dependencies: M0–M5; M6 if P1 is included in the release.
 Exit criteria:
 - All P0 release gates in TEST-PLAN.md pass.
 - No open critical/high security issue.
-- Compatibility statement matches tested GitLab versions.
+- Compatibility statement matches tested VS Code, GHES and GitLab versions.
 - VSIX installs and runs in a clean VS Code profile.
 
 ## 6. Dependency graph
@@ -290,7 +296,7 @@ flowchart TD
   M6 --> M7
 ~~~
 
-M3 is the main technical risk. Run a short spike after M2 to validate diff version retrieval and position mapping before committing to the full diff UI implementation.
+M3 is the main technical risk. Run a short spike after M2 to validate GitHub head-SHA/line-side mapping, GitLab diff-version/position mapping, and the separate comment/reply semantics before committing to the full diff UI implementation.
 
 ## 7. Suggested pull request strategy
 
@@ -317,9 +323,9 @@ Every PR should:
 
 | Risk | Impact | Mitigation |
 |---|---|---|
-| GitLab diff limits or incomplete patches | Some files cannot be reviewed in extension | Handle collapsed/too-large/overflow states; link to GitLab Web |
-| Incorrect inline line mapping | Comment lands on wrong code | Parser fixtures, version SHAs, real GitLab integration test |
-| GitLab version/edition differences | Feature unavailable on some instances | Compatibility floor, feature detection, graceful degradation |
+| Provider diff limits or incomplete patches | Some files cannot be reviewed in extension | Handle GitHub's 3,000-file cap and missing patches; handle GitLab collapsed/too-large/overflow states; link to provider Web |
+| Incorrect inline line mapping | Comment lands on wrong code | Separate GitHub/GitLab mappers, parser fixtures, current SHAs and real provider integration tests |
+| Provider version/edition differences | Feature unavailable on some instances | Vendor-maintained compatibility policy, contract tests, feature detection and graceful degradation |
 | PAT api scope is broad | Credential impact if compromised | SecretStorage, no Webview exposure, clear scope disclosure, recommend expiring token |
 | MR changes while being reviewed | Stale comments or merge | Revalidate diff SHAs and merge SHA |
 | Webview injection | Arbitrary script execution | CSP, local assets, safe Markdown rendering, validated messages |
@@ -331,10 +337,11 @@ Every PR should:
 A feature is ready to enter implementation when:
 - Relevant SRS requirements are identified.
 - Relevant DEC items are approved.
-- API endpoints and response fields are documented.
+- API endpoints, response fields, provider differences and permission requirements are documented.
 - UI states and user flow are specified.
 - Error and permission cases are listed.
-- Test cases exist or are planned.
+- Test cases exist or are planned for each affected provider, including unsupported-capability negative tests.
+- The requirement-to-design-to-test mapping is updated in REQUIREMENT-TRACEABILITY.md.
 - Dependencies and out-of-scope behavior are explicit.
 
 ## 10. Definition of Done
@@ -346,5 +353,5 @@ A feature is done when:
 - Security requirements are met.
 - Manual acceptance criteria pass where required.
 - Logs contain no secret or sensitive source data.
-- Documentation and requirement traceability are updated.
+- Documentation, PROVIDER-CAPABILITY-MATRIX.md and REQUIREMENT-TRACEABILITY.md are updated.
 - No known critical regression remains.
