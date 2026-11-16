@@ -279,7 +279,7 @@ Minimum VS Code engine version và chính sách GitHub Enterprise Server/GitLab 
 | DETAIL-002 | P0 | Hệ thống PHẢI hiển thị source branch và target branch. |
 | DETAIL-003 | P0 | Hệ thống PHẢI hiển thị assignees, reviewers và labels khi API cung cấp. |
 | DETAIL-004 | P0 | Hệ thống PHẢI hiển thị số commit, số file thay đổi, additions và deletions khi provider API cung cấp. |
-| DETAIL-005 | P0 | Hệ thống PHẢI cho phép người dùng refresh MR detail. |
+| DETAIL-005 | P0 | Hệ thống PHẢI cho phép người dùng refresh PR/MR detail. |
 | DETAIL-006 | P0 | Hệ thống PHẢI phân biệt dữ liệu mới tải với dữ liệu cache/stale. |
 
 ### 4.5. Diff và code review
