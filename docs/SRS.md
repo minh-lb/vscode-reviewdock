@@ -3,7 +3,7 @@
 > **Mã tài liệu:** RVD-SRS-001  
 > **Sản phẩm:** ReviewDock  
 > **Loại tài liệu:** Software Requirements Specification  
-> **Phiên bản:** 1.0.3-draft  
+> **Phiên bản:** 1.0.4-draft  
 > **Trạng thái:** Draft — chờ Product Owner xác nhận  
 > **Repository:** [minh-lb/vscode-reviewdock](https://github.com/minh-lb/vscode-reviewdock)  
 > **Ngày:** 2026-11-16
@@ -31,6 +31,7 @@
 | 1.0.1-draft | 2026-11-16 | Đồng bộ scope inline comment MVP và liên kết bộ tài liệu thiết kế/kiểm thử |
 | 1.0.2-draft | 2026-11-16 | Mở rộng sang GitHub + GitLab và đặc tả multi-connection |
 | 1.0.3-draft | 2026-11-16 | Bổ sung trạng thái cấu hình Enabled/Disabled độc lập với connection health |
+| 1.0.4-draft | 2026-11-16 | Chuẩn hóa provider semantics, GitHub/GitLab API differences, compatibility policy và requirement traceability |
 
 ## 1. Giới thiệu
 
@@ -87,6 +88,10 @@ Mỗi yêu cầu có ID duy nhất để liên kết với thiết kế, impleme
 
 - [Visual Studio Code Extension API](https://code.visualstudio.com/api)
 - [Visual Studio Code UX Guidelines](https://code.visualstudio.com/api/ux-guidelines/overview)
+- [GitHub REST API](https://docs.github.com/en/rest)
+- [GitHub Pull Requests API](https://docs.github.com/en/rest/pulls/pulls)
+- [GitHub Pull Request Review Comments API](https://docs.github.com/en/rest/pulls/comments)
+- [GitHub Search Issues and Pull Requests](https://docs.github.com/en/search-github/searching-on-github/searching-issues-and-pull-requests)
 - [GitLab REST API](https://docs.gitlab.com/api/rest/)
 - [GitLab Merge Requests API](https://docs.gitlab.com/api/merge_requests/)
 - [GitLab Notes API](https://docs.gitlab.com/api/notes/)
@@ -94,9 +99,9 @@ Mỗi yêu cầu có ID duy nhất để liên kết với thiết kế, impleme
 - [GitLab Merge Request Approvals API](https://docs.gitlab.com/api/merge_request_approvals/)
 - [GitLab Jobs API](https://docs.gitlab.com/api/jobs/)
 
-Tài liệu thiết kế và triển khai liên quan: [DECISIONS.md](./DECISIONS.md), [CONNECTION-MANAGEMENT.md](./CONNECTION-MANAGEMENT.md), [SDS.md](./SDS.md), [API-SPEC.md](./API-SPEC.md), [UI-UX.md](./UI-UX.md), [TEST-PLAN.md](./TEST-PLAN.md), [IMPLEMENTATION-PLAN.md](./IMPLEMENTATION-PLAN.md).
+Tài liệu thiết kế và triển khai liên quan: [DECISIONS.md](./DECISIONS.md), [CONNECTION-MANAGEMENT.md](./CONNECTION-MANAGEMENT.md), [SDS.md](./SDS.md), [API-SPEC.md](./API-SPEC.md), [PROVIDER-CAPABILITY-MATRIX.md](./PROVIDER-CAPABILITY-MATRIX.md), [UI-UX.md](./UI-UX.md), [TEST-PLAN.md](./TEST-PLAN.md), [REQUIREMENT-TRACEABILITY.md](./REQUIREMENT-TRACEABILITY.md), [IMPLEMENTATION-PLAN.md](./IMPLEMENTATION-PLAN.md), [DEVELOPMENT-GUIDE.md](./DEVELOPMENT-GUIDE.md).
 
-Các endpoint, field và capability cụ thể phải được đối chiếu với phiên bản GitLab tối thiểu được chọn trước khi implementation.
+Các endpoint, field và capability cụ thể phải được đối chiếu với phiên bản GitHub/GitLab được công bố trong [PROVIDER-CAPABILITY-MATRIX.md](./PROVIDER-CAPABILITY-MATRIX.md) trước khi implementation và release.
 
 ## 2. Mô tả tổng thể
 
@@ -131,17 +136,17 @@ ReviewDock không yêu cầu backend riêng trong MVP. Người dùng có thể 
 | GitHub / GitLab Server | Hệ thống ngoài cung cấp API và thực thi policy | Provider, phiên bản, cấu hình và trạng thái server |
 | VS Code | Host chạy extension và cung cấp UI/storage APIs | Phiên bản VS Code tương thích |
 
-ReviewDock PHẢI phản ánh quyền mà GitLab API cấp; không tự cấp thêm quyền cho bất kỳ actor nào.
+ReviewDock PHẢI phản ánh quyền mà provider API cấp; không tự cấp thêm quyền cho bất kỳ actor nào.
 
 ### 2.4. Môi trường vận hành
 
 - Visual Studio Code Stable trên Windows, macOS và Linux.
 - GitHub.com và GitHub Enterprise Server trong phạm vi phiên bản được công bố.
 - GitLab.com và GitLab Self-Managed trong phạm vi phiên bản được công bố.
-- Kết nối mạng tới GitLab instance qua HTTPS.
+- Kết nối mạng tới GitHub/GitLab API host qua HTTPS.
 - Workspace có thể chứa một hoặc nhiều Git repository.
 
-Minimum VS Code engine version và minimum GitLab version là các quyết định cần chốt tại mục 12.
+Minimum VS Code engine version và chính sách GitHub Enterprise Server/GitLab Self-Managed compatibility được đề xuất tại DECISIONS.md và phải được phê duyệt trước khi M0 khóa package manifest.
 
 ### 2.5. Ràng buộc thiết kế
 
@@ -151,7 +156,7 @@ Minimum VS Code engine version và minimum GitLab version là các quyết đị
 - Mỗi connection PHẢI có provider, display name, server URL và account identity riêng.
 - Secret PHẢI được lưu bằng VS Code SecretStorage với key theo immutable connection ID.
 - UI PHẢI tuân thủ lifecycle và security model của VS Code Extension API.
-- Không có thao tác nào được bypass GitLab authorization hoặc project policy.
+- Không có thao tác nào được bypass GitHub repository rules, GitLab authorization, protected branches, approval rules hoặc merge policy.
 
 ### 2.6. Giả định và phụ thuộc
 
@@ -190,21 +195,21 @@ Minimum VS Code engine version và minimum GitLab version là các quyết đị
 
 **IF-001 (P0):** Extension PHẢI sử dụng VS Code Extension API cho activation, commands, views, editor integration và secret storage.
 
-**IF-002 (P0):** Extension PHẢI giao tiếp với GitLab thông qua GitLab REST API v4 qua HTTPS.
+**IF-002 (P0):** Extension PHẢI giao tiếp với GitHub REST API v3 hoặc GitLab REST API v4 tương ứng với provider đã chọn, qua HTTPS.
 
 **IF-003 (P0):** Extension PHẢI đọc Git remote từ workspace thông qua cơ chế phù hợp của VS Code/Git để đề xuất project mapping.
 
 **IF-004 (P0):** Extension KHÔNG ĐƯỢC yêu cầu người dùng cài một backend service riêng để sử dụng các chức năng MVP.
 
-**IF-005 (P0):** UI layer KHÔNG ĐƯỢC gọi GitLab HTTP API trực tiếp; request phải đi qua lớp integration/service.
+**IF-005 (P0):** UI layer KHÔNG ĐƯỢC gọi GitHub/GitLab HTTP API trực tiếp; request phải đi qua application service và provider adapter.
 
 ### 3.3. Giao diện truyền thông
 
-**COM-001 (P0):** Request tới GitLab PHẢI dùng HTTPS.
+**COM-001 (P0):** Request tới GitHub/GitLab PHẢI dùng HTTPS.
 
-**COM-002 (P0):** Request và response PHẢI xử lý JSON theo contract của GitLab API.
+**COM-002 (P0):** Request và response PHẢI được parse/validate theo contract riêng của GitHub hoặc GitLab; không dùng chung DTO giả định.
 
-**COM-003 (P0):** Client PHẢI hỗ trợ pagination theo response/header/API contract của GitLab.
+**COM-003 (P0):** Client PHẢI hỗ trợ pagination theo response/header/API contract của provider đang được gọi.
 
 **COM-004 (P0):** Client PHẢI xử lý rate limit và HTTP status codes mà không làm crash extension.
 
@@ -256,14 +261,15 @@ Minimum VS Code engine version và minimum GitLab version là các quyết đị
 |---|---|---|
 | MR-001 | P0 | Hệ thống PHẢI hiển thị Merge Request thuộc project đang active. |
 | MR-002 | P0 | Hệ thống PHẢI hỗ trợ lọc MR theo trạng thái Open, Closed và Merged. |
-| MR-003 | P0 | Hệ thống PHẢI cung cấp các nhóm Created by me, Assigned to me và Review requested from me trong phạm vi API và quyền GitLab hỗ trợ. |
+| MR-003 | P0 | Hệ thống PHẢI cung cấp Created by me, Assigned to me và Review requested from me bằng cơ chế query native của từng provider; GitHub dùng Search Issues API, GitLab dùng MR list scopes. Team review requests chỉ được bao gồm khi được triển khai và kiểm thử riêng. |
 | MR-004 | P0 | Người dùng PHẢI có thể tìm MR theo IID hoặc title. |
 | MR-005 | P0 | Danh sách MR PHẢI hỗ trợ pagination hoặc tải thêm. |
 | MR-006 | P0 | Mỗi item MR PHẢI hiển thị tối thiểu title, IID, author, source branch, target branch, state và updated time. |
 | MR-007 | P0 | Item MR NÊN hiển thị draft state, reviewer/assignee, labels và trạng thái mergeability khi API cung cấp. |
 | MR-008 | P0 | Người dùng PHẢI có thể refresh danh sách MR. |
 | MR-009 | P0 | Sau một mutation thành công, dữ liệu MR liên quan PHẢI được refresh hoặc đánh dấu stale. |
-| MR-010 | P1 | Người dùng CÓ THỂ mở MR tương ứng trên GitLab Web. |
+| MR-010 | P1 | Người dùng CÓ THỂ mở PR/MR tương ứng trên provider Web. |
+| MR-011 | P0 | Khi GitHub Search API đạt giới hạn 1.000 kết quả hoặc rate limit, hệ thống PHẢI thể hiện kết quả bị giới hạn; KHÔNG ĐƯỢC tuyên bố danh sách là đầy đủ. |
 
 ### 4.4. Chi tiết Merge Request
 
@@ -288,12 +294,12 @@ Minimum VS Code engine version và minimum GitLab version là các quyết đị
 | DIFF-006 | P0 | Hệ thống PHẢI cho phép điều hướng từ file list tới diff tương ứng. |
 | DIFF-007 | P0 | Hệ thống PHẢI hỗ trợ tạo inline comment trên một dòng hợp lệ của diff. |
 | DIFF-012 | P1 | Hệ thống NÊN hỗ trợ inline comment trên một đoạn nhiều dòng sau khi line-range mapping được kiểm chứng. |
-| DIFF-008 | P0 | Hệ thống PHẢI hiển thị discussion liên quan tại vị trí code tương ứng khi GitLab cung cấp position metadata. |
+| DIFF-008 | P0 | Hệ thống PHẢI hiển thị review comment/discussion tại vị trí code tương ứng bằng position metadata của provider khi API cung cấp. |
 | DIFF-009 | P0 | Hệ thống PHẢI xử lý file binary, diff quá lớn, patch không khả dụng hoặc file không có diff text bằng trạng thái/giải thích phù hợp. |
 | DIFF-010 | P0 | Khi diff version thay đổi hoặc position không còn hợp lệ, hệ thống PHẢI yêu cầu refresh diff trước khi gửi inline comment. |
 | DIFF-011 | P1 | Hệ thống NÊN hỗ trợ mở file tương ứng trong working tree khi xác định được mapping an toàn. |
 
-**Quy tắc vị trí inline comment:** khi tạo discussion trên diff, client PHẢI dùng position metadata theo GitLab API, bao gồm các SHA và path/line fields mà endpoint yêu cầu. Client KHÔNG ĐƯỢC tự chuyển một inline comment thất bại thành comment chung.
+**Quy tắc vị trí inline comment:** client PHẢI dùng position contract riêng của provider. GitLab yêu cầu diff-version SHAs, old/new paths và old/new line fields; GitHub yêu cầu current PR head commit SHA, path, diff line và side. Client KHÔNG ĐƯỢC tự chuyển một inline comment thất bại thành comment chung.
 
 ### 4.6. Comments và discussions
 
@@ -302,48 +308,50 @@ Minimum VS Code engine version và minimum GitLab version là các quyết đị
 | DISC-001 | P0 | Hệ thống PHẢI tải và hiển thị notes/discussions của MR. |
 | DISC-002 | P0 | Người dùng PHẢI có thể tạo comment chung cho MR. |
 | DISC-003 | P0 | Người dùng PHẢI có thể tạo inline comment trên diff hợp lệ. |
-| DISC-004 | P0 | Người dùng PHẢI có thể reply vào discussion khi GitLab cho phép. |
+| DISC-004 | P0 | Người dùng PHẢI có thể reply vào thread khi provider capability cho phép: GitLab discussion notes hỗ trợ reply; GitHub chỉ hỗ trợ reply vào top-level inline review comment và không hỗ trợ reply vào general issue comment hoặc reply lồng nhau trong workflow REST đã chọn. |
 | DISC-005 | P0 | Comment PHẢI hiển thị author, nội dung và timestamp. |
-| DISC-006 | P0 | Discussion PHẢI thể hiện trạng thái resolved/unresolved khi API cung cấp. |
-| DISC-007 | P1 | Người dùng CÓ THỂ resolve/reopen discussion nếu GitLab API và quyền tài khoản cho phép. |
+| DISC-006 | P0 | Conversation PHẢI thể hiện trạng thái resolved/unresolved khi provider API cung cấp; trạng thái không áp dụng hoặc không được hỗ trợ phải được phân biệt với unknown. |
+| DISC-007 | P1 | Người dùng CÓ THỂ resolve/reopen discussion nếu provider API và quyền tài khoản cho phép; GitHub REST adapter hiện tại không cung cấp capability này. |
 | DISC-008 | P1 | Người dùng CÓ THỂ edit/delete comment của chính mình nếu GitLab API và quyền tài khoản cho phép. |
 | DISC-009 | P0 | Hệ thống PHẢI ngăn submit lặp trong khi request gửi comment đang chạy. |
 | DISC-010 | P0 | Nếu request tạo comment timeout và kết quả không xác định, hệ thống PHẢI refresh discussions trước khi cho phép người dùng retry; không tự retry mutation một cách mù quáng. |
-| DISC-011 | P0 | Hệ thống PHẢI hiển thị lỗi của GitLab khi comment/reply bị từ chối do permission, validation, diff position hoặc trạng thái MR. |
+| DISC-011 | P0 | Hệ thống PHẢI hiển thị lỗi của provider khi comment/reply bị từ chối do permission, validation, diff position hoặc trạng thái PR/MR. |
+| DISC-012 | P0 | Hệ thống PHẢI bảo toàn loại resource, provider-native ID, parent/thread ID và system-note metadata; không đánh đồng GitHub issue comment, inline review comment, review submission và GitLab discussion note. |
+| DISC-013 | P0 | UI PHẢI chỉ cung cấp reply/resolve/edit/delete action khi capability descriptor của provider và loại conversation hiện tại cho phép. |
 
 ### 4.7. Approval và review decision
 
 | ID | Ưu tiên | Yêu cầu |
 |---|---|---|
-| APR-001 | P1 | Hệ thống NÊN hiển thị approval rules và số approval hiện tại/yêu cầu khi GitLab API cung cấp. |
-| APR-002 | P1 | Hệ thống NÊN hiển thị danh sách người đã approve và trạng thái approval. |
+| APR-001 | P1 | Hệ thống NÊN hiển thị GitHub review decision và GitLab approval state; chỉ hiển thị approval rules/count khi provider/edition trả về các trường đó. |
+| APR-002 | P1 | Hệ thống NÊN hiển thị danh sách người đã approve/review và trạng thái tương ứng khi provider API cung cấp. |
 | APR-003 | P1 | Hệ thống CÓ THỂ cho phép approve/unapprove khi API và quyền cho phép. |
 | APR-004 | P0 | Hệ thống PHẢI phân biệt comment với approval; tạo comment không được xem là approve. |
-| APR-005 | P0 | Hệ thống KHÔNG ĐƯỢC tự kết luận MR đủ approval nếu GitLab không xác nhận. |
+| APR-005 | P0 | Hệ thống KHÔNG ĐƯỢC tự kết luận PR/MR đủ approval nếu provider không xác nhận; thiếu field phải được coi là unknown/unavailable. |
 
 ### 4.8. Pipeline và jobs
 
 | ID | Ưu tiên | Yêu cầu |
 |---|---|---|
-| PIPE-001 | P1 | Hệ thống NÊN hiển thị pipeline mới nhất liên quan tới MR/head commit. |
-| PIPE-002 | P1 | Hệ thống NÊN hiển thị trạng thái pipeline theo dữ liệu GitLab trả về. |
-| PIPE-003 | P1 | Hệ thống NÊN hiển thị danh sách job và thông tin cơ bản của job thất bại khi API cho phép. |
-| PIPE-004 | P1 | Người dùng CÓ THỂ mở pipeline/job trên GitLab Web. |
+| PIPE-001 | P1 | Hệ thống NÊN hiển thị GitHub Checks/Actions hoặc GitLab pipeline mới nhất liên quan tới PR/MR head commit. |
+| PIPE-002 | P1 | Hệ thống NÊN hiển thị trạng thái checks/pipeline theo dữ liệu provider trả về. |
+| PIPE-003 | P1 | Hệ thống NÊN hiển thị job/check run và thông tin cơ bản của lần chạy thất bại khi API cho phép. |
+| PIPE-004 | P1 | Người dùng CÓ THỂ mở check, workflow run, pipeline hoặc job trên provider Web. |
 | PIPE-005 | P0 | Hệ thống KHÔNG ĐƯỢC hiển thị dữ liệu cache như trạng thái pipeline hiện tại nếu chưa xác minh freshness. |
 
 ### 4.9. Merge operation
 
 | ID | Ưu tiên | Yêu cầu |
 |---|---|---|
-| MERGE-001 | P0 | Hệ thống PHẢI hiển thị trạng thái mergeability/merge status do GitLab cung cấp. |
-| MERGE-002 | P0 | Hệ thống PHẢI chỉ cho phép bắt đầu thao tác merge với MR đang mở và không bị client xác định chắc chắn là đã đóng/đã merge; GitLab server là nơi quyết định cuối cùng về quyền và merge eligibility. |
+| MERGE-001 | P0 | Hệ thống PHẢI hiển thị trạng thái mergeability do provider cung cấp, hoặc unknown nếu provider chưa xác định. |
+| MERGE-002 | P0 | Hệ thống PHẢI chỉ cho phép bắt đầu thao tác merge với PR/MR đang mở và không bị client xác định chắc chắn là đã đóng/đã merge; provider server là nơi quyết định cuối cùng về quyền và merge eligibility. |
 | MERGE-003 | P0 | Hệ thống PHẢI yêu cầu xác nhận rõ ràng trước khi gửi merge request. |
-| MERGE-004 | P0 | Trước khi merge, hệ thống PHẢI refresh dữ liệu cần thiết và gửi expected source/head SHA nếu GitLab endpoint hỗ trợ. |
+| MERGE-004 | P0 | Trước khi merge, hệ thống PHẢI refresh dữ liệu cần thiết và gửi expected source/head SHA nếu provider endpoint hỗ trợ. |
 | MERGE-005 | P1 | Hệ thống NÊN hỗ trợ squash hoặc merge options theo cấu hình project và API. |
-| MERGE-006 | P0 | Hệ thống PHẢI hiển thị kết quả merge từ GitLab và refresh trạng thái MR sau thao tác. |
+| MERGE-006 | P0 | Hệ thống PHẢI hiển thị kết quả merge từ provider và refresh trạng thái PR/MR sau thao tác. |
 | MERGE-007 | P0 | Hệ thống PHẢI xử lý merge conflict, missing approval, pipeline failure, SHA mismatch và permission denied. |
-| MERGE-008 | P0 | Hệ thống KHÔNG ĐƯỢC bypass protected branch, approval rules, merge checks hoặc quyền GitLab. |
-| MERGE-009 | P0 | Hệ thống KHÔNG ĐƯỢC tự bật merge-when-pipeline-succeeds nếu người dùng chưa chọn rõ ràng. |
+| MERGE-008 | P0 | Hệ thống KHÔNG ĐƯỢC bypass protected branch, repository rules, approval rules, merge checks hoặc quyền provider. |
+| MERGE-009 | P0 | Hệ thống KHÔNG ĐƯỢC tự bật auto-merge, merge queue hoặc merge-when-pipeline-succeeds nếu người dùng chưa chọn rõ ràng; các chức năng này ngoài MVP. |
 | MERGE-010 | P0 | Hệ thống KHÔNG ĐƯỢC tự retry merge request khi kết quả request trước đó không xác định; phải refresh trạng thái MR trước. |
 
 ## 5. Quy tắc nghiệp vụ
@@ -353,13 +361,28 @@ Minimum VS Code engine version và minimum GitLab version là các quyết đị
 | BR-001 | GitHub/GitLab server tương ứng là nguồn dữ liệu có thẩm quyền cho trạng thái PR/MR, checks/pipeline, review/approval và kết quả merge. |
 | BR-002 | Quyền thao tác phụ thuộc vào credential của connection đang chọn và quyền repository/project trên provider. |
 | BR-003 | Comment chung, inline comment, reply, resolve và approval là các hành động khác nhau; UI không được đánh đồng. |
-| BR-004 | Inline comment chỉ hợp lệ khi vị trí gắn với diff version mà GitLab chấp nhận. |
-| BR-005 | Client-side merge eligibility chỉ là thông tin hỗ trợ; quyết định cuối cùng thuộc GitLab server. |
+| BR-004 | Inline comment chỉ hợp lệ khi vị trí gắn với current PR/MR head hoặc diff version mà provider chấp nhận. |
+| BR-005 | Client-side merge eligibility chỉ là thông tin hỗ trợ; quyết định cuối cùng thuộc provider server. |
 | BR-006 | Dữ liệu cache có thể cũ; thao tác ghi quan trọng phải refresh trạng thái cần thiết trước khi thực hiện. |
 | BR-007 | Không có thao tác ghi nào được thực hiện ngầm hoặc chỉ dựa trên việc mở một MR. |
-| BR-008 | Không được dùng ReviewDock để né tránh branch protection hoặc policy của project. |
+| BR-008 | Không được dùng ReviewDock để né tránh branch protection, repository rules hoặc policy của provider. |
 | BR-009 | Connection disabled bị loại khỏi mọi luồng chọn connection và request tới provider; workspace binding liên quan được giữ lại nhưng phải chặn thao tác cho đến khi người dùng enable hoặc gán connection khác. |
 | BR-010 | enabled là trạng thái cấu hình do người dùng quản lý; status là trạng thái kết nối/xác thực được quan sát gần nhất. Hai thuộc tính không được ghi đè hoặc suy diễn lẫn nhau. |
+| BR-011 | Conversation resource types và mutation capabilities phải giữ đúng semantics của provider; không giả lập reply hoặc resolve khi endpoint không hỗ trợ. |
+| BR-012 | GitHub Search API result cap/rate limit phải được phản ánh trong UI; kết quả bị giới hạn không được gắn nhãn exhaustive. |
+| BR-013 | Provider capability unknown/not-applicable phải được phân biệt với false/zero; không suy diễn approval, resolution, pipeline hoặc merge state từ field vắng mặt. |
+| BR-014 | PR/MR identity và cache scope luôn bao gồm connection ID và repository/project ID; PR number hoặc MR IID không phải global identifier. |
+
+
+
+### 5.1. Quy tắc semantics và capability theo provider
+
+| ID | Quy tắc |
+|---|---|
+| BR-011 | Conversation resource types và mutation capabilities phải giữ đúng semantics của provider; không giả lập reply hoặc resolve khi endpoint không hỗ trợ. |
+| BR-012 | GitHub Search API result cap/rate limit phải được phản ánh trong UI; kết quả bị giới hạn không được gắn nhãn exhaustive. |
+| BR-013 | Provider capability unknown/not-applicable phải được phân biệt với false/zero; không suy diễn approval, resolution, pipeline hoặc merge state từ field vắng mặt. |
+| BR-014 | PR/MR identity và cache scope luôn bao gồm connection ID và repository/project ID; PR number hoặc MR IID không phải global identifier. |
 
 ## 6. Yêu cầu dữ liệu
 
@@ -371,7 +394,7 @@ Minimum VS Code engine version và minimum GitLab version là các quyết đị
 | Repository binding | Connection ID, provider repository/project ID, full name, web URL, remote mapping | Lưu theo workspace folder/user khi cần |
 | Review Request | GitHub PR number / GitLab MR IID, title, branches, state, SHA, metadata | Tải từ provider; cache tạm thời nếu cần |
 | Diff | File path, patch, line positions, diff SHAs | Tải khi người dùng mở Changes |
-| Review conversation | Issue comments, review comments, GitLab discussions/notes, author, body, timestamp, position | Tải từ provider; normalize theo capability |
+| Review conversation | GitHub issue comments, inline review comments, reviews; GitLab discussions/notes; author, body, timestamp, position, parent/thread ID | Tải từ provider; giữ resource type và normalize theo capability |
 | Checks / Pipeline | GitHub Check Runs/Actions hoặc GitLab Pipeline/Jobs | Tải khi người dùng mở khu vực checks/pipeline |
 | Approval | Rules, approvals, users | Tải khi người dùng mở khu vực approval |
 | Credential | PAT/OAuth secret | Chỉ lưu bằng SecretStorage |
@@ -398,9 +421,9 @@ Minimum VS Code engine version và minimum GitLab version là các quyết đị
 
 | ID | Ưu tiên | Yêu cầu |
 |---|---|---|
-| NFR-PERF-001 | P0 | Extension activation KHÔNG ĐƯỢC chờ hoàn thành request mạng tới GitLab. |
+| NFR-PERF-001 | P0 | Extension activation KHÔNG ĐƯỢC chờ hoàn thành request mạng tới GitHub hoặc GitLab. |
 | NFR-PERF-002 | P0 | Khi người dùng kích hoạt một view cần dữ liệu mạng, UI PHẢI hiển thị loading state trước khi request hoàn tất. |
-| NFR-PERF-003 | P0 | Danh sách MR PHẢI dùng pagination; diff và discussions chỉ tải khi cần. |
+| NFR-PERF-003 | P0 | Danh sách PR/MR PHẢI dùng pagination; diff và conversations chỉ tải khi cần. |
 | NFR-PERF-004 | P0 | Network request PHẢI hỗ trợ timeout và cancellation khi view/context không còn cần kết quả. |
 | NFR-PERF-005 | P0 | Các thao tác UI cục bộ không được đồng bộ chờ network trên extension event loop. |
 
@@ -411,7 +434,7 @@ Minimum VS Code engine version và minimum GitLab version là các quyết đị
 | NFR-SEC-001 | P0 | Token PHẢI được lưu bằng SecretStorage. |
 | NFR-SEC-002 | P0 | Token KHÔNG ĐƯỢC xuất hiện trong log, telemetry, exception message hoặc settings. |
 | NFR-SEC-003 | P0 | Credential chỉ được gửi tới API host thuộc đúng connection đã chọn; redirect/pagination sang host khác không được mang theo credential. |
-| NFR-SEC-004 | P0 | Kết nối tới GitLab PHẢI dùng HTTPS và xác minh TLS theo trust store của môi trường. |
+| NFR-SEC-004 | P0 | Kết nối tới GitHub/GitLab PHẢI dùng HTTPS và xác minh TLS theo trust store của môi trường. |
 | NFR-SEC-005 | P0 | Extension KHÔNG ĐƯỢC gửi source code, diff, comment hoặc credential tới dịch vụ bên thứ ba. |
 | NFR-SEC-006 | P0 | Extension PHẢI tôn trọng quyền API của tài khoản; không bypass authorization. |
 | NFR-SEC-007 | P0 | Thao tác merge PHẢI có xác nhận rõ ràng. |
@@ -435,7 +458,8 @@ Minimum VS Code engine version và minimum GitLab version là các quyết đị
 | NFR-COMP-001 | P0 | Extension PHẢI hỗ trợ Windows, macOS và Linux trong phạm vi VS Code engine được công bố. |
 | NFR-COMP-002 | P0 | Extension PHẢI hỗ trợ GitHub.com và GitLab.com. |
 | NFR-COMP-003 | P0 | Extension PHẢI hỗ trợ GitHub Enterprise Server và GitLab Self-Managed trong phạm vi phiên bản đã công bố. |
-| NFR-COMP-004 | P0 | Minimum VS Code engine version, GitHub Enterprise Server target và minimum GitLab version PHẢI được công bố trước release MVP. |
+| NFR-COMP-004 | P0 | Minimum VS Code engine version, GitHub Enterprise Server target và GitLab Self-Managed compatibility window PHẢI được công bố trước release MVP. |
+| NFR-COMP-005 | P0 | Release PHẢI công bố chính xác các phiên bản VS Code/GHES/GitLab đã kiểm thử và cập nhật compatibility matrix theo vòng đời hỗ trợ của vendor. |
 
 ### 7.5. Khả năng bảo trì và kiểm thử
 
@@ -446,6 +470,7 @@ Minimum VS Code engine version và minimum GitLab version là các quyết đị
 | NFR-MAIN-003 | P0 | GitHub/GitLab response PHẢI được validate/map qua provider adapter trước khi sử dụng trong domain/UI. |
 | NFR-MAIN-004 | P0 | Các module API quan trọng PHẢI có unit/integration tests. |
 | NFR-MAIN-005 | P0 | Lỗi log phải hữu ích cho chẩn đoán nhưng không chứa secret hoặc dữ liệu nhạy cảm. |
+| NFR-MAIN-006 | P0 | Mỗi provider adapter PHẢI có contract tests cho request routing, DTO mapping, pagination, error mapping và mutation semantics. |
 
 ### 7.6. Khả năng sử dụng và accessibility
 
@@ -455,6 +480,7 @@ Minimum VS Code engine version và minimum GitLab version là các quyết đị
 | NFR-UX-002 | P0 | Trạng thái không được chỉ biểu đạt bằng màu sắc. |
 | NFR-UX-003 | P0 | Action có tác động dữ liệu PHẢI có tên và kết quả dễ hiểu. |
 | NFR-UX-004 | P1 | Extension NÊN hỗ trợ VS Code theme và accessibility labels. |
+| NFR-UX-005 | P0 | UI PHẢI hiển thị provider-native terminology và chỉ hiển thị action được capability descriptor hỗ trợ; không được dùng một action label cho hai semantics khác nhau. |
 
 ## 8. Xử lý lỗi
 
@@ -467,9 +493,9 @@ Minimum VS Code engine version và minimum GitLab version là các quyết đị
 | ERR-005 | HTTP 429 | Tôn trọng rate limit/retry guidance của provider |
 | ERR-006 | Timeout/network failure | Báo lỗi kết nối; cho phép refresh/retry an toàn |
 | ERR-007 | Stale diff position | Bắt buộc reload diff trước khi tạo inline comment |
-| ERR-008 | Merge conflict / policy rejection | Hiển thị trạng thái và thông tin GitLab trả về; không giả lập merge thành công |
+| ERR-008 | Merge conflict / policy rejection | Hiển thị trạng thái và thông tin provider trả về; không giả lập merge thành công |
 | ERR-009 | SHA mismatch | Refresh MR và yêu cầu người dùng thực hiện lại thao tác có xác nhận |
-| ERR-010 | GitLab API capability/version không tương thích | Thông báo chức năng không được hỗ trợ trên instance đó |
+| ERR-010 | Provider API capability/version không tương thích | Thông báo chức năng không được hỗ trợ trên server đó |
 
 ## 9. Yêu cầu kiểm thử và xác minh
 
@@ -479,7 +505,7 @@ Mỗi requirement phải được xác minh bằng một hoặc nhiều phương
 
 - **Test:** unit, integration hoặc end-to-end test.
 - **Inspection:** kiểm tra source, cấu hình, log hoặc tài liệu.
-- **Demonstration:** thực hiện workflow trên VS Code/GitLab.
+- **Demonstration:** thực hiện workflow trên VS Code và GitHub/GitLab test repositories/projects.
 - **Analysis:** phân tích API contract, security behavior hoặc performance.
 
 ### 9.2. Ma trận xác minh tối thiểu
@@ -488,14 +514,14 @@ Mỗi requirement phải được xác minh bằng một hoặc nhiều phương
 |---|---|---|
 | Authentication | Token hợp lệ/không hợp lệ; disconnect | Kết nối đúng trạng thái; secret không lộ |
 | Project | Remote match và remote không match | Đề xuất đúng hoặc cho phép chọn thủ công |
-| MR list | Filter, search, pagination | Kết quả khớp GitLab và không bỏ sót trang |
+| PR/MR list | Filter, search, pagination và giới hạn Search API | Kết quả khớp provider; kết quả bị giới hạn được báo rõ |
 | MR detail | MR open/closed/merged | Metadata hiển thị đúng |
 | Diff | Added/modified/deleted/renamed/binary | Hiển thị đúng hoặc fallback có giải thích |
-| Comment | General comment và reply | Note xuất hiện trên GitLab |
+| Comment | GitHub issue comment, inline review comment/reply; GitLab discussion/reply | Resource/thread semantics và nội dung hiển thị đúng trên provider |
 | Inline comment | Diff position hợp lệ và stale | Gửi đúng vị trí; stale bị từ chối an toàn |
 | Approval | Có/không đủ quyền approve | Hiển thị trạng thái/quyền đúng |
-| Pipeline | Pending/success/failed | Hiển thị theo dữ liệu GitLab |
-| Merge | Merge success và policy rejection | Không merge khi GitLab từ chối; kết quả được phản ánh chính xác |
+| Checks/Pipeline | Pending/success/failed | Hiển thị theo dữ liệu provider và current head SHA |
+| Merge | Merge success và policy rejection | Không merge khi provider từ chối; kết quả được phản ánh chính xác |
 | Security | Inspect settings/log/disconnect | Không có token trong nơi không an toàn |
 | Resilience | Offline, timeout, 401, 403, 429, 5xx | Extension không crash; lỗi được phân loại |
 
@@ -509,10 +535,12 @@ MVP chỉ được chấp nhận khi tất cả tiêu chí sau được xác min
 4. Hiển thị MR detail.
 5. Hiển thị diff và file changes.
 6. Tạo general comment, inline comment và reply discussion.
-7. Merge MR khi GitLab cho phép và người dùng xác nhận.
+7. Merge PR/MR khi provider cho phép và người dùng xác nhận.
 8. Xử lý các lỗi authentication, permission, network, stale diff, SHA mismatch và merge rejection.
-9. Không bypass GitLab permission, branch protection hoặc approval rules.
-10. Có automated tests cho các luồng domain/API quan trọng.
+9. Không bypass provider permission, branch protection, repository rules hoặc approval rules.
+10. Có automated contract/integration tests cho các luồng domain/API quan trọng trên cả hai provider.
+11. UI không hiển thị reply cho GitHub general issue comment, không cho reply lồng nhau và không hiển thị resolve action cho GitHub REST adapter.
+12. GitHub Search API cap/rate-limit và GitHub 3,000-file diff cap được thể hiện là partial/limited result, không phải complete result.
 
 Approval và pipeline UI được xếp P1 trong baseline này; việc merge vẫn phải dựa trên quyết định cuối cùng của GitLab server.
 
@@ -544,7 +572,7 @@ Các nhóm ID chính:
 | IF / COM | External software and communication interfaces |
 | AUTH | Multi-provider connection and authentication |
 | PROJ | Repository/workspace binding |
-| PROJ | Project/workspace |
+| PROJ | Repository/workspace binding |
 | MR / DETAIL | Merge Request discovery and details |
 | DIFF | Diff and code review |
 | DISC | Comments and discussions |
@@ -555,6 +583,7 @@ Các nhóm ID chính:
 | DATA | Data handling |
 | NFR | Non-functional requirements |
 | ERR | Error handling |
+| CONV | Provider-specific conversation semantics |
 
 ## 12. Các quyết định còn mở
 
@@ -566,13 +595,16 @@ Các mục sau PHẢI được Product Owner xác nhận trước khi chốt bas
 | DEC-002 | UI architecture | Native, Webview hoặc hybrid | Hybrid, ưu tiên native VS Code UI |
 | DEC-003 | Inline comment | MVP hoặc phase sau | MVP |
 | DEC-004 | Project discovery | Auto-detect, manual hoặc cả hai | Cả hai |
-| DEC-005 | Minimum GitLab version | Chọn phiên bản Self-Managed thấp nhất hỗ trợ | Chốt sau khi kiểm chứng endpoint diff/discussion |
+| DEC-005 | Provider compatibility policy | Chọn phiên bản VS Code/GHES/GitLab được hỗ trợ | Theo các phiên bản vendor-maintained tại thời điểm release; xem capability matrix |
 | DEC-006 | Multi-project | Một project active hay nhiều project đồng thời | Một active project trước; mở rộng sau |
 | DEC-007 | Review decision | Comment-only hay thêm approve/request changes | Comment/reply trong MVP; approval action P1 |
 | DEC-008 | Pipeline và approval UI | MVP hay P1 | P1 |
 | DEC-009 | Merge options | Squash, merge-when-pipeline-succeeds | Chỉ hỗ trợ option người dùng chọn rõ ràng |
 | DEC-010 | Localization | English-only hay English + Vietnamese | English UI ban đầu; tài liệu có thể song ngữ |
 | DEC-016 | Connection enablement | Có hỗ trợ bật/tắt độc lập từng connection hay không | Có; mặc định enabled, disabled không được phát sinh API request và không tự động failover |
+| DEC-017 | Review conversation semantics | Cách xử lý GitHub issue comments, inline review comments và GitLab discussions | Giữ semantics riêng; chỉ bật reply/resolve theo capability |
+| DEC-018 | Review request discovery | Cách lọc/search PR/MR theo user và repository | Query native theo provider; cảnh báo giới hạn GitHub Search API |
+| DEC-019 | Minimum VS Code engine | Phiên bản VS Code tối thiểu | Đề xuất 1.140.0; test minimum và current Stable trước M0 |
 
 ## Phụ lục A — Phân kỳ triển khai dự kiến
 
@@ -580,7 +612,7 @@ Phân kỳ này chỉ nhằm định hướng lập kế hoạch, không thay th
 
 | Phase | Phạm vi |
 |---|---|
-| 0 — Requirements baseline | Chốt DEC items, GitLab compatibility và UX direction |
+| 0 — Requirements baseline | Chốt DEC items, provider capability/compatibility matrix và UX direction |
 | 1 — Foundation | Extension skeleton, authentication, project mapping, API client |
 | 2 — MR management | Tree views, MR list, filter, pagination, detail |
 | 3 — Review | Diff, general comment, inline comment, discussion/reply |
