@@ -111,10 +111,13 @@ Exit criteria:
 Tasks:
 - [ ] Implement provider registry for GitHub and GitLab.
 - [ ] Implement connection CRUD with immutable UUID, provider, display name, server URL and account identity.
+- [ ] Implement per-connection enabled flag (default true), enable/disable UI and persistence independent from connection health.
 - [ ] Implement per-connection SecretStorage keys; never key secrets by mutable display name.
 - [ ] Implement GitHub PAT validation using the authenticated-user endpoint and GitLab PAT validation using GET /user.
 - [ ] Implement test, rename, re-authenticate, disconnect and delete actions independently per connection.
-- [ ] Implement one optional default connection per provider and per-workspace repository binding.
+- [ ] Implement one optional enabled default connection per provider and per-workspace repository binding.
+- [ ] Exclude disabled connections from all resolution/selection paths and enforce a local request guard before SecretStorage lookup; clear a provider default when its connection is disabled.
+- [ ] Preserve disabled connection credentials/status/bindings and show blocked workspace bindings without automatic failover.
 - [ ] Implement separate typed GitHub REST API v3 and GitLab REST API v4 clients behind provider adapters.
 - [ ] Implement server URL normalization, API-origin validation and credential redirect/pagination isolation.
 - [ ] Implement Git remote parser for GitHub/GitLab HTTPS and SSH forms.
@@ -122,13 +125,14 @@ Tasks:
 - [ ] Implement connection and repository empty/error/permission states.
 - [ ] Add unit and provider API integration tests for multi-account isolation.
 
-Dependencies: M0 and approval of DEC-001/DEC-004/DEC-006/DEC-013/DEC-014/DEC-015.
+Dependencies: M0 and approval of DEC-001/DEC-004/DEC-006/DEC-013/DEC-014/DEC-015/DEC-016.
 
 Exit criteria:
 - User can create multiple GitHub and GitLab connections, including multiple accounts on the same host.
-- Every connection has its own immutable ID, user-defined display name and independently validated account identity.
+- Every connection has its own immutable ID, user-defined display name, independently validated account identity and enabled flag (default true).
 - Credentials are stored only in connection-scoped SecretStorage entries.
-- Test, rename, re-authenticate, disconnect and delete affect only the selected connection.
+- Test, rename, re-authenticate, enable/disable, disconnect and delete affect only the selected connection.
+- Disabled connections cannot be resolved or issue API requests; credentials, last-known status and workspace bindings remain intact; no automatic failover occurs.
 - Each provider has at most one optional default; each workspace folder has its own active repository binding.
 - Ambiguous remote/account matches require an explicit user choice.
 - No token is sent to another provider, connection or host.
