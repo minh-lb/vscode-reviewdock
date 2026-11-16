@@ -1,7 +1,7 @@
 # ReviewDock — Multi-provider UI/UX Specification
 
 > **Document ID:** RVD-UX-001  
-> **Version:** 0.1.0  
+> **Version:** 0.2.0  
 > **Status:** Proposed — depends on approval of [DECISIONS.md](./DECISIONS.md)  
 > **Related:** [SRS.md](./SRS.md), [SDS.md](./SDS.md)
 
@@ -66,7 +66,7 @@ Rules:
 | ReviewDock: Select Repository | Select or resolve GitHub repository / GitLab project | P0 |
 | ReviewDock: Refresh | Refresh active view/MR | P0 |
 | ReviewDock: Open Review Request | Open selected GitHub PR or GitLab MR detail | P0 |
-| ReviewDock: Open on GitLab | Open MR web URL | P1 |
+| ReviewDock: Open on provider | Open MR web URL | P1 |
 | ReviewDock: Merge Merge Request | Start confirmed merge workflow | P0 |
 | ReviewDock: Add Comment | Create general or inline comment from active review context | P0 |
 
@@ -187,7 +187,7 @@ The detail surface is a local React Webview panel. It has a compact header, tab 
 
 ~~~text
 ┌────────────────────────────────────────────────────────────────────┐
-│ GitHub · Personal GitHub · owner/repo · #42       [Open on GitHub] │
+│ GitHub · Personal GitHub · owner/repo · #42       [Open on provider] │
 │ Fix token refresh race condition                                  │
 │ author · source-branch  →  main · updated 2h ago                    │
 │                                                                    │
@@ -219,7 +219,7 @@ Display:
 - Author.
 - Source branch → target branch.
 - Updated timestamp.
-- Open on GitLab action.
+- Open on the selected provider action.
 
 Primary action:
 - Merge button for eligible open PRs/MRs.
@@ -416,7 +416,7 @@ Every data-driven view must support:
 | Loading | Progress indicator and short label |
 | Empty | Explain what is empty and provide the next useful action |
 | Authentication required | Connect/reconnect action |
-| Permission denied | Explain insufficient GitLab permission |
+| Permission denied | Explain insufficient permission on the selected provider |
 | Network error | Error message + safe Retry |
 | Rate limited | Explain temporary limit and retry timing if available |
 | Stale data | Show stale indicator and Refresh action |
@@ -449,7 +449,53 @@ Every data-driven view must support:
 - Render Markdown with raw HTML disabled and sanitize links.
 - Open external links only after URL validation and through the extension host.
 
-## 12. UX acceptance checklist
+
+## 13. Provider-specific interaction semantics
+
+### 13.1. Provider identity and terminology
+
+- Always show provider, connection display name, authenticated account, repository/project and provider-native PR number or MR IID.
+- Use **Pull Request** and **PR #number** for GitHub; use **Merge Request** and **!IID** for GitLab.
+- The external navigation action label and destination are derived from the selected provider's `html_url` or `web_url`; do not hard-code "Open on GitLab".
+- A workspace switch must update provider identity, review request data and capability states together. Never leave stale controls from the previous provider visible.
+
+### 13.2. Conversation actions
+
+The common conversation view must render actions by both provider and resource kind.
+
+| Conversation kind | GitHub UI | GitLab UI |
+|---|---|---|
+| General timeline comment | Show comment; no Reply action | Show discussion and Reply when allowed |
+| Inline review comment / diff discussion | Show diff anchor; Reply only on a top-level review comment | Show diff anchor; Reply when allowed |
+| Reply | Render as a child of the top-level inline comment; no reply-to-reply action | Render as a note in the parent discussion |
+| Resolve / reopen | Do not show for the selected GitHub REST adapter | Show only when the API and current user permissions allow it |
+| Review submission | Render as a review decision/state, not a general comment | Not interchangeable with GitLab note/discussion |
+
+Do not display a disabled-looking reply control for a GitHub general issue comment; omit the action because the operation is not supported by the selected REST workflow. Unsupported actions must not be sent to the server as a fallback mutation.
+
+### 13.3. Search and partial-result states
+
+- GitHub user-scoped filters use provider search qualifiers and may be subject to a separate rate limit and 1,000-result cap.
+- If the search result is capped or rate-limited, show a clear "Results may be incomplete" state and offer a safe refresh after the rate limit.
+- GitHub PR file discovery is capped at 3,000 files per PR. If the endpoint reaches this limit, show a partial file list warning.
+- GitLab pagination and missing pagination headers must follow the API adapter's documented end-of-list behavior.
+
+### 13.4. Approval and checks/pipeline states
+
+- Render GitHub review decisions separately from GitLab approval state.
+- GitLab Community Edition may return basic approval fields without detailed rule/count fields; do not show missing counts as zero.
+- GitHub Check Runs, commit statuses and Actions workflow runs are distinct sources. Show source/type and match them to the current PR head SHA.
+- GitLab pipelines/jobs must also match the current MR head SHA before being labelled current.
+- Missing or stale check/approval data must be shown as unknown, unavailable or stale, not as passing.
+
+### 13.5. Merge and unsupported workflows
+
+- Use provider-native merge confirmation details and the current source/head SHA.
+- Do not silently enable auto-merge, merge queues, merge-when-pipeline-succeeds or source branch deletion.
+- If GitHub requires a merge queue or GitLab exposes a conditional/unsupported merge state, show the provider's explanation and link to the provider Web page.
+- The server remains authoritative; client-side merge eligibility is informational only.
+
+## 14. UX acceptance checklist
 
 - [ ] User can identify provider, connection name, account and active repository/project.
 - [ ] User can create multiple GitHub/GitLab connections and manage each independently.
