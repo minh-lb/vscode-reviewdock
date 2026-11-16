@@ -20,7 +20,7 @@ This matrix links each SRS requirement family to its design owner, provider/API 
 
 | Requirement IDs | Design owner / SDS | API and UX contract | Milestone | Planned verification |
 |---|---|---|---|---|
-| UI-001–UI-010 | Extension bootstrap, Tree Views, Webview bridge, accessibility layer | UI-UX §§2–14 | M0, M2, M3, M4, M5, M7 | EXT-002–EXT-014, EXT-018–EXT-020, E2E-002A/B |
+| UI-001–UI-010 | Extension bootstrap, Tree Views, Webview bridge, accessibility layer | UI-UX §§2–13 | M0, M2, M3, M4, M5, M7 | EXT-002–EXT-014, EXT-018–EXT-020, E2E-002A/B |
 | IF-001–IF-005 | Extension host, application ports, provider registry | SDS §§3–4; API-SPEC §§2–3 | M0, M1 | EXT-001, EXT-008, API-AUTH, API-GH-AUTH |
 | COM-001–COM-005 | Provider HTTP clients, URL guard, pagination and redacting logger | API-SPEC §§2–3 | M1–M7 | API-AUTH-003/004, API-GH-PAGE-001, SEC-TEST-003/006, UNIT-ERR |
 | AUTH-001–AUTH-019 | ConnectionService, AuthenticationService, SecretStore, ProviderRequestGuard | CONNECTION-MANAGEMENT §§3–8; SDS §§4.2, 6 | M1 | UNIT-CONN-001–022, API-AUTH-001–004, API-GH-AUTH-001–003, EXT-015–017, E2E-001, E2E-008 |
