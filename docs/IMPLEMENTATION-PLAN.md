@@ -88,7 +88,7 @@ Use pinned dependency versions and a lockfile. Keep runtime dependencies minimal
 
 ### M0 — Baseline and repository foundation
 
-**Goal:** make the repository buildable and testable without implementing GitLab workflows.
+**Goal:** make the repository buildable and testable without implementing provider workflows.
 
 Tasks:
 - [ ] Approve SRS and proposed decisions.
