@@ -540,7 +540,7 @@ MVP release is blocked until:
 - Manual test results are recorded in the release checklist.
 
 
-## 15. CI and release automation checks
+## 14. CI and release automation checks
 
 | ID | Scenario | Expected result |
 |---|---|---|
@@ -549,7 +549,7 @@ MVP release is blocked until:
 | CI-003 | Pull request CI runs unit and mocked provider integration tests | All required tests pass without live credentials |
 | CI-004 | Pull request CI builds extension and Webview bundles | Build succeeds reproducibly from lockfile |
 
-## 16. Additional performance checks
+## 15. Additional performance checks
 
 | ID | Scenario | Expected result |
 |---|---|---|
@@ -558,7 +558,7 @@ MVP release is blocked until:
 | PERF-003 | Switch repository while multiple reads are pending | Obsolete requests are cancelled or ignored |
 | PERF-004 | Repeated rate-limit/network failures | Bounded retries; no request storm |
 
-## 17. Traceability
+## 16. Traceability
 
 Maintain a test-to-requirement mapping as implementation progresses:
 
