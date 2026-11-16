@@ -191,7 +191,7 @@ The detail surface is a local React Webview panel. It has a compact header, tab 
 │ Fix token refresh race condition                                  │
 │ author · source-branch  →  main · updated 2h ago                    │
 │                                                                    │
-│ [Overview] [Changes 4] [Discussions 6] [Pipeline] [Approvals]      │
+│ [Overview] [Changes 4] [Conversations 6] [Checks/Pipeline] [Review/Approvals]      │
 ├────────────────────────────────────────────────────────────────────┤
 │                                                                    │
 │  Active tab content                                                │
@@ -329,7 +329,7 @@ Only a line represented in the current GitLab diff can be selected. Hunk headers
 The Conversations tab provides a chronological/threaded view of provider-supported review conversations, including general comments and diff comments. GitHub issue comments and review comments remain distinct API resources even when presented in a shared view.
 
 ~~~text
-┌─ Discussions ───────────────────────────────────────────────────────┐
+┌─ Conversations ───────────────────────────────────────────────────────┐
 │ Filter: [All ▾]                                      [Refresh]       │
 ├────────────────────────────────────────────────────────────────────┤
 │ reviewer-a · 10:42 · src/auth/token.ts:42                           │
