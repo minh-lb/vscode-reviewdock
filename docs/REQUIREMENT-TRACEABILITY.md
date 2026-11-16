@@ -20,7 +20,7 @@ This matrix links each SRS requirement family to its design owner, provider/API 
 
 | Requirement IDs | Design owner / SDS | API and UX contract | Milestone | Planned verification |
 |---|---|---|---|---|
-| UI-001–UI-010 | Extension bootstrap, Tree Views, Webview bridge, accessibility layer | UI-UX §§2–12 | M0, M2, M3, M4, M5, M7 | EXT-002–EXT-014, EXT-018–EXT-020, E2E-002A/B |
+| UI-001–UI-010 | Extension bootstrap, Tree Views, Webview bridge, accessibility layer | UI-UX §§2–14 | M0, M2, M3, M4, M5, M7 | EXT-002–EXT-014, EXT-018–EXT-020, E2E-002A/B |
 | IF-001–IF-005 | Extension host, application ports, provider registry | SDS §§3–4; API-SPEC §§2–3 | M0, M1 | EXT-001, EXT-008, API-AUTH, API-GH-AUTH |
 | COM-001–COM-005 | Provider HTTP clients, URL guard, pagination and redacting logger | API-SPEC §§2–3 | M1–M7 | API-AUTH-003/004, API-GH-PAGE-001, SEC-TEST-003/006, UNIT-ERR |
 | AUTH-001–AUTH-019 | ConnectionService, AuthenticationService, SecretStore, ProviderRequestGuard | CONNECTION-MANAGEMENT §§3–8; SDS §§4.2, 6 | M1 | UNIT-CONN-001–022, API-AUTH-001–004, API-GH-AUTH-001–003, EXT-015–017, E2E-001, E2E-008 |
@@ -29,7 +29,7 @@ This matrix links each SRS requirement family to its design owner, provider/API 
 | DETAIL-001–DETAIL-006 | ReviewRequestMapper and detail view model | API-SPEC §§5.2, 13.2; UI-UX §4 | M2 | API-MR-006, API-GH-PR-001, E2E-002A/B |
 | DIFF-001–DIFF-012 | DiffService, UnifiedDiffParser, GitHubLineMapper, GitLabPositionMapper | SDS §7; API-SPEC §§5.3–5.4, 13.2–13.3; UI-UX §5 | M3 | UNIT-DIFF-001–009, API-DIFF-001–003, API-GH-PR-002, API-GH-COM-002–004/009, E2E-003A/B, E2E-005A/B |
 | DISC-001–DISC-013 | ReviewService, ConversationMapper, capability guard | SDS §§4.5, 5, 8; API-SPEC §§6, 13.3A; UI-UX §§5–6 | M4 | UNIT-CONV-001–005, API-DISC-001–006, API-GH-COM-001–009, E2E-004A/B |
-| APR-001–APR-005 | ReviewDecisionService, ApprovalMapper, capability descriptor | API-SPEC §§7, 13.4; UI-UX §7 | M6 (P1) | API-APR-001–005, API-GH-REVIEW-001/002 |
+| APR-001–APR-005 | ReviewDecisionService, ApprovalMapper, capability descriptor | API-SPEC §§7, 13.4; UI-UX §7 | M6 (P1) | API-APR-001–005, API-GH-REVIEW-001–003 |
 | PIPE-001–PIPE-005 | CheckPipelineService, HeadShaMatcher | API-SPEC §§8, 13.5; UI-UX §7 | M6 (P1) | API-PIPE-001–003, API-GH-CHECK-001–003 |
 | MERGE-001–MERGE-010 | MergeService, provider merge adapters, confirmation controller | SDS §8.4; API-SPEC §§9, 13.6; UI-UX §8 | M5 | API-MERGE-001–004, API-GH-MERGE-001–004, E2E-006A/B, E2E-007A/B |
 | BR-001–BR-014 | Domain invariants, connection and mutation guards | SRS §5; SDS §§5–10; PROVIDER-CAPABILITY-MATRIX §§3–8 | M1–M7 | UNIT-CONN, UNIT-DIFF, UNIT-CONV, UNIT-ERR, API-GH-PR-005, E2E-001–008 |
