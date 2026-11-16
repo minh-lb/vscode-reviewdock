@@ -131,7 +131,7 @@ Tasks:
 - [ ] Implement connection and repository empty/error/permission states.
 - [ ] Add unit and provider API integration tests for multi-account isolation.
 
-Dependencies: M0 and approval of DEC-001/DEC-004/DEC-006/DEC-013/DEC-014/DEC-015/DEC-016.
+Dependencies: M0 and approval of DEC-001/DEC-004/DEC-005/DEC-006/DEC-013/DEC-014/DEC-015/DEC-016/DEC-019.
 
 Exit criteria:
 - User can create multiple GitHub and GitLab connections, including multiple accounts on the same host.
@@ -160,7 +160,7 @@ Tasks:
 - [ ] Implement loading, empty, permission, stale and error states.
 - [ ] Add GitHub/GitLab contract tests for filters, pagination, cancellation and DTO mapping.
 
-Dependencies: M1.
+Dependencies: M1 and approval of DEC-018.
 
 Exit criteria:
 - User can browse, filter, search and open PR/MR on both providers.
@@ -218,7 +218,7 @@ Exit criteria:
 
 Tasks:
 - [ ] Implement merge eligibility presentation from fresh PR/MR data while keeping provider status values distinct.
-- [ ] Implement merge confirmation dialog.
+- [ ] Implement merge confirmation dialog with provider-native PR/MR identity and current branch/SHA details.
 - [ ] Re-fetch PR/MR immediately before merge.
 - [ ] Send current PR head SHA or GitLab source HEAD SHA according to the selected provider endpoint.
 - [ ] Implement typed handling for 401/403/405/409/422 and timeout.
@@ -248,7 +248,7 @@ Tasks:
 - [ ] Add unsupported-capability states.
 - [ ] Add P1 tests.
 
-Dependencies: M5 and API compatibility verification.
+Dependencies: M5, approval of DEC-007/DEC-008 and API compatibility verification.
 
 Exit criteria:
 - Checks/pipeline and review/approval state are shown only when returned by the selected provider.
@@ -285,13 +285,12 @@ Exit criteria:
 ~~~mermaid
 flowchart TD
   M0[M0 Foundation] --> M1[M1 Connection and Project]
-  M1 --> M2[M2 MR Discovery and Detail]
+  M1 --> M2[M2 PR/MR Discovery and Detail]
   M2 --> M3[M3 Diff and Inline Comments]
-  M2 --> M4[M4 Discussions]
+  M2 --> M4[M4 Conversations]
   M3 --> M4
   M2 --> M5[M5 Provider Merge]
-  M4 --> M5
-  M5 --> M6[M6 Pipeline and Approval P1]
+  M5 --> M6[M6 Checks and Review Decisions P1]
   M5 --> M7[M7 Hardening and Release]
   M6 --> M7
 ~~~
@@ -326,7 +325,7 @@ Every PR should:
 | Provider diff limits or incomplete patches | Some files cannot be reviewed in extension | Handle GitHub's 3,000-file cap and missing patches; handle GitLab collapsed/too-large/overflow states; link to provider Web |
 | Incorrect inline line mapping | Comment lands on wrong code | Separate GitHub/GitLab mappers, parser fixtures, current SHAs and real provider integration tests |
 | Provider version/edition differences | Feature unavailable on some instances | Vendor-maintained compatibility policy, contract tests, feature detection and graceful degradation |
-| PAT api scope is broad | Credential impact if compromised | SecretStorage, no Webview exposure, clear scope disclosure, recommend expiring token |
+| Provider PAT permissions differ; GitLab `api` scope is broad | Credential impact if compromised | Prefer GitHub fine-grained PAT, disclose GitLab scope, use SecretStorage, no Webview exposure and recommend expiring tokens |
 | PR/MR changes while being reviewed | Stale comments or merge | Revalidate diff SHAs and merge SHA |
 | Webview injection | Arbitrary script execution | CSP, local assets, safe Markdown rendering, validated messages |
 | Large PR/MR impacts responsiveness | Slow or unresponsive UI | Pagination, lazy loading, bounded concurrency, render virtualization if needed |
