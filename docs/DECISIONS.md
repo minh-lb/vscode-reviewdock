@@ -79,15 +79,15 @@ This document records recommended defaults needed to turn the SRS into an implem
 
 **Decision proposed:** use GitHub REST API v3 and GitLab REST API v4, with compatibility determined by vendor-maintained server releases at the time of each ReviewDock release.
 
-- GitLab Self-Managed: support the current minor release and the previous two vendor-maintained minor releases at release time. Test the oldest and newest releases in that window.
-- GitHub Enterprise Server: support the latest GHES feature release and the oldest feature release still supported by GitHub at release time. Test both.
+- GitLab Self-Managed: target the current minor release and the previous two vendor-maintained minor releases at release time. Test the oldest and newest releases in that window; publish exact versions actually tested. GitLab's maintenance policy describes the current release plus the prior two as maintained, with security fixes (and current-release bug fixes) ([maintenance policy](https://docs.gitlab.com/policy/maintenance/)).
+- GitHub Enterprise Server: target the latest GHES feature release and the oldest feature release still supported by GitHub at release time. Test both; publish exact versions actually tested. GitHub states it supports at least its four most recent feature releases ([GHES releases](https://docs.github.com/en/enterprise-server@latest/admin/all-releases)).
 - GitHub.com and GitLab.com follow their hosted-service API behavior.
 - Do not assume GitHub.com and GHES expose identical API versions, headers or capabilities.
 - Treat optional response fields as optional and feature-detect endpoint capabilities.
 - Publish exact tested versions, editions and known limitations before release.
 - Re-check the vendor maintenance policy before every release; never retain an unsupported release as the compatibility floor solely for backward compatibility.
 
-**Compatibility snapshot reviewed 2026-11-16:** GitLab maintained releases were 19.3, 19.4 and 19.5; GHES supported releases included 3.19 through 3.22. These are a dated snapshot, not a permanent support promise.
+**Vendor-policy snapshot reviewed 2026-11-17:** GitLab's maintenance page lists 19.3, 19.4 and 19.5 as maintained; GitHub's release table lists GHES 3.19 through 3.22 as currently supported. Under the proposed policy, 19.3 and 3.19 are candidate lower bounds for the current snapshot, not tested ReviewDock floors or support claims. Vendor policy identifies a sensible test window but cannot establish API behavior for this product. DEC-020/021 remain open until live-host acceptance on the selected versions; re-evaluate candidates at release time.
 
 ### DEC-006 — Workspace project model
 

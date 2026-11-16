@@ -634,7 +634,7 @@ Một requirement chỉ được đánh dấu Verified khi:
 
 1. Every P0 workflow must be accepted independently on GitHub.com and GitLab.com; success on one does not imply support on the other.
 2. Preserve native semantics where generic normalization loses meaning, especially general vs inline comments, discussions, approvals, checks and pipelines.
-3. GHES, GitLab Self-Managed and minimum VS Code engine versions are release-blocking decisions. Until selected and tested, do not claim universal support for these hosts.
+3. GHES, GitLab Self-Managed and minimum VS Code engine versions are release-blocking decisions. Vendor-maintained release windows may guide test selection, but do not establish ReviewDock compatibility. Until exact versions are selected and live-host acceptance passes, do not claim support for those versions.
 4. Unsupported, not-authorized, unknown and empty states remain distinct.
 5. Requirement-to-design/task/test mapping is maintained in [REQUIREMENT-TRACEABILITY.md](./REQUIREMENT-TRACEABILITY.md).
 6. Provider differences and compatibility evidence are maintained in [PROVIDER-CAPABILITY-MATRIX.md](./PROVIDER-CAPABILITY-MATRIX.md).

@@ -800,7 +800,7 @@ Endpoint sections define adapter contracts, not direct application-service APIs.
 
 ### 15.1. GitHub Enterprise compatibility
 
-GitHub.com and GHES may differ in REST API versions and supported headers. Configure API version per host compatibility policy; do not send GitHub.com-only headers to unsupported GHES releases. Select and test minimum GHES version before claiming compatibility.
+GitHub.com and GHES may differ in REST API versions and supported headers. Configure API version per host compatibility policy; do not send GitHub.com-only headers to unsupported GHES releases. Vendor-supported release status can guide candidate test versions, but does not establish ReviewDock compatibility. Select and live-test the minimum GHES version before claiming compatibility; publish only exact versions actually tested.
 
 ### 15.2. Mutation outcome
 

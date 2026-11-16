@@ -8,7 +8,7 @@ This is the cross-provider product contract and local adapter capability snapsho
 - Never convert absent fields to false/empty. Distinguish Empty, Unsupported, Not authorized, Unknown and Not configured.
 - Stable identity is provider + connection ID + repository/project ID + native PR number/MR IID.
 - Shared services use provider-neutral ports. Adapters retain native IDs, URLs, comment types and diff-position semantics.
-- GHES and GitLab Self-Managed minimum versions are release gates until selected and tested.
+- Candidate lower bounds derived from vendor policy are planning inputs only. They do not establish ReviewDock compatibility. GHES and GitLab Self-Managed release claims require live-host acceptance and exact tested versions.
 
 ## Feature matrix
 
@@ -51,8 +51,8 @@ Retain provider, connection ID, server origin, repository/project ID, native req
 | Host | Minimum version | Evidence | Status |
 |---|---|---|---|
 | GitHub.com | Managed | Mocked adapter contracts; see `test/integration/githubAdapter.test.ts` | Live P0 workflows not run |
-| GitHub Enterprise Server | TBD | No host-version test | Blocked: floor open |
+| GitHub Enterprise Server | Candidate 3.19 (vendor-policy snapshot 2026-11-17; see DEC-005) | No host-version test | Blocked: candidate is not an accepted/tested floor |
 | GitLab.com | Managed | Mocked adapter contracts; see `test/integration/gitlabAdapter.test.ts` | Live P0 workflows not run |
-| GitLab Self-Managed | TBD | No host-version test | Blocked: floor open |
+| GitLab Self-Managed | Candidate 19.3 (vendor-policy snapshot 2026-11-17; see DEC-005) | No host-version test | Blocked: candidate is not an accepted/tested floor |
 
 Marketplace claims must not exceed tested versions. Any endpoint/permission/edition/normalization change updates this matrix, API-SPEC, SRS traceability, SDS, TEST-PLAN and IMPLEMENTATION-PLAN in the same PR.
