@@ -10,7 +10,7 @@
 ReviewDock should let a developer manage multiple GitHub/GitLab connections, discover a Pull Request or Merge Request, understand its changes, discuss code and safely merge without leaving VS Code for routine work.
 
 UX priorities:
-1. Make the current GitLab instance and project obvious.
+1. Make the current provider connection, account and repository/project obvious.
 2. Keep MR discovery fast and predictable.
 3. Make diff and discussion the primary review surface.
 4. Make comment position and diff version visible enough to avoid reviewing stale code.
