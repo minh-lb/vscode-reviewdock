@@ -792,3 +792,16 @@ For fine-grained PATs, the merge endpoint requires the repository `Contents: wri
 - [Pipelines API](https://docs.gitlab.com/api/pipelines/)
 - [Jobs API](https://docs.gitlab.com/api/jobs/)
 - [Personal Access Tokens](https://docs.gitlab.com/user/profile/personal_access_tokens/)
+
+
+## 15. Provider adapter contract and parity
+
+Endpoint sections define adapter contracts, not direct application-service APIs. Application services call provider-neutral ports and consume normalized models. Adapters preserve native IDs, comment resource types, review-request identity, diff position/version metadata and server URLs. GitHub review threads and GitLab discussions do not have assumed identical resolution semantics. Missing approval, pipeline or mergeability fields must not be inferred. See [PROVIDER-CAPABILITY-MATRIX.md](./PROVIDER-CAPABILITY-MATRIX.md).
+
+### 15.1. GitHub Enterprise compatibility
+
+GitHub.com and GHES may differ in REST API versions and supported headers. Configure API version per host compatibility policy; do not send GitHub.com-only headers to unsupported GHES releases. Select and test minimum GHES version before claiming compatibility.
+
+### 15.2. Mutation outcome
+
+A transport timeout after dispatch means outcome unknown, not failure. Refresh the relevant resource before enabling another mutation. Read-only retries may follow bounded rate-limit policy; mutations are never automatically retried.
