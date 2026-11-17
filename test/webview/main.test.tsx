@@ -72,6 +72,30 @@ const files: WebviewMessage = {
   },
 };
 
+const markdownFiles: WebviewMessage = {
+  type: 'files',
+  requestId: 1,
+  result: {
+    items: [
+      {
+        path: 'docs/guide.md',
+        change: 'modified',
+        additions: 1,
+        deletions: 1,
+        patch: '@@ -1,3 +1,3 @@\n # Guide\n-legacy **text**\n+new **text**\n context',
+      },
+      {
+        path: 'docs/notes.md',
+        change: 'modified',
+        additions: 1,
+        deletions: 1,
+        patch: '@@ -1,2 +1,2 @@\n # Notes\n-old note\n+new note',
+      },
+    ],
+    page: { page: 1, perPage: 50, hasNextPage: false },
+  },
+};
+
 function send(message: WebviewMessage) {
   act(() => window.dispatchEvent(new MessageEvent('message', { data: message })));
 }
@@ -182,6 +206,70 @@ describe('ReviewDock webview entry point', () => {
       },
     });
     expect(button('Sending…').disabled).toBe(true);
+  });
+
+  it('keeps Source/Rich selection independent for each Markdown file', () => {
+    send(initialize);
+    act(() => button('Changes').click());
+    send(markdownFiles);
+
+    const firstFile = document.querySelector<HTMLElement>('#file-0')!;
+    const secondFile = document.querySelector<HTMLElement>('#file-1')!;
+    const firstSource = firstFile.querySelector<HTMLButtonElement>('[data-mode=source]')!;
+    const firstRich = firstFile.querySelector<HTMLButtonElement>('[data-mode=rich]')!;
+    const secondSource = secondFile.querySelector<HTMLButtonElement>('[data-mode=source]')!;
+    const secondRich = secondFile.querySelector<HTMLButtonElement>('[data-mode=rich]')!;
+
+    expect(firstSource.getAttribute('aria-pressed')).toBe('true');
+    expect(secondSource.getAttribute('aria-pressed')).toBe('true');
+    expect(firstSource.getAttribute('aria-label')).toBe('Source mode for docs/guide.md');
+    expect(firstRich.getAttribute('aria-label')).toBe('Rich mode for docs/guide.md');
+    expect(firstRich.getAttribute('title')).toBe('Rich (rendered Markdown)');
+    expect(firstSource.querySelector('svg[aria-hidden=true]')).not.toBeNull();
+    expect(firstRich.querySelector('svg[aria-hidden=true]')).not.toBeNull();
+    expect(firstSource.textContent?.trim()).toBe('');
+    expect(firstRich.textContent?.trim()).toBe('');
+    expect(firstFile.querySelector('.diff-row')).not.toBeNull();
+
+    act(() => firstRich.click());
+    expect(firstRich.classList.contains('active')).toBe(true);
+    expect(firstRich.getAttribute('aria-pressed')).toBe('true');
+    const renderedText = firstFile.querySelector('.rich-diff-side.added strong');
+    expect(renderedText?.textContent).toBe('text');
+    expect(firstFile.querySelector('.diff-row')).toBeNull();
+    expect(secondSource.classList.contains('active')).toBe(true);
+    expect(secondFile.querySelector('.diff-row')).not.toBeNull();
+
+    act(() => secondRich.click());
+    expect(firstRich.classList.contains('active')).toBe(true);
+    expect(secondRich.classList.contains('active')).toBe(true);
+
+    act(() => firstSource.click());
+    expect(firstSource.classList.contains('active')).toBe(true);
+    expect(firstRich.classList.contains('active')).toBe(false);
+    expect(secondRich.classList.contains('active')).toBe(true);
+
+    act(() => button('Conversations').click());
+    act(() => button('Changes 2').click());
+    const restoredFirstFile = document.querySelector<HTMLElement>('#file-0')!;
+    const restoredSecondFile = document.querySelector<HTMLElement>('#file-1')!;
+    const restoredFirstSource = restoredFirstFile.querySelector<HTMLButtonElement>(
+      '[data-mode=source]',
+    )!;
+    const restoredSecondRich = restoredSecondFile.querySelector<HTMLButtonElement>(
+      '[data-mode=rich]',
+    )!;
+    expect(restoredFirstSource.classList.contains('active')).toBe(true);
+    expect(restoredSecondRich.classList.contains('active')).toBe(true);
+  });
+
+  it('does not offer Rich mode for non-Markdown files', () => {
+    send(initialize);
+    act(() => button('Changes').click());
+    send(files);
+
+    expect(document.querySelector('#file-0 .diff-mode-switch')).toBeNull();
+    expect(document.querySelector('#file-0 .diff-row')).not.toBeNull();
   });
 
   it('keeps an inline draft visible after the host reports a stale diff', () => {
