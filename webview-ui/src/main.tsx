@@ -27,6 +27,7 @@ declare global {
 const vscode = acquireVsCodeApi();
 type Init = Extract<WebviewMessage, { type: 'initialize' }>;
 type Notice = Extract<WebviewMessage, { type: 'notice' }>;
+type DiffDisplayMode = 'source' | 'rich';
 const unavailable = (support: string, reason?: string) =>
   support === 'unsupported' || support === 'unknown'
     ? reason || 'Not available on this instance.'
@@ -35,6 +36,7 @@ const unavailable = (support: string, reason?: string) =>
 function App() {
   const [init, setInit] = useState<Init>();
   const [files, setFiles] = useState<DiffFilePage>();
+  const [diffModes, setDiffModes] = useState<Record<string, DiffDisplayMode>>({});
   const [conversations, setConversations] = useState<ReviewConversation[]>([]);
   const [checks, setChecks] = useState<CheckSummary[]>();
   const [approvals, setApprovals] = useState<ApprovalState>();
@@ -372,9 +374,13 @@ function App() {
           <div className="diff-list">
             {files?.items.map((file, index) => (
               <DiffView
-                key={`${file.path}-${index}`}
+                key={file.path}
                 index={index}
                 file={file}
+                mode={diffModes[file.path] ?? 'source'}
+                onModeChange={(mode) =>
+                  setDiffModes((current) => ({ ...current, [file.path]: mode }))
+                }
                 conversations={conversations}
                 canComment={['supported', 'conditional'].includes(
                   init.capabilities.inlineComments.support,
@@ -625,6 +631,8 @@ function App() {
 function DiffView({
   index,
   file,
+  mode,
+  onModeChange,
   conversations,
   canComment,
   replyCapabilities,
@@ -633,6 +641,8 @@ function DiffView({
 }: {
   index: number;
   file: DiffFilePage['items'][number];
+  mode: DiffDisplayMode;
+  onModeChange: (mode: DiffDisplayMode) => void;
   conversations: ReviewConversation[];
   canComment: boolean;
   replyCapabilities: ProviderCapabilityDescriptor['replyByResource'];
@@ -642,6 +652,24 @@ function DiffView({
   onReply: (id: string) => void;
 }) {
   const parsed = parseUnifiedDiff(file);
+  const supportsRichMode = isMarkdownFile(file.path) && parsed.status === 'available';
+  const richHunks =
+    parsed.status === 'available'
+      ? parsed.rows.reduce<Array<{ index: number; before: string[]; after: string[] }>>(
+          (hunks, row) => {
+            if (row.kind === 'hunk-header') {
+              hunks.push({ index: row.hunkIndex, before: [], after: [] });
+              return hunks;
+            }
+            const hunk = hunks.find((item) => item.index === row.hunkIndex);
+            if (!hunk) return hunks;
+            if (row.kind !== 'added') hunk.before.push(row.text);
+            if (row.kind !== 'removed') hunk.after.push(row.text);
+            return hunks;
+          },
+          [],
+        )
+      : [];
   const discussions = conversations.filter(
     (c) => c.position && [file.path, file.previousPath].includes(c.position.path),
   );
@@ -656,8 +684,32 @@ function DiffView({
   return (
     <article className="diff-file card" id={`file-${index}`}>
       <div className="diff-file-head">
-        <strong>{file.path}</strong>
-        <span>{file.change}</span>
+        <div className="diff-file-title">
+          <strong>{file.path}</strong>
+          <span>{file.change}</span>
+        </div>
+        {supportsRichMode && (
+          <div className="diff-mode-switch" role="group" aria-label={`Display mode for ${file.path}`}>
+            <button
+              type="button"
+              data-mode="source"
+              className={`diff-mode-button ${mode === 'source' ? 'active' : ''}`}
+              aria-pressed={mode === 'source'}
+              onClick={() => onModeChange('source')}
+            >
+              Source
+            </button>
+            <button
+              type="button"
+              data-mode="rich"
+              className={`diff-mode-button ${mode === 'rich' ? 'active' : ''}`}
+              aria-pressed={mode === 'rich'}
+              onClick={() => onModeChange('rich')}
+            >
+              Rich
+            </button>
+          </div>
+        )}
       </div>
       {parsed.status !== 'available' ? (
         <p className="muted">
@@ -671,6 +723,42 @@ function DiffView({
                   ? 'Patch collapsed'
                   : 'Patch unavailable'}
         </p>
+      ) : mode === 'rich' && supportsRichMode ? (
+        <div className="rich-diff">
+          {richHunks.map((hunk) => (
+            <section className="rich-hunk" key={hunk.index}>
+              <div className="rich-hunk-header">Changed section {hunk.index + 1}</div>
+              <div className="rich-diff-columns">
+                <div className="rich-diff-side removed">
+                  <h3>Before</h3>
+                  {hunk.before.length ? (
+                    <Markdown text={hunk.before.join('\n')} />
+                  ) : (
+                    <p className="muted">No previous content in this section.</p>
+                  )}
+                </div>
+                <div className="rich-diff-side added">
+                  <h3>After</h3>
+                  {hunk.after.length ? (
+                    <Markdown text={hunk.after.join('\n')} />
+                  ) : (
+                    <p className="muted">No resulting content in this section.</p>
+                  )}
+                </div>
+              </div>
+            </section>
+          ))}
+          <p className="muted rich-diff-hint">
+            Rich view renders only the changed sections included in the provider patch. Switch to
+            Source to add inline comments.
+          </p>
+          {discussions.length > 0 && (
+            <section className="rich-discussions">
+              <h3>Review discussions</h3>
+              {discussions.map(renderDiscussion)}
+            </section>
+          )}
+        </div>
       ) : (
         parsed.rows.map((row, i) => {
           const anchored = discussions.filter((item) => {
@@ -727,6 +815,10 @@ function DiffView({
     </article>
   );
 }
+function isMarkdownFile(path: string): boolean {
+  return /\.(?:md|markdown|mdx|mdown|mkd|mkdn)$/i.test(path);
+}
+
 function InlineDiscussion({
   item,
   canReply,

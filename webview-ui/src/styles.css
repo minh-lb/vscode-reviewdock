@@ -288,9 +288,47 @@ dd {
   border-bottom: 1px solid var(--border);
   overflow-wrap: anywhere;
 }
-.diff-file-head span {
+.diff-file-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.diff-file-title strong {
+  overflow-wrap: anywhere;
+}
+.diff-file-title span {
   color: var(--muted);
   font-size: 11px;
+  flex: none;
+}
+.diff-mode-switch {
+  display: inline-flex;
+  flex: none;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--vscode-editor-background);
+}
+.diff-mode-button {
+  padding: 3px 9px;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  color: var(--muted);
+  background: transparent;
+  font-size: 11px;
+  font-weight: 500;
+}
+.diff-mode-button:hover:not(.active) {
+  color: var(--vscode-foreground);
+  background: var(--vscode-list-hoverBackground);
+}
+.diff-mode-button.active {
+  color: var(--vscode-list-activeSelectionForeground, var(--vscode-foreground));
+  background: var(--vscode-list-activeSelectionBackground, var(--vscode-button-background));
+  border-color: var(--vscode-focusBorder);
+  font-weight: 700;
 }
 .diff-row {
   display: grid;
@@ -332,6 +370,73 @@ dd {
 .diff-row.hunk-header {
   color: var(--muted);
   background: var(--vscode-editor-lineHighlightBackground);
+}
+.rich-diff {
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+}
+.rich-hunk {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+.rich-hunk-header {
+  padding: 6px 10px;
+  color: var(--muted);
+  background: var(--vscode-editor-lineHighlightBackground);
+  border-bottom: 1px solid var(--border);
+  font-size: 11px;
+}
+.rich-diff-columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.rich-diff-side {
+  min-width: 0;
+  padding: 10px 12px;
+  overflow-wrap: anywhere;
+}
+.rich-diff-side + .rich-diff-side {
+  border-left: 1px solid var(--border);
+}
+.rich-diff-side.removed {
+  background: color-mix(
+    in srgb,
+    var(--vscode-diffEditor-removedLineBackground, transparent) 45%,
+    transparent
+  );
+}
+.rich-diff-side.added {
+  background: color-mix(
+    in srgb,
+    var(--vscode-diffEditor-insertedLineBackground, transparent) 45%,
+    transparent
+  );
+}
+.rich-diff-side h3,
+.rich-discussions h3 {
+  margin: 0 0 8px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+.rich-diff-side .markdown > :first-child {
+  margin-top: 0;
+}
+.rich-diff-side .markdown > :last-child {
+  margin-bottom: 0;
+}
+.rich-diff-hint {
+  margin: 0;
+}
+.rich-discussions {
+  display: grid;
+  gap: 8px;
+}
+.rich-discussions h3 {
+  margin-bottom: 0;
 }
 .line-comment {
   padding: 0;
@@ -450,6 +555,17 @@ dd {
   .file-list {
     position: static;
     max-height: 260px;
+  }
+  .diff-file-head {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+  .rich-diff-columns {
+    grid-template-columns: 1fr;
+  }
+  .rich-diff-side + .rich-diff-side {
+    border-left: 0;
+    border-top: 1px solid var(--border);
   }
   .check {
     display: grid;
