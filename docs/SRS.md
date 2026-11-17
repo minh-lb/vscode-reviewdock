@@ -3,10 +3,10 @@
 > **Mã tài liệu:** RVD-SRS-001  
 > **Sản phẩm:** ReviewDock  
 > **Loại tài liệu:** Software Requirements Specification  
-> **Phiên bản:** 1.0.4-draft  
+> **Phiên bản:** 1.0.5-draft\
 > **Trạng thái:** Draft — chờ Product Owner xác nhận  
 > **Repository:** [minh-lb/vscode-reviewdock](https://github.com/minh-lb/vscode-reviewdock)  
-> **Ngày:** 2026-11-16
+> **Ngày:** 2026-11-17
 
 ---
 
@@ -15,7 +15,7 @@
 | Thuộc tính | Giá trị |
 |---|---|
 | Document ID | RVD-SRS-001 |
-| Version | 1.0.3-draft |
+| Version | 1.0.5-draft |
 | Product | ReviewDock |
 | Target platform | Visual Studio Code Extension |
 | Primary integration | GitHub REST API v3 + GitLab REST API v4 |
@@ -32,6 +32,7 @@
 | 1.0.2-draft | 2026-11-16 | Mở rộng sang GitHub + GitLab và đặc tả multi-connection |
 | 1.0.3-draft | 2026-11-16 | Bổ sung trạng thái cấu hình Enabled/Disabled độc lập với connection health |
 | 1.0.4-draft | 2026-11-16 | Chuẩn hóa provider semantics, GitHub/GitLab API differences, compatibility policy và requirement traceability |
+| 1.0.5-draft | 2026-11-17 | Bổ sung Rich diff cho Markdown và trạng thái Source/Rich độc lập theo từng file |
 
 ## 1. Giới thiệu
 
@@ -298,6 +299,7 @@ Minimum VS Code engine version và chính sách GitHub Enterprise Server/GitLab 
 | DIFF-009 | P0 | Hệ thống PHẢI xử lý file binary, diff quá lớn, patch không khả dụng hoặc file không có diff text bằng trạng thái/giải thích phù hợp. |
 | DIFF-010 | P0 | Khi diff version thay đổi hoặc position không còn hợp lệ, hệ thống PHẢI yêu cầu refresh diff trước khi gửi inline comment. |
 | DIFF-011 | P1 | Hệ thống NÊN hỗ trợ mở file tương ứng trong working tree khi xác định được mapping an toàn. |
+| DIFF-013 | P1 | Với file Markdown có patch hợp lệ, hệ thống NÊN hỗ trợ chuyển giữa Source (unified diff) và Rich diff; trạng thái mode PHẢI độc lập theo từng file và được giữ khi điều hướng trong cùng PR/MR. |
 
 **Quy tắc vị trí inline comment:** client PHẢI dùng position contract riêng của provider. GitLab yêu cầu diff-version SHAs, old/new paths và old/new line fields; GitHub yêu cầu current PR head commit SHA, path, diff line và side. Client KHÔNG ĐƯỢC tự chuyển một inline comment thất bại thành comment chung.
 

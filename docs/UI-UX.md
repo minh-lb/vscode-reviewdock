@@ -284,7 +284,7 @@ Selecting a file scrolls the diff pane to that file. The file list supports keyb
 ### 5.3. Diff display
 
 MVP:
-- Unified diff rendering.
+- Unified diff rendering (Source mode).
 - File-level navigation.
 - Added/removed/context line styling.
 - Old and new line numbers.
@@ -292,7 +292,17 @@ MVP:
 - Existing discussions anchored to their diff position.
 - Clear handling for binary, collapsed, too-large and unavailable patches.
 
-Side-by-side display may be added after the unified renderer and line mapping are stable. Do not make side-by-side mode a release blocker.
+Markdown files with a valid patch also provide two display modes:
+- **Source:** show the unified diff with line numbers and inline-comment affordances.
+- **Rich:** render the old and new Markdown content for each changed hunk side by side. Existing discussions remain visible below the rendered hunks; inline comments are created from Source mode so line anchors remain explicit.
+
+Mode selection is scoped to the file path, not the whole Changes tab. Selecting Rich for one Markdown file must not change the mode of another file. Preserve each file's selection while navigating between files or other PR/MR tabs in the same panel; a newly opened review request starts in Source mode. Non-Markdown files and patches that cannot be parsed expose Source mode only.
+
+The Source and Rich controls use code and preview icons instead of visible text labels. Each icon button must have an accessible name and a hover tooltip identifying its mode. The active mode must be visually distinct using the VS Code active-selection background/foreground and a visible border. Expose the selected state through aria-pressed and keyboard focus styling; do not rely on color alone.
+
+Rich mode renders only the changed hunks present in the provider patch. It must not imply that unchanged file sections are available when the provider omitted them.
+
+Side-by-side display for general source-code diffs may be added after the unified renderer and line mapping are stable. Do not make it a release blocker.
 
 ### 5.4. Inline comment interaction
 

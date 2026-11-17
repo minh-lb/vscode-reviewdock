@@ -72,6 +72,30 @@ const files: WebviewMessage = {
   },
 };
 
+const markdownFiles: WebviewMessage = {
+  type: 'files',
+  requestId: 1,
+  result: {
+    items: [
+      {
+        path: 'docs/guide.md',
+        change: 'modified',
+        additions: 1,
+        deletions: 1,
+        patch: '@@ -1,3 +1,3 @@\n # Guide\n-legacy **text**\n+new **text**\n context',
+      },
+      {
+        path: 'docs/notes.md',
+        change: 'modified',
+        additions: 1,
+        deletions: 1,
+        patch: '@@ -1,2 +1,2 @@\n # Notes\n-old note\n+new note',
+      },
+    ],
+    page: { page: 1, perPage: 50, hasNextPage: false },
+  },
+};
+
 function send(message: WebviewMessage) {
   act(() => window.dispatchEvent(new MessageEvent('message', { data: message })));
 }
@@ -209,6 +233,94 @@ describe('ReviewDock webview entry point', () => {
       },
     });
     expect(button('Sending…').disabled).toBe(true);
+  });
+
+  it('keeps Source/Rich selection independent for each Markdown file', () => {
+    send(initialize);
+    act(() => button('Changes').click());
+    send(markdownFiles);
+
+    const firstFile = document.querySelector<HTMLElement>('[aria-label="Diff for docs/guide.md"]')!;
+    const secondFile = document.querySelector<HTMLElement>(
+      '[aria-label="Diff for docs/notes.md"]',
+    )!;
+    const firstSource = firstFile.querySelector<HTMLButtonElement>(
+      'button[aria-label="Display the source diff"]',
+    )!;
+    const firstRich = firstFile.querySelector<HTMLButtonElement>(
+      'button[aria-label="Display the rich diff"]',
+    )!;
+    const secondSource = secondFile.querySelector<HTMLButtonElement>(
+      'button[aria-label="Display the source diff"]',
+    )!;
+    const secondRich = secondFile.querySelector<HTMLButtonElement>(
+      'button[aria-label="Display the rich diff"]',
+    )!;
+
+    expect(firstSource.getAttribute('aria-pressed')).toBe('true');
+    expect(secondSource.getAttribute('aria-pressed')).toBe('true');
+    expect(firstFile.getAttribute('aria-label')).toBe('Diff for docs/guide.md');
+    expect(
+      firstFile.querySelector('[aria-label="Markdown display for docs/guide.md"]'),
+    ).not.toBeNull();
+    expect(firstRich.querySelector('svg[aria-hidden=true]')).not.toBeNull();
+    expect(firstFile.querySelector('.diff-row')).not.toBeNull();
+
+    act(() => firstRich.click());
+    expect(firstRich.getAttribute('aria-pressed')).toBe('true');
+    expect(messages.at(-1)).toMatchObject({ type: 'loadMarkdownContent', path: 'docs/guide.md' });
+    send({
+      type: 'markdownContent',
+      path: 'docs/guide.md',
+      oldContent: '# Guide\nlegacy **text**\ncontext',
+      newContent: '# Guide\nnew **text**\ncontext',
+    });
+    expect(firstFile.querySelector('.rich-diff .added strong')?.textContent).toBe('text');
+    expect(firstFile.querySelector('.diff-row')).toBeNull();
+    expect(secondFile.querySelector('.diff-row')).not.toBeNull();
+
+    act(() => secondRich.click());
+    expect(messages.at(-1)).toMatchObject({ type: 'loadMarkdownContent', path: 'docs/notes.md' });
+    send({
+      type: 'markdownContent',
+      path: 'docs/notes.md',
+      oldContent: '# Notes\nold note',
+      newContent: '# Notes\nnew note',
+    });
+    expect(firstRich.getAttribute('aria-pressed')).toBe('true');
+    expect(secondRich.getAttribute('aria-pressed')).toBe('true');
+
+    act(() => firstSource.click());
+    expect(firstSource.getAttribute('aria-pressed')).toBe('true');
+    expect(secondRich.getAttribute('aria-pressed')).toBe('true');
+
+    act(() => button('Conversations').click());
+    act(() => button('Changes 2').click());
+    const restoredFirstFile = document.querySelector<HTMLElement>(
+      '[aria-label="Diff for docs/guide.md"]',
+    )!;
+    const restoredSecondFile = document.querySelector<HTMLElement>(
+      '[aria-label="Diff for docs/notes.md"]',
+    )!;
+    const restoredFirstSource = restoredFirstFile.querySelector<HTMLButtonElement>(
+      'button[aria-label="Display the source diff"]',
+    )!;
+    const restoredSecondRich = restoredSecondFile.querySelector<HTMLButtonElement>(
+      'button[aria-label="Display the rich diff"]',
+    )!;
+    expect(restoredFirstSource.getAttribute('aria-pressed')).toBe('true');
+    expect(restoredSecondRich.getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('does not offer Rich mode for non-Markdown files', () => {
+    send(initialize);
+    act(() => button('Changes').click());
+    send(files);
+
+    const file = document.querySelector<HTMLElement>('[aria-label="Diff for src/example.ts"]');
+    expect(file?.querySelector('[aria-label^="Markdown display"]')).toBeNull();
+    expect(file?.querySelector('button[aria-label="Display the rich diff"]')).toBeNull();
+    expect(file?.querySelector('.diff-row')).not.toBeNull();
   });
 
   it('keeps an inline draft visible after the host reports a stale diff', () => {

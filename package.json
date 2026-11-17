@@ -3,7 +3,7 @@
   "displayName": "ReviewDock",
   "description": "GitHub Pull Request and GitLab Merge Request reviews in VS Code",
   "version": "0.1.0",
-  "publisher": "reviewdock",
+  "publisher": "minhluu",
   "license": "UNLICENSED",
   "repository": {
     "type": "git",

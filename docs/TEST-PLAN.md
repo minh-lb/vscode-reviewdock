@@ -307,6 +307,19 @@ Fixtures must contain no real user secrets, private code or production project i
 | EXT-019 | Keyboard-only review workflow | Connection, PR/MR list, diff and comment controls are reachable and operable |
 | EXT-020 | Accessibility and theme inspection | Status is not color-only; controls have accessible labels and follow VS Code theme tokens |
 
+### 9.1. Markdown Source/Rich mode
+
+| ID | Scenario | Expected result |
+|---|---|---|
+| WEB-DIFF-001 | Open a Markdown diff | Source is selected by default; Rich and Source controls are shown |
+| WEB-DIFF-002 | Switch one Markdown file to Rich | Only that file renders the before/after Markdown hunks |
+| WEB-DIFF-003 | Switch a second Markdown file to Rich | The first file remains in its previous mode; each file has independent state |
+| WEB-DIFF-004 | Switch one file back to Source | Other files retain their selected mode |
+| WEB-DIFF-005 | Navigate to another tab and return to Changes | Per-file mode selections are preserved in the same review panel |
+| WEB-DIFF-006 | Open a non-Markdown file or unavailable patch | Rich control is not offered; Source fallback remains available |
+| WEB-DIFF-007 | Inspect the mode icon controls | Each mode has an SVG icon, accessible label and tooltip; the active control has distinct foreground/background, focus styling and aria-pressed=true |
+| WEB-DIFF-008 | View a Rich diff with existing discussions | Discussions remain visible; inline comment creation is available in Source mode |
+
 ## 10. Manual end-to-end scenarios
 
 ### E2E-001 — Create and use multiple connections
@@ -575,7 +588,7 @@ Maintain a test-to-requirement mapping as implementation progresses:
 | AUTH / CONN | API-AUTH, API-GH-AUTH, UNIT-CONN, E2E-001, SEC-TEST |
 | PROJ | UNIT-PROJ, API-PROJ, API-GH-REPO, E2E-001 |
 | PR / MR / DETAIL | API-MR, API-GH-PR, E2E-002A/B |
-| DIFF | UNIT-DIFF, API-DIFF, API-GH-PR, E2E-003A/B, E2E-005A/B |
+| DIFF | UNIT-DIFF, API-DIFF, API-GH-PR, WEB-DIFF, E2E-003A/B, E2E-005A/B |
 | DISC / REVIEW COMMENTS | UNIT-CONV, API-DISC, API-GH-COM, E2E-004A/B |
 | MERGE | API-MERGE, API-GH-MERGE, E2E-006A/B, E2E-007A/B |
 | APR / PIPE | API-APR, API-PIPE |
