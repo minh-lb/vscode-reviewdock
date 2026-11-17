@@ -108,11 +108,10 @@ function button(label: string): HTMLButtonElement {
   return found;
 }
 
-function tabButton(label: string): HTMLButtonElement {
-  const found = [...document.querySelectorAll<HTMLButtonElement>('.tabs button')].find(
-    (item) => item.textContent?.trim().startsWith(label),
-  );
-  if (!found) throw new Error(`Tab not found: ${label}`);
+function modeButton(file: HTMLElement, mode: 'source' | 'rich'): HTMLButtonElement {
+  const selector = `[data-mode="${mode}"]`;
+  const found = file.querySelector<HTMLButtonElement>(selector);
+  if (!found) throw new Error(`Mode button not found: ${mode}`);
   return found;
 }
 
@@ -218,15 +217,15 @@ describe('ReviewDock webview entry point', () => {
 
   it('keeps Source/Rich selection independent for each Markdown file', () => {
     send(initialize);
-    act(() => tabButton('Changes').click());
+    act(() => button('Changes').click());
     send(markdownFiles);
 
     const firstFile = document.querySelector<HTMLElement>('#file-0')!;
     const secondFile = document.querySelector<HTMLElement>('#file-1')!;
-    const firstSource = firstFile.querySelector<HTMLButtonElement>('[data-mode=source]')!;
-    const firstRich = firstFile.querySelector<HTMLButtonElement>('[data-mode=rich]')!;
-    const secondSource = secondFile.querySelector<HTMLButtonElement>('[data-mode=source]')!;
-    const secondRich = secondFile.querySelector<HTMLButtonElement>('[data-mode=rich]')!;
+    const firstSource = modeButton(firstFile, 'source');
+    const firstRich = modeButton(firstFile, 'rich');
+    const secondSource = modeButton(secondFile, 'source');
+    const secondRich = modeButton(secondFile, 'rich');
 
     expect(firstSource.getAttribute('aria-pressed')).toBe('true');
     expect(secondSource.getAttribute('aria-pressed')).toBe('true');
@@ -250,14 +249,12 @@ describe('ReviewDock webview entry point', () => {
     expect(firstRich.classList.contains('active')).toBe(false);
     expect(secondRich.classList.contains('active')).toBe(true);
 
-    act(() => tabButton('Conversations').click());
-    act(() => tabButton('Changes').click());
-    expect(
-      document.querySelector('#file-0 [data-mode="source"]')?.classList.contains('active'),
-    ).toBe(true);
-    expect(
-      document.querySelector('#file-1 [data-mode="rich"]')?.classList.contains('active'),
-    ).toBe(true);
+    act(() => button('Conversations').click());
+    act(() => button('Changes 2').click());
+    const restoredFirstFile = document.querySelector<HTMLElement>('#file-0')!;
+    const restoredSecondFile = document.querySelector<HTMLElement>('#file-1')!;
+    expect(modeButton(restoredFirstFile, 'source').classList.contains('active')).toBe(true);
+    expect(modeButton(restoredSecondFile, 'rich').classList.contains('active')).toBe(true);
   });
 
   it('does not offer Rich mode for non-Markdown files', () => {
