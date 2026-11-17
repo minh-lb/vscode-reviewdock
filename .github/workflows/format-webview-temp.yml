@@ -1,0 +1,36 @@
+name: Temporary format webview regression test
+
+on:
+  push:
+    branches:
+      - feature/per-file-rich-diff-modes
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npx prettier --write test/webview/main.test.tsx
+      - uses: actions/upload-artifact@v4
+        with:
+          name: formatted-webview-test
+          path: test/webview/main.test.tsx
+      - name: Commit formatted file
+        run: |
+          if ! git diff --quiet -- test/webview/main.test.tsx; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add test/webview/main.test.tsx
+            git commit -m "style: format webview regression tests"
+            git push origin HEAD:${GITHUB_REF_NAME}
+          fi
