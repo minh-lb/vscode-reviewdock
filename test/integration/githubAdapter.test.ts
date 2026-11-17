@@ -435,6 +435,11 @@ describe('GitHubAdapter contract', () => {
       body: 'line note',
       position: { path: 'src/a.ts', side: 'old', line: 8 },
     });
+    await adapter.createInlineComment({
+      ...context,
+      body: 'context note',
+      position: { path: 'src/a.ts', side: 'new', line: 9, oldLine: 8, newLine: 9 },
+    });
     await adapter.replyToConversation({ ...context, conversationId: '40', body: 'reply' });
     await adapter.submitReviewDecision({ ...context, decision: 'approve' });
     const merged = await adapter.merge({ ...context, expectedHeadSha: 'head-1' });
@@ -451,6 +456,13 @@ describe('GitHubAdapter contract', () => {
         side: 'LEFT',
       }),
     );
+    const contextComment = calls.filter((call) => call.path.endsWith('/pulls/5/comments'))[1];
+    expect(JSON.parse(contextComment!.body!)).toMatchObject({
+      body: 'context note',
+      path: 'src/a.ts',
+      line: 9,
+      side: 'RIGHT',
+    });
     expect(calls.find((call) => call.path.endsWith('/comments/40/replies'))?.body).toBe(
       JSON.stringify({ body: 'reply' }),
     );

@@ -330,9 +330,10 @@ describe('GitLabAdapter', () => {
         path: 'new.ts',
         oldPath: 'old.ts',
         newPath: 'new.ts',
-        side: 'old',
-        line: 4,
+        side: 'new',
+        line: 5,
         oldLine: 4,
+        newLine: 5,
       },
     });
     const options = request.mock.calls[0][2] as { body: URLSearchParams; headers: HeadersInit };
@@ -341,7 +342,7 @@ describe('GitLabAdapter', () => {
     );
     expect(options.body.get('position[position_type]')).toBe('text');
     expect(options.body.get('position[old_line]')).toBe('4');
-    expect(options.body.has('position[new_line]')).toBe(false);
+    expect(options.body.get('position[new_line]')).toBe('5');
     expect(options.body.get('position[old_path]')).toBe('old.ts');
     expect(options.body.get('position[new_path]')).toBe('new.ts');
     expect(options.body.get('position[head_sha]')).toBe('head');

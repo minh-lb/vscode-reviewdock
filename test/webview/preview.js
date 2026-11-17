@@ -8,6 +8,14 @@
       const line = document.createElement('div');
       line.textContent = JSON.stringify(message);
       output().prepend(line);
+      if (message.type === 'loadMarkdownContent' && fullContent[message.path])
+        queueMicrotask(() =>
+          window.dispatchEvent(
+            new MessageEvent('message', {
+              data: { type: 'markdownContent', path: message.path, ...fullContent[message.path] },
+            }),
+          ),
+        );
     },
     getState: () => undefined,
     setState: () => undefined,
@@ -89,6 +97,43 @@
         },
       ],
       page: { page: 1, perPage: 50, hasNextPage: false },
+    },
+  };
+  const documentPrefix = '# Review guide\n\n';
+  const documentTail =
+    '\n\n' +
+    [
+      '## Review checklist',
+      'A readable document should flow naturally across source lines.\nThis sentence continues the same paragraph, with **important details** and `inline code`.',
+      '> Check both the behavior and the edge cases before approving.',
+      '### Validation steps',
+      '1. Open the latest version.\n2. Compare the highlighted changes.\n3. Leave a comment on the relevant source line.',
+      '- [x] Build passes\n- [ ] Review completed',
+      '| Feature | Status |\n| --- | --- |\n| Markdown tables | **Ready** |\n| Inline comments | Available |',
+      '```ts\nconst review = { status: "ready" };\nconsole.log(review.status);\n```',
+      ...Array.from({ length: 70 }, (_, index) => `Unchanged paragraph ${index + 1}.`),
+    ].join('\n\n');
+  files.result.items.unshift({
+    path: 'docs/guide.md',
+    change: 'modified',
+    additions: 1,
+    deletions: 1,
+    patch: '@@ -1,3 +1,3 @@\n # Review guide\n \n-Previous introduction.\n+Updated introduction.',
+  });
+  const fullContent = {
+    'docs/guide.md': {
+      oldContent: documentPrefix + 'Previous introduction.' + documentTail,
+      newContent: documentPrefix + 'Updated introduction.' + documentTail,
+    },
+    'src/added.ts': { newContent: 'export function added() {\n  return "new";\n}\n' },
+    'src/removed.ts': { oldContent: 'export function removed() {\n  return "old";\n' },
+    'src/context.ts': {
+      oldContent:
+        'export const ready = true;\nexport const mode = "old";\n' +
+        Array.from({ length: 60 }, (_, i) => `// unchanged context ${i + 1}`).join('\n'),
+      newContent:
+        'export const ready = true;\nexport const mode = "review";\n' +
+        Array.from({ length: 60 }, (_, i) => `// unchanged context ${i + 1}`).join('\n'),
     },
   };
   const conversations = {

@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.0
+
+- Select and save the repositories shown under each connection in the sidebar.
+- Render complete Markdown files with tables, task lists, ordered lists and readable code blocks; improve typography and move comment controls outside the document text.
+- Keep the previous Markdown version collapsible in Unified view and adapt Split preview to narrow panels.
+- Support selecting unchanged lines for inline comments, including expanded context and both sides of Split view. Provider acceptance of comments outside the original patch still requires live verification.
+- Add icon-based file collapse controls, incremental context expansion and hover-only comment actions; align file names to the left.
+- Update the packaging tool to @vscode/vsce 4.1.1, use the locked version for publishing and require Node.js 22 or later for development (Node.js 24 in CI).
+
 ## 0.1.1
 
 - Shorten the Marketplace README and add practical setup and review instructions.

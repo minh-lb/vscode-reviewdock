@@ -3,6 +3,7 @@ import type { DiffFile } from '../models';
 export type DiffRowKind = 'context' | 'added' | 'removed' | 'hunk-header';
 export interface DiffRow {
   kind: DiffRowKind;
+  source?: 'patch' | 'full-file';
   text: string;
   oldLine?: number;
   newLine?: number;

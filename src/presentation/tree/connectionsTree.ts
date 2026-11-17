@@ -13,7 +13,7 @@ export type ConnectionNode =
       repository: RepositoryRef;
       summary: ReviewRequestSummary;
     }
-  | { kind: 'more-repositories'; connection: Connection; page: number }
+  | { kind: 'select-repositories'; connection: Connection }
   | { kind: 'more-requests'; connection: Connection; repository: RepositoryRef; page: number }
   | { kind: 'loading' | 'empty'; label: string }
   | { kind: 'error'; label: string; connection: Connection; repository?: RepositoryRef };
@@ -30,7 +30,6 @@ export class ConnectionsTree implements vscode.TreeDataProvider<ConnectionNode> 
   private readonly changed = new vscode.EventEmitter<void>();
   readonly onDidChangeTreeData = this.changed.event;
   private generation = 0;
-  private readonly repositories = new Map<string, PageCache<RepositoryRef>>();
   private readonly requests = new Map<string, PageCache<ReviewRequestSummary>>();
 
   constructor(
@@ -40,7 +39,6 @@ export class ConnectionsTree implements vscode.TreeDataProvider<ConnectionNode> 
 
   refresh(): void {
     this.generation++;
-    this.repositories.clear();
     this.requests.clear();
     this.changed.fire();
   }
@@ -98,20 +96,28 @@ export class ConnectionsTree implements vscode.TreeDataProvider<ConnectionNode> 
       };
       return item;
     }
-    const label =
-      node.kind === 'more-repositories' || node.kind === 'more-requests'
-        ? 'Load More…'
-        : node.label;
+    if (node.kind === 'select-repositories') {
+      const item = new vscode.TreeItem(
+        'Select repositories…',
+        vscode.TreeItemCollapsibleState.None,
+      );
+      item.iconPath = new vscode.ThemeIcon('list-selection');
+      item.command = {
+        command: 'reviewdock.selectConnectionRepositories',
+        title: 'Select Repositories',
+        arguments: [node],
+      };
+      return item;
+    }
+    const label = node.kind === 'more-requests' ? 'Load More…' : node.label;
     const item = new vscode.TreeItem(label, vscode.TreeItemCollapsibleState.None);
     item.id =
-      node.kind === 'more-repositories'
-        ? `more-repositories:${node.connection.id}`
-        : node.kind === 'more-requests'
-          ? `more-requests:${node.connection.id}:${node.repository.id}`
-          : node.kind === 'error'
-            ? `error:${node.connection.id}:${node.repository?.id ?? 'repositories'}`
-            : `${node.kind}:${node.label}`;
-    if (node.kind === 'more-repositories' || node.kind === 'more-requests') {
+      node.kind === 'more-requests'
+        ? `more-requests:${node.connection.id}:${node.repository.id}`
+        : node.kind === 'error'
+          ? `error:${node.connection.id}:${node.repository?.id ?? 'repositories'}`
+          : `${node.kind}:${node.label}`;
+    if (node.kind === 'more-requests') {
       item.contextValue = 'reviewdock.loadMore';
       item.command = {
         command: 'reviewdock.loadConnectionTreeMore',
@@ -137,15 +143,13 @@ export class ConnectionsTree implements vscode.TreeDataProvider<ConnectionNode> 
         .map((connection) => ({ kind: 'connection', connection }));
     if (node.kind === 'connection') {
       if (!node.connection.enabled || node.connection.status !== 'connected') return [];
-      const cache = this.repositories.get(node.connection.id) ?? {
-        items: [],
-        page: 0,
-        hasMore: true,
-      };
-      this.repositories.set(node.connection.id, cache);
-      if (cache.page === 0 && !cache.loading && !cache.error)
-        void this.loadRepositories(node.connection, cache, 1);
-      return this.pageChildren(cache, node.connection);
+      const selected = node.connection.selectedRepositories ?? [];
+      if (!selected.length) return [{ kind: 'select-repositories', connection: node.connection }];
+      return selected.map((repository) => ({
+        kind: 'repository',
+        connection: node.connection,
+        repository,
+      }));
     }
     if (node.kind === 'repository') {
       if (!node.connection.enabled || node.connection.status !== 'connected') return [];
@@ -160,10 +164,7 @@ export class ConnectionsTree implements vscode.TreeDataProvider<ConnectionNode> 
   }
 
   async loadMore(node: ConnectionNode): Promise<void> {
-    if (node.kind === 'more-repositories') {
-      const cache = this.repositories.get(node.connection.id);
-      if (cache) await this.loadRepositories(node.connection, cache, node.page);
-    } else if (node.kind === 'more-requests') {
+    if (node.kind === 'more-requests') {
       const cache = this.requests.get(`${node.connection.id}:${node.repository.id}`);
       if (cache)
         await this.loadRequests(
@@ -186,64 +187,28 @@ export class ConnectionsTree implements vscode.TreeDataProvider<ConnectionNode> 
           cache.page + 1,
         );
       }
-    } else {
-      const cache = this.repositories.get(node.connection.id);
-      if (cache) {
-        delete cache.error;
-        await this.loadRepositories(node.connection, cache, cache.page + 1);
-      }
     }
   }
 
-  private pageChildren<T extends RepositoryRef | ReviewRequestSummary>(
-    cache: PageCache<T>,
+  private pageChildren(
+    cache: PageCache<ReviewRequestSummary>,
     connection: Connection,
-    repository?: RepositoryRef,
+    repository: RepositoryRef,
   ): ConnectionNode[] {
-    const items: ConnectionNode[] = cache.items.map((value) =>
-      repository
-        ? { kind: 'request', connection, repository, summary: value as ReviewRequestSummary }
-        : { kind: 'repository', connection, repository: value as RepositoryRef },
-    );
-    if (cache.loading)
-      return [
-        ...items,
-        { kind: 'loading', label: `Loading ${repository ? 'open requests' : 'repositories'}…` },
-      ];
+    const items: ConnectionNode[] = cache.items.map((summary) => ({
+      kind: 'request',
+      connection,
+      repository,
+      summary,
+    }));
+    if (cache.loading) return [...items, { kind: 'loading', label: 'Loading open requests…' }];
     if (cache.error)
-      return [
-        ...items,
-        {
-          kind: 'error',
-          label: `${cache.error} · Retry`,
-          connection,
-          ...(repository ? { repository } : {}),
-        },
-      ];
+      return [...items, { kind: 'error', label: `${cache.error} · Retry`, connection, repository }];
     if (cache.hasMore)
-      items.push(
-        repository
-          ? { kind: 'more-requests', connection, repository, page: cache.page + 1 }
-          : { kind: 'more-repositories', connection, page: cache.page + 1 },
-      );
+      items.push({ kind: 'more-requests', connection, repository, page: cache.page + 1 });
     if (!cache.items.length && !cache.hasMore)
-      items.push({
-        kind: 'empty',
-        label: repository ? 'No open pull requests or merge requests.' : 'No repositories found.',
-      });
+      items.push({ kind: 'empty', label: 'No open pull requests or merge requests.' });
     return items;
-  }
-
-  private loadRepositories(
-    connection: Connection,
-    cache: PageCache<RepositoryRef>,
-    page: number,
-  ): Promise<void> {
-    return this.load(
-      cache,
-      () => this.providerFor(connection).listRepositories({ page, perPage: 20 }),
-      page,
-    );
   }
 
   private loadRequests(

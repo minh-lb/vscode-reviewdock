@@ -15,6 +15,7 @@ import { GitHubAdapter } from './infrastructure/providers/github/githubAdapter';
 import { GitLabAdapter } from './infrastructure/providers/gitlab/gitlabAdapter';
 import { ConnectionsTree, type ConnectionNode } from './presentation/tree/connectionsTree';
 import { RequestsTree, type RequestNode } from './presentation/tree/requestsTree';
+import { pickSidebarRepositories } from './presentation/tree/repositoryPicker';
 import { connectionChoice } from './presentation/tree/connectionSelection';
 import { reviewFilters, selectWorkspaceFolder } from './presentation/tree/treeItems';
 import { openReviewRequestPanel } from './presentation/webview/reviewRequestPanel';
@@ -197,6 +198,7 @@ export function activate(context: vscode.ExtensionContext): void {
   const commands: [string, (...args: never[]) => unknown][] = [
     ['reviewdock.addConnection', addConnection],
     ['reviewdock.manageConnections', manageConnections],
+    ['reviewdock.selectConnectionRepositories', selectConnectionRepositories],
     ['reviewdock.selectConnection', selectConnection],
     ['reviewdock.selectRepository', selectRepository],
     [
@@ -318,6 +320,48 @@ export function activate(context: vscode.ExtensionContext): void {
     }
   }
 
+  async function selectConnectionRepositories(
+    selection?: Connection | ConnectionNode,
+  ): Promise<void> {
+    let target =
+      selection && 'kind' in selection
+        ? 'connection' in selection
+          ? selection.connection
+          : undefined
+        : selection;
+    if (!target) {
+      const chosen = await vscode.window.showQuickPick(
+        connections
+          .listConnections()
+          .filter((item) => item.enabled && item.status === 'connected')
+          .map((item) => ({
+            label: item.displayName,
+            description: `${item.provider} · ${item.accountLogin ?? ''}`,
+            item,
+          })),
+        { placeHolder: 'Choose a connection to select sidebar repositories' },
+      );
+      target = chosen?.item;
+    }
+    if (!target) return;
+    const connection = connections.getConnection(target.id);
+    if (!connection.enabled || connection.status !== 'connected') {
+      void vscode.window.showWarningMessage(
+        'Connect and enable this account before selecting repositories.',
+      );
+      return;
+    }
+    pickSidebarRepositories(
+      connection,
+      providerFor(connection),
+      async (selected) => {
+        await connections.setSelectedRepositories(connection.id, selected);
+        connectionTree.refresh();
+      },
+      showError,
+    );
+  }
+
   async function manageConnections(selection?: Connection | ConnectionNode): Promise<void> {
     let target =
       selection && 'kind' in selection
@@ -341,7 +385,7 @@ export function activate(context: vscode.ExtensionContext): void {
       }
       const options = [
         target.enabled ? 'Disable' : 'Enable',
-        ...(target.enabled ? ['Test Connection', 'Set as Default'] : []),
+        ...(target.enabled ? ['Select Repositories', 'Test Connection', 'Set as Default'] : []),
         'Rename',
         'Re-authenticate',
         'Disconnect',
@@ -355,7 +399,10 @@ export function activate(context: vscode.ExtensionContext): void {
       try {
         if (action === 'Enable' || action === 'Disable')
           await connections.setEnabled(target.id, action === 'Enable');
-        else if (action === 'Test Connection') await connections.testConnection(target.id);
+        else if (action === 'Select Repositories') {
+          await selectConnectionRepositories(target);
+          return;
+        } else if (action === 'Test Connection') await connections.testConnection(target.id);
         else if (action === 'Rename') {
           const name = await vscode.window.showInputBox({
             value: target.displayName,

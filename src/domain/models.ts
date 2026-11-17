@@ -20,6 +20,7 @@ export interface Connection {
   createdAt: string;
   updatedAt: string;
   lastValidatedAt?: string;
+  selectedRepositories?: RepositoryRef[];
 }
 
 export interface ProviderUser {

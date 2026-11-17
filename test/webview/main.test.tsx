@@ -323,6 +323,104 @@ describe('ReviewDock webview entry point', () => {
     expect(file?.querySelector('.diff-row')).not.toBeNull();
   });
 
+  it('submits an unchanged line selected from the old Split pane', () => {
+    send(initialize);
+    act(() => button('Changes').click());
+    send(files);
+    act(() =>
+      document.querySelector<HTMLButtonElement>('[aria-label="Changes settings"]')!.click(),
+    );
+    act(() => button('Split').click());
+    act(() =>
+      document
+        .querySelectorAll<HTMLButtonElement>('.split-context-row button:first-child')
+        .forEach((control) => control.click()),
+    );
+    act(() =>
+      document
+        .querySelector<HTMLButtonElement>('[aria-label="Comment on old line 1 of src/example.ts"]')!
+        .click(),
+    );
+    const editor = document.querySelector<HTMLTextAreaElement>(
+      'textarea[aria-label="Inline comment"]',
+    )!;
+    typeInto(editor, 'Review this unchanged context');
+    act(() => button('Send comment').click());
+    expect(messages.at(-1)).toEqual(
+      expect.objectContaining({
+        type: 'addInlineComment',
+        body: 'Review this unchanged context',
+        contextId: 'context-42',
+        position: expect.objectContaining({
+          path: 'src/example.ts',
+          side: 'old',
+          line: 1,
+          oldLine: 1,
+          newLine: 1,
+        }),
+      }),
+    );
+  });
+
+  it('loads full source content and submits an expanded unchanged Split line', () => {
+    send(initialize);
+    act(() => button('Changes').click());
+    send({
+      ...files,
+      result: {
+        ...files.result,
+        items: [
+          {
+            path: 'src/example.ts',
+            change: 'modified',
+            patch: '@@ -3 +3 @@\n-old value\n+new value',
+          },
+        ],
+      },
+    });
+    act(() => button('Load unchanged lines').click());
+    expect(messages.at(-1)).toEqual(
+      expect.objectContaining({ type: 'loadMarkdownContent', path: 'src/example.ts' }),
+    );
+    send({
+      type: 'markdownContent',
+      path: 'src/example.ts',
+      oldContent: 'first\nsecond\nold value\nfourth\nfifth\n',
+      newContent: 'first\nsecond\nnew value\nfourth\nfifth\n',
+    });
+    act(() =>
+      document.querySelector<HTMLButtonElement>('[aria-label="Changes settings"]')!.click(),
+    );
+    act(() => button('Split').click());
+    act(() =>
+      document
+        .querySelectorAll<HTMLButtonElement>('.split-context-row button:first-child')
+        .forEach((control) => control.click()),
+    );
+    act(() =>
+      document
+        .querySelector<HTMLButtonElement>('[aria-label="Comment on old line 5 of src/example.ts"]')!
+        .click(),
+    );
+    typeInto(
+      document.querySelector<HTMLTextAreaElement>('textarea[aria-label="Inline comment"]')!,
+      'Expanded context review',
+    );
+    act(() => button('Send comment').click());
+    expect(messages.at(-1)).toEqual(
+      expect.objectContaining({
+        type: 'addInlineComment',
+        position: expect.objectContaining({
+          path: 'src/example.ts',
+          side: 'old',
+          line: 5,
+          oldLine: 5,
+          newLine: 5,
+        }),
+      }),
+    );
+  });
+
   it('keeps an inline draft visible after the host reports a stale diff', () => {
     send(initialize);
     act(() => button('Changes').click());

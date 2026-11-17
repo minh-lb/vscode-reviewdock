@@ -2,7 +2,7 @@
   "name": "reviewdock",
   "displayName": "ReviewDock",
   "description": "GitHub Pull Request and GitLab Merge Request reviews in VS Code",
-  "version": "0.1.1",
+  "version": "1.0.0",
   "publisher": "minhluu",
   "license": "SEE LICENSE IN LICENSE",
   "icon": "resources/icon.png",
@@ -24,7 +24,7 @@
   },
   "engines": {
     "vscode": "^1.140.0",
-    "node": ">=20 <25"
+    "node": ">=22 <25"
   },
   "categories": [
     "SCM Providers",
@@ -76,7 +76,9 @@
   },
   "dependencies": {
     "react": "19.3.1",
-    "react-dom": "19.3.1"
+    "react-dom": "19.3.1",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1"
   },
   "devDependencies": {
     "@eslint/js": "9.39.5",
@@ -85,7 +87,7 @@
     "@types/react-dom": "19.3.0",
     "@types/vscode": "1.140.0",
     "@vscode/test-electron": "2.5.2",
-    "@vscode/vsce": "3.9.2",
+    "@vscode/vsce": "4.1.1",
     "esbuild": "0.28.2",
     "eslint": "9.39.5",
     "eslint-config-prettier": "10.1.8",
@@ -170,10 +172,20 @@
       {
         "command": "reviewdock.searchRequests",
         "title": "ReviewDock: Search Requests"
+      },
+      {
+        "command": "reviewdock.selectConnectionRepositories",
+        "title": "ReviewDock: Select Sidebar Repositories",
+        "icon": "$(list-selection)"
       }
     ],
     "menus": {
       "view/item/context": [
+        {
+          "command": "reviewdock.selectConnectionRepositories",
+          "when": "view == reviewdock.connections && viewItem == reviewdock.connection.enabled",
+          "group": "inline@1"
+        },
         {
           "command": "reviewdock.manageConnections",
           "when": "view == reviewdock.connections && (viewItem == reviewdock.connection.enabled || viewItem == reviewdock.connection.disabled)",

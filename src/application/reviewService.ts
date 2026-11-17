@@ -5,7 +5,12 @@ import type {
   ReviewProvider,
   ReviewRequestManagement,
 } from './ports';
-import { mapGitHubReviewLine, mapGitLabDiscussionPosition, parseUnifiedDiff } from '../domain/diff';
+import {
+  expandDiffContext,
+  mapGitHubReviewLine,
+  mapGitLabDiscussionPosition,
+  parseUnifiedDiff,
+} from '../domain/diff';
 import { AppError, UnsupportedCapabilityError, ValidationError } from '../domain/errors';
 import type {
   ApprovalState,
@@ -279,7 +284,8 @@ export class ReviewService {
         this.assertFreshInlineContext(context, current.headSha, currentVersion);
         if (!current.headSha)
           throw new AppError('The current source head SHA is unavailable.', 'conflict');
-        const canonicalPosition = this.rederivePosition(
+        const canonicalPosition = await this.rederivePosition(
+          context,
           freshFiles.files,
           position,
           current.headSha,
@@ -425,12 +431,13 @@ export class ReviewService {
     }
   }
 
-  private rederivePosition(
+  private async rederivePosition(
+    context: ReviewRequestContext,
     files: DiffFile[],
     selected: DiffPosition,
     headSha: string,
     version?: DiffVersion,
-  ): DiffPosition {
+  ): Promise<DiffPosition> {
     const file = files.find(
       (candidate) =>
         candidate.path === selected.path ||
@@ -442,22 +449,51 @@ export class ReviewService {
     );
     if (!file)
       throw new ValidationError('The selected diff file is no longer available', 'position');
-    const parsed = parseUnifiedDiff(file);
+    let parsed = parseUnifiedDiff(file);
     if (parsed.status !== 'available')
       throw new ValidationError('The selected diff position is unavailable', 'position');
-    const row = parsed.rows.find((candidate) => {
-      if (!candidate.commentable) return false;
-      const line = selected.side === 'old' ? candidate.oldLine : candidate.newLine;
-      if (line !== selected.line) return false;
-      if (selected.oldLine !== undefined && candidate.oldLine !== selected.oldLine) return false;
-      if (selected.newLine !== undefined && candidate.newLine !== selected.newLine) return false;
-      if (selected.side === 'old')
-        return (
-          candidate.kind === 'removed' ||
-          (this.provider.provider === 'gitlab' && candidate.kind === 'context')
+    const findRow = () =>
+      parsed.rows.find((candidate) => {
+        if (!candidate.commentable) return false;
+        const line = selected.side === 'old' ? candidate.oldLine : candidate.newLine;
+        if (line !== selected.line) return false;
+        if (selected.oldLine !== undefined && candidate.oldLine !== selected.oldLine) return false;
+        if (selected.newLine !== undefined && candidate.newLine !== selected.newLine) return false;
+        if (selected.side === 'old')
+          return candidate.kind === 'removed' || candidate.kind === 'context';
+        return candidate.kind === 'added' || candidate.kind === 'context';
+      });
+    let row = findRow();
+    if (!row) {
+      const contentProvider = this.provider as ReviewProvider & Partial<ReviewFileContentProvider>;
+      if (!version || !contentProvider.getFileContent)
+        throw new ValidationError(
+          'The selected line is not a commentable row in the current diff',
+          'position',
         );
-      return candidate.kind === 'added' || candidate.kind === 'context';
-    });
+      const contentContext = { ...context, diffVersion: version };
+      const oldPath = file.previousPath ?? file.path;
+      const [oldContent, newContent] = await Promise.all([
+        file.change === 'added'
+          ? undefined
+          : contentProvider.getFileContent({
+              ...contentContext,
+              path: oldPath,
+              side: 'old',
+              baseSha: version.baseSha,
+            }),
+        file.change === 'removed'
+          ? undefined
+          : contentProvider.getFileContent({
+              ...contentContext,
+              path: file.path,
+              side: 'new',
+              baseSha: version.baseSha,
+            }),
+      ]);
+      parsed = expandDiffContext(file, oldContent, newContent);
+      row = parsed.status === 'available' ? findRow() : undefined;
+    }
     if (!row)
       throw new ValidationError(
         'The selected line is not a commentable row in the current diff',
@@ -465,6 +501,11 @@ export class ReviewService {
       );
     const oldPath = file.previousPath ?? file.path;
     const newPath = file.path;
+    const providerSide =
+      this.provider.provider === 'github' && row.kind === 'context' ? 'new' : selected.side;
+    const line = providerSide === 'old' ? row.oldLine : row.newLine;
+    if (line === undefined)
+      throw new ValidationError('The selected line has no provider-supported side', 'position');
     if (this.provider.provider === 'github') {
       const mapped = mapGitHubReviewLine({ row, path: newPath, commitSha: headSha });
       if (!mapped)
@@ -485,8 +526,8 @@ export class ReviewService {
       path: newPath,
       oldPath,
       newPath,
-      side: selected.side,
-      line: selected.line,
+      side: providerSide,
+      line,
       ...(row.oldLine === undefined ? {} : { oldLine: row.oldLine }),
       ...(row.newLine === undefined ? {} : { newLine: row.newLine }),
     };

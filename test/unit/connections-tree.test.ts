@@ -69,7 +69,7 @@ function fixture() {
     listReviewRequests: vi.fn().mockResolvedValue(page([request], 1, false)),
   } as unknown as ReviewProvider;
   const tree = new ConnectionsTree(
-    { listConnections: () => [connection] } as never,
+    { listConnections: () => [{ ...connection, selectedRepositories: [repository] }] } as never,
     () => provider,
   );
   return { tree, provider };
@@ -113,14 +113,40 @@ describe('connection hierarchy', () => {
     expect(provider.listReviewRequests).toHaveBeenCalledTimes(2);
   });
 
-  it('keeps each connection scoped to its own provider and retryable errors', async () => {
-    const failed = { ...connection, id: 'account-b', displayName: 'Other' };
+  it('shows a selection action and never fetches unselected repositories', async () => {
     const provider = {
-      listRepositories: vi
+      listRepositories: vi.fn(),
+      listReviewRequests: vi.fn(),
+    } as unknown as ReviewProvider;
+    const tree = new ConnectionsTree(
+      { listConnections: () => [connection] } as never,
+      () => provider,
+    );
+    const roots = tree.getChildren();
+    const children = tree.getChildren(roots[0]!);
+    expect(children.some((node) => node.kind === 'repository')).toBe(false);
+    expect(
+      children.some(
+        (node) =>
+          tree.getTreeItem(node).command?.command === 'reviewdock.selectConnectionRepositories',
+      ),
+    ).toBe(true);
+    expect(provider.listRepositories).not.toHaveBeenCalled();
+    expect(provider.listReviewRequests).not.toHaveBeenCalled();
+  });
+
+  it('keeps selected repositories scoped to their connection and retries request errors', async () => {
+    const failed = {
+      ...connection,
+      id: 'account-b',
+      displayName: 'Other',
+      selectedRepositories: [repository],
+    };
+    const provider = {
+      listReviewRequests: vi
         .fn()
         .mockRejectedValueOnce(new Error('denied'))
         .mockResolvedValue(page([], 1, false)),
-      listReviewRequests: vi.fn(),
     } as unknown as ReviewProvider;
     const tree = new ConnectionsTree(
       { listConnections: () => [connection, failed] } as never,
@@ -129,12 +155,14 @@ describe('connection hierarchy', () => {
         return provider;
       },
     );
-    const roots = await tree.getChildren();
-    await tree.getChildren(roots[1]!);
-    expect((await tree.getChildren(roots[1]!)).some((node) => node.kind === 'error')).toBe(true);
-    const retry = (await tree.getChildren(roots[1]!)).find((node) => node.kind === 'error')!;
+    const roots = tree.getChildren();
+    expect(tree.getChildren(roots[0]!).some((node) => node.kind === 'repository')).toBe(false);
+    const repoNode = tree.getChildren(roots[1]!).find((node) => node.kind === 'repository')!;
+    const nodes = await loadTree(tree, repoNode);
+    const retry = nodes.find((node) => node.kind === 'error')!;
+    expect(retry).toBeDefined();
     await tree.retry(retry);
-    expect((await tree.getChildren(roots[1]!)).some((node) => node.kind === 'empty')).toBe(true);
-    expect(provider.listRepositories).toHaveBeenCalledTimes(2);
+    expect(tree.getChildren(repoNode).some((node) => node.kind === 'empty')).toBe(true);
+    expect(provider.listReviewRequests).toHaveBeenCalledTimes(2);
   });
 });

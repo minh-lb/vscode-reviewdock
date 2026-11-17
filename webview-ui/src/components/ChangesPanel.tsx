@@ -6,9 +6,10 @@ import type {
   ReviewConversation,
 } from '../../../src/domain/models';
 import type { WebviewRequest } from '../../../src/presentation/webview/messageProtocol';
-import { parseUnifiedDiff } from '../../../src/domain/diff';
+import { expandDiffContext, parseUnifiedDiff } from '../../../src/domain/diff';
 import type { DiffRow } from '../../../src/domain/diff';
 import './changes-panel.css';
+import { MarkdownPreview as SafeMarkdown } from './MarkdownPreview';
 
 export type ChangesPanelState = {
   view: 'source' | 'rich';
@@ -18,6 +19,7 @@ export type ChangesPanelState = {
   expandedDirectories: string[];
   viewsByPath?: Record<string, 'source' | 'rich'>;
   selectedPath?: string;
+  collapsedPaths?: string[];
 };
 export type MarkdownFileContent = {
   oldContent?: string;
@@ -30,6 +32,7 @@ export type MarkdownFileContent = {
 type InlinePosition = NonNullable<
   Extract<WebviewRequest, { type: 'addInlineComment' }>['position']
 >;
+type ContextControl = { type: 'context-control'; gap: string; hidden: number };
 export type ChangesPanelProps = {
   files?: DiffFilePage | undefined;
   stale?: boolean | undefined;
@@ -56,6 +59,7 @@ const defaults: ChangesPanelState = {
   sidebarVisible: true,
   sidebarWidth: 280,
   expandedDirectories: [],
+  collapsedPaths: [],
 };
 const clampWidth = (width: number) => Math.min(maxWidth, Math.max(minWidth, width));
 const pathId = (path: string) => `change-file-${encodeURIComponent(path)}`;
@@ -88,6 +92,7 @@ export function ChangesPanel(props: ChangesPanelProps) {
     const selected = entries.find((file) => file.path === selectedPath);
     if (
       selected &&
+      !state.collapsedPaths?.includes(selected.path) &&
       /\.md(?:own)?$/i.test(selected.path) &&
       markdownView(selected.path) === 'rich' &&
       !selected.binary &&
@@ -98,6 +103,7 @@ export function ChangesPanel(props: ChangesPanelProps) {
   }, [
     state.view,
     state.viewsByPath,
+    state.collapsedPaths,
     selectedPath,
     entries,
     props.contentByPath,
@@ -157,7 +163,12 @@ export function ChangesPanel(props: ChangesPanelProps) {
         : [...state.expandedDirectories, path],
     });
   const selectFile = (path: string) => {
-    update({ selectedPath: path });
+    update({
+      selectedPath: path,
+      ...(state.collapsedPaths?.includes(path)
+        ? { collapsedPaths: state.collapsedPaths.filter((item) => item !== path) }
+        : {}),
+    });
     props.onSelectFile?.(path);
     requestAnimationFrame(() =>
       document.getElementById(pathId(path))?.scrollIntoView({ block: 'start' }),
@@ -340,6 +351,14 @@ export function ChangesPanel(props: ChangesPanelProps) {
             <DiffFileView
               key={file.path}
               file={file}
+              collapsed={state.collapsedPaths?.includes(file.path) ?? false}
+              toggleCollapsed={() =>
+                update({
+                  collapsedPaths: (state.collapsedPaths ?? []).includes(file.path)
+                    ? (state.collapsedPaths ?? []).filter((path) => path !== file.path)
+                    : [...(state.collapsedPaths ?? []), file.path],
+                })
+              }
               selected={file.path === selectedPath}
               layout={state.layout}
               rich={markdownView(file.path) === 'rich' && /\.md(?:own)?$/i.test(file.path)}
@@ -465,6 +484,8 @@ function TreeNode({
 
 function DiffFileView({
   file,
+  collapsed,
+  toggleCollapsed,
   selected,
   layout,
   rich,
@@ -479,6 +500,8 @@ function DiffFileView({
   onLoadContent,
 }: {
   file: DiffFile;
+  collapsed: boolean;
+  toggleCollapsed: () => void;
   selected: boolean;
   layout: 'unified' | 'split';
   rich: boolean;
@@ -493,7 +516,61 @@ function DiffFileView({
   onLoadContent?: ((path: string) => void) | undefined;
 }) {
   const [showSource, setShowSource] = useState(false);
+  const [contextLimits, setContextLimits] = useState<Record<string, number>>({});
   const parsed = parseUnifiedDiff(file);
+  const expanded = useMemo(
+    () => expandDiffContext(file, content?.oldContent, content?.newContent),
+    [file, content?.oldContent, content?.newContent],
+  );
+  const expandedRows =
+    expanded.status === 'available'
+      ? expanded.rows
+      : parsed.status === 'available'
+        ? parsed.rows
+        : [];
+  const anchorRows =
+    expanded.status === 'available'
+      ? expanded.rows
+      : parsed.status === 'available'
+        ? parsed.rows
+        : [];
+  const visibleRows = useMemo(() => {
+    const limitRows = expandedRows;
+    const result: Array<{ row?: DiffRow; gap?: string; hidden: number }> = [];
+    let gapIndex = 0;
+    for (let index = 0; index < limitRows.length;) {
+      const row = limitRows[index]!;
+      if (row.kind !== 'context') {
+        result.push({ row, hidden: 0 });
+        index += 1;
+        continue;
+      }
+      const start = index;
+      while (index < limitRows.length && limitRows[index]!.kind === 'context') index += 1;
+      const gapRows = limitRows.slice(start, index);
+      const gap = `${gapRows[0]!.oldLine}:${gapRows[0]!.newLine}:${gapIndex++}`;
+      const max = contextLimits[gap] ?? 0;
+      const leading = start === 0;
+      const shown =
+        max === 0
+          ? []
+          : gapRows.length <= max
+            ? gapRows
+            : leading
+              ? gapRows.slice(-max)
+              : gapRows.slice(0, max);
+      if (gapRows.length > shown.length && leading)
+        result.push({ gap, hidden: gapRows.length - shown.length });
+      result.push(...shown.map((contextRow) => ({ row: contextRow, hidden: 0 })));
+      if (gapRows.length > shown.length && !leading)
+        result.push({ gap, hidden: gapRows.length - shown.length });
+    }
+    return result;
+  }, [expandedRows, contextLimits]);
+  const visibleSourceRows = visibleRows;
+  const hasFullContent =
+    (file.change === 'added' || content?.oldContent !== undefined) &&
+    (file.change === 'removed' || content?.newContent !== undefined);
   const discussions = conversations.filter(
     (item) => item.position && [file.path, file.previousPath].includes(item.position.path),
   );
@@ -519,16 +596,15 @@ function DiffFileView({
           : (position.newLine ?? position.line))
       );
     });
-  const oldLines = lineDecorations(
-    parsed.status === 'available' ? parsed.rows : [],
-    'old',
-    discussions,
-  );
-  const newLines = lineDecorations(
-    parsed.status === 'available' ? parsed.rows : [],
-    'new',
-    discussions,
-  );
+  const visibleAnchorRows =
+    expanded.status === 'available'
+      ? visibleRows.flatMap(({ row }) => (row ? [row] : []))
+      : parsed.status === 'available'
+        ? parsed.rows
+        : [];
+  const activeAnchorRows = rich && !showSource ? anchorRows : visibleAnchorRows;
+  const oldLines = lineDecorations(activeAnchorRows, 'old', discussions);
+  const newLines = lineDecorations(activeAnchorRows, 'new', discussions);
   const unanchoredDiscussions = discussions.filter(
     (item) =>
       ![...oldLines.values(), ...newLines.values()].some(({ discussions: visible }) =>
@@ -557,6 +633,18 @@ function DiffFileView({
       aria-label={`Diff for ${file.path}`}
     >
       <header>
+        <button
+          type="button"
+          className="diff-collapse-button"
+          aria-label={`${collapsed ? 'Expand' : 'Collapse'} diff for ${file.path}`}
+          title={`${collapsed ? 'Expand' : 'Collapse'} file`}
+          aria-expanded={!collapsed}
+          onClick={toggleCollapsed}
+        >
+          <span className="diff-collapse-icon" aria-hidden="true">
+            ›
+          </span>
+        </button>
         <strong>{file.path}</strong>
         <div className="diff-file-actions">
           <span>{file.change}</span>
@@ -595,152 +683,76 @@ function DiffFileView({
           )}
         </div>
       </header>
-      {rich && !showSource ? (
-        <RichContent
-          file={file}
-          content={content}
-          rows={parsed.status === 'available' ? parsed.rows : []}
-          onLoad={() => onLoadContent?.(file.path)}
-          layout={layout}
-          canComment={canComment}
-          onComment={addComment}
-          renderDiscussion={discussion}
-          oldLines={oldLines}
-          newLines={newLines}
-        />
-      ) : parsed.status !== 'available' ? (
-        <p className="changes-muted">
-          {parsed.status === 'invalid'
-            ? parsed.reason
-            : parsed.reason === 'binary'
-              ? 'Binary file'
-              : parsed.reason === 'too-large'
-                ? 'Patch too large'
-                : parsed.reason === 'collapsed'
-                  ? 'Patch collapsed'
-                  : 'Patch unavailable'}
-        </p>
-      ) : layout === 'unified' ? (
-        <div className="unified-diff">
-          {parsed.rows.map((row, index) => (
-            <Fragment key={`${row.hunkIndex}-${index}-${row.oldLine}-${row.newLine}`}>
-              <div className={`diff-row ${row.kind}`}>
-                <span className="line-no old-line">{row.oldLine ?? ''}</span>
-                <span className="line-no new-line">{row.newLine ?? ''}</span>
-                <span
-                  className="diff-sign"
-                  aria-label={
-                    row.kind === 'added'
-                      ? 'Added line'
-                      : row.kind === 'removed'
-                        ? 'Removed line'
-                        : 'Context line'
-                  }
-                >
-                  {row.kind === 'added' ? '+' : row.kind === 'removed' ? '−' : ' '}
-                </span>
-                <code>{row.text || ' '}</code>
-                {canComment && row.commentable && (
-                  <button
-                    type="button"
-                    className="line-comment"
-                    aria-label={`Comment on ${file.path} line ${row.newLine ?? row.oldLine}`}
-                    onClick={() => addComment(row)}
-                  >
-                    ＋
-                  </button>
-                )}
-              </div>
-              {rowDiscussions(row).map((item) => (
-                <Fragment key={item.id}>{discussion(item)}</Fragment>
-              ))}
-            </Fragment>
-          ))}
-        </div>
-      ) : (
-        <SplitDiff
-          rows={parsed.rows}
-          file={file}
-          canComment={canComment}
-          onComment={addComment}
-          rowDiscussions={rowDiscussions}
-          renderDiscussion={discussion}
-        />
-      )}
-      {parsed.status !== 'available' &&
-        discussions.map((item) => <Fragment key={item.id}>{discussion(item)}</Fragment>)}
-      {!!unanchoredDiscussions.length && (
-        <section
-          className="changes-unanchored-discussions"
-          aria-label="Discussions outside visible patch"
-        >
-          <strong>Discussions outside visible patch</strong>
-          {unanchoredDiscussions.map((item) => (
-            <Fragment key={item.id}>
-              <p className="changes-muted">
-                Source position: {item.position?.side} line {item.position?.line}
+      {!collapsed && (
+        <>
+          {expanded.status === 'invalid' &&
+            (content?.oldContent !== undefined || content?.newContent !== undefined) && (
+              <p className="changes-warning" role="status">
+                Full file content could not be aligned to the provider patch. Comments are available
+                only on verified patch lines.
               </p>
-              {discussion(item)}
-            </Fragment>
-          ))}
-          <button type="button" onClick={() => setShowSource((visible) => !visible)}>
-            {showSource ? 'Show rich diff' : 'Show source diff'}
-          </button>
-        </section>
-      )}
-    </article>
-  );
-}
-function SplitDiff({
-  rows,
-  file,
-  canComment,
-  onComment,
-  rowDiscussions,
-  renderDiscussion,
-}: {
-  rows: ReturnType<typeof parseUnifiedDiff> extends { rows: infer R } ? R : never;
-  file: DiffFile;
-  canComment: boolean;
-  onComment: (row: { oldLine?: number; newLine?: number }, side: 'old' | 'new') => void;
-  rowDiscussions: (row: { oldLine?: number; newLine?: number }) => ReviewConversation[];
-  renderDiscussion: (item: ReviewConversation) => React.ReactNode;
-}) {
-  const pairs: Array<{
-    left: (typeof rows)[number] | undefined;
-    right: (typeof rows)[number] | undefined;
-  }> = [];
-  for (let index = 0; index < rows.length; index += 1) {
-    const row = rows[index]!;
-    if (row.kind === 'hunk-header') {
-      pairs.push({ left: row, right: row });
-      continue;
-    }
-    if (row.kind === 'removed') {
-      const removed: (typeof row)[] = [row];
-      while (rows[index + 1]?.kind === 'removed') removed.push(rows[++index]! as typeof row);
-      const added: (typeof row)[] = [];
-      while (rows[index + 1]?.kind === 'added') added.push(rows[++index]! as typeof row);
-      for (let n = 0; n < Math.max(removed.length, added.length); n += 1)
-        pairs.push({ left: removed[n], right: added[n] });
-    } else if (row.kind === 'added') pairs.push({ left: undefined, right: row });
-    else pairs.push({ left: row, right: row });
-  }
-  return (
-    <div className="split-diff">
-      {pairs.map((pair, index) => (
-        <Fragment key={index}>
-          <div className="split-row">
-            {(['left', 'right'] as const).map((side) => {
-              const row = pair[side];
-              return (
-                <div className={`split-cell ${row?.kind ?? 'empty'}`} key={side}>
-                  {row && (
-                    <>
-                      <span className="line-no">
-                        {side === 'left' ? (row.oldLine ?? '') : (row.newLine ?? '')}
-                      </span>
-                      <span className="diff-sign">
+            )}
+          {parsed.status === 'available' && !hasFullContent && (
+            <div className="context-load-status">
+              {content?.loading ? (
+                <p role="status">Loading unchanged file context…</p>
+              ) : content?.error || content?.oldError || content?.newError ? (
+                <p role="status">
+                  Full file context unavailable.{' '}
+                  <button type="button" onClick={() => onLoadContent?.(file.path)}>
+                    Retry
+                  </button>
+                </p>
+              ) : onLoadContent ? (
+                <button type="button" onClick={() => onLoadContent(file.path)}>
+                  Load unchanged lines
+                </button>
+              ) : null}
+            </div>
+          )}
+          {rich && !showSource ? (
+            <RichContent
+              file={file}
+              content={content}
+              rows={anchorRows}
+              onLoad={() => onLoadContent?.(file.path)}
+              layout={layout}
+              canComment={canComment}
+              onComment={addComment}
+              renderDiscussion={discussion}
+              oldLines={oldLines}
+              newLines={newLines}
+            />
+          ) : parsed.status !== 'available' ? (
+            <p className="changes-muted">
+              {parsed.status === 'invalid'
+                ? parsed.reason
+                : parsed.reason === 'binary'
+                  ? 'Binary file'
+                  : parsed.reason === 'too-large'
+                    ? 'Patch too large'
+                    : parsed.reason === 'collapsed'
+                      ? 'Patch collapsed'
+                      : 'Patch unavailable'}
+            </p>
+          ) : layout === 'unified' ? (
+            <div className="unified-diff">
+              {visibleSourceRows.map(({ row, gap, hidden }, index) =>
+                row ? (
+                  <Fragment key={`${row.hunkIndex}-${index}-${row.oldLine}-${row.newLine}`}>
+                    <div className={`diff-row ${row.kind}`}>
+                      <span className="line-no old-line">{row.oldLine ?? ''}</span>
+                      <span className="line-no new-line">{row.newLine ?? ''}</span>
+                      <span
+                        className="diff-sign"
+                        aria-label={
+                          row.kind === 'added'
+                            ? 'Added line'
+                            : row.kind === 'removed'
+                              ? 'Removed line'
+                              : 'Context line'
+                        }
+                      >
                         {row.kind === 'added' ? '+' : row.kind === 'removed' ? '−' : ' '}
                       </span>
                       <code>{row.text || ' '}</code>
@@ -748,25 +760,208 @@ function SplitDiff({
                         <button
                           type="button"
                           className="line-comment"
-                          aria-label={`Comment on ${file.path} line ${side === 'left' ? row.oldLine : row.newLine}`}
-                          onClick={() => onComment(row, side === 'left' ? 'old' : 'new')}
+                          aria-label={`Comment on ${file.path} line ${row.newLine ?? row.oldLine}`}
+                          onClick={() => addComment(row)}
                         >
                           ＋
                         </button>
                       )}
-                    </>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+                    </div>
+                    {rowDiscussions(row).map((item) => (
+                      <Fragment key={item.id}>{discussion(item)}</Fragment>
+                    ))}
+                  </Fragment>
+                ) : (
+                  <div className="context-expansion" key={`gap-${gap}`}>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setContextLimits((limits) => ({
+                          ...limits,
+                          [gap!]: (limits[gap!] ?? 0) + 20,
+                        }))
+                      }
+                    >
+                      Load 20 more unchanged lines ({hidden} hidden)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setContextLimits((limits) => ({
+                          ...limits,
+                          [gap!]: Number.MAX_SAFE_INTEGER,
+                        }))
+                      }
+                    >
+                      Show all context
+                    </button>
+                  </div>
+                ),
+              )}
+            </div>
+          ) : (
+            <SplitDiff
+              rows={visibleSourceRows.map(
+                ({ row, gap, hidden }) => row ?? { type: 'context-control', gap: gap!, hidden },
+              )}
+              onExpandContext={(gap, all) =>
+                setContextLimits((limits) => ({
+                  ...limits,
+                  [gap]: all ? Number.MAX_SAFE_INTEGER : (limits[gap] ?? 0) + 20,
+                }))
+              }
+              file={file}
+              headers
+              canComment={canComment}
+              onComment={addComment}
+              rowDiscussions={rowDiscussions}
+              renderDiscussion={discussion}
+            />
+          )}
+          {parsed.status !== 'available' &&
+            discussions.map((item) => <Fragment key={item.id}>{discussion(item)}</Fragment>)}
+          {!!unanchoredDiscussions.length && (
+            <section
+              className="changes-unanchored-discussions"
+              aria-label="Discussions outside visible patch"
+            >
+              <strong>Discussions outside visible patch</strong>
+              {unanchoredDiscussions.map((item) => (
+                <Fragment key={item.id}>
+                  <p className="changes-muted">
+                    Source position: {item.position?.side} line {item.position?.line}
+                  </p>
+                  {discussion(item)}
+                </Fragment>
+              ))}
+              <button type="button" onClick={() => setShowSource((visible) => !visible)}>
+                {showSource ? 'Show rich diff' : 'Show source diff'}
+              </button>
+            </section>
+          )}
+        </>
+      )}
+    </article>
+  );
+}
+function SplitDiff({
+  rows,
+  onExpandContext,
+  file,
+  headers,
+  canComment,
+  onComment,
+  rowDiscussions,
+  renderDiscussion,
+}: {
+  rows: Array<DiffRow | ContextControl>;
+  onExpandContext: (gap: string, all: boolean) => void;
+  file: DiffFile;
+  headers: boolean;
+  canComment: boolean;
+  onComment: (row: { oldLine?: number; newLine?: number }, side: 'old' | 'new') => void;
+  rowDiscussions: (row: { oldLine?: number; newLine?: number }) => ReviewConversation[];
+  renderDiscussion: (item: ReviewConversation) => React.ReactNode;
+}) {
+  const isContextControl = (row: DiffRow | ContextControl): row is ContextControl => 'type' in row;
+  const pairs: Array<{
+    left: DiffRow | undefined;
+    right: DiffRow | undefined;
+    control?: ContextControl;
+  }> = [];
+  for (let index = 0; index < rows.length; index += 1) {
+    const row = rows[index]!;
+    if (isContextControl(row)) {
+      pairs.push({ left: undefined, right: undefined, control: row });
+      continue;
+    }
+    if (row.kind === 'hunk-header') {
+      pairs.push({ left: row, right: row });
+      continue;
+    }
+    if (row.kind === 'removed') {
+      const removed: (typeof row)[] = [row];
+      while (
+        rows[index + 1] &&
+        !isContextControl(rows[index + 1]!) &&
+        (rows[index + 1] as DiffRow).kind === 'removed'
+      )
+        removed.push(rows[++index]! as DiffRow);
+      const added: (typeof row)[] = [];
+      while (
+        rows[index + 1] &&
+        !isContextControl(rows[index + 1]!) &&
+        (rows[index + 1] as DiffRow).kind === 'added'
+      )
+        added.push(rows[++index]! as DiffRow);
+      for (let n = 0; n < Math.max(removed.length, added.length); n += 1)
+        pairs.push({ left: removed[n], right: added[n] });
+    } else if (row.kind === 'added') pairs.push({ left: undefined, right: row });
+    else pairs.push({ left: row, right: row });
+  }
+  return (
+    <div className="split-diff">
+      {headers && (
+        <div className="split-row split-headers">
+          <div>− Previous version</div>
+          <div>+ Current version</div>
+        </div>
+      )}
+      {pairs.map((pair, index) => (
+        <Fragment key={index}>
+          {pair.control ? (
+            <div className="split-row split-context-row">
+              <div>
+                <button type="button" onClick={() => onExpandContext(pair.control!.gap, false)}>
+                  Load 20 more unchanged lines ({pair.control.hidden} hidden)
+                </button>
+                <button type="button" onClick={() => onExpandContext(pair.control!.gap, true)}>
+                  Show all context
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="split-row">
+              {(['left', 'right'] as const).map((side) => {
+                const row = pair[side];
+                return (
+                  <div className={`split-cell ${row?.kind ?? 'empty'}`} key={side}>
+                    {row && (
+                      <>
+                        <span className="line-no">
+                          {side === 'left' ? (row.oldLine ?? '') : (row.newLine ?? '')}
+                        </span>
+                        <span className="diff-sign">
+                          {row.kind === 'added' ? '+' : row.kind === 'removed' ? '−' : ' '}
+                        </span>
+                        <code>{row.text || ' '}</code>
+                        {canComment && row.commentable && (
+                          <button
+                            type="button"
+                            className="line-comment"
+                            aria-label={`Comment on ${side === 'left' ? 'old' : 'new'} line ${side === 'left' ? row.oldLine : row.newLine} of ${file.path}`}
+                            onClick={() => onComment(row, side === 'left' ? 'old' : 'new')}
+                          >
+                            ＋
+                          </button>
+                        )}
+                      </>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
           {[
             ...new Set([
               ...(pair.left ? rowDiscussions(pair.left) : []),
               ...(pair.right ? rowDiscussions(pair.right) : []),
             ]),
           ].map((item) => (
-            <Fragment key={item.id}>{renderDiscussion(item)}</Fragment>
+            <div className="split-row split-discussion-row" key={item.id}>
+              <div>{renderDiscussion(item)}</div>
+              <div aria-hidden="true" />
+            </div>
           ))}
         </Fragment>
       ))}
@@ -829,10 +1024,12 @@ function RichContent({
       </p>
     );
   if (
-    content?.error ||
+    !content ||
+    content.error ||
     content?.oldError ||
     content?.newError ||
-    (!content?.oldContent && !content?.newContent)
+    (file.change !== 'added' && content?.oldContent === undefined) ||
+    (file.change !== 'removed' && content?.newContent === undefined)
   )
     return (
       <div className="changes-unavailable" role="status">
@@ -862,234 +1059,66 @@ function RichContent({
   );
   return (
     <div className={`rich-diff ${layout}`}>
-      <section className="rich-side removed">
-        <h3>− Previous version</h3>
-        <SafeMarkdown
-          text={content.oldContent ?? ''}
-          changedLines={removed}
-          kind="removed"
-          anchors={oldLines}
-          side="old"
-          canComment={canComment}
-          onComment={onComment}
-          renderDiscussion={renderDiscussion}
-        />
-      </section>
-      <section className="rich-side added">
-        <h3>+ Current version</h3>
-        <SafeMarkdown
-          text={content.newContent ?? ''}
-          changedLines={added}
-          kind="added"
-          anchors={newLines}
-          side="new"
-          canComment={canComment}
-          onComment={onComment}
-          renderDiscussion={renderDiscussion}
-        />
-      </section>
-    </div>
-  );
-}
-
-function SafeMarkdown({
-  text,
-  changedLines,
-  kind,
-  anchors,
-  side,
-  canComment,
-  onComment,
-  renderDiscussion,
-}: {
-  text: string;
-  changedLines?: Set<number>;
-  kind?: 'removed' | 'added';
-  anchors?: Map<number, LineDecoration>;
-  side?: 'old' | 'new';
-  canComment?: boolean;
-  onComment?: (row: { oldLine?: number; newLine?: number }, side?: 'old' | 'new') => void;
-  renderDiscussion?: (item: ReviewConversation) => React.ReactNode;
-}) {
-  const blocks: React.ReactNode[] = [];
-  let paragraph: Array<{ line: string; index: number }> = [];
-  let list: Array<{ line: string; index: number }> = [];
-  let code: Array<{ line: string; index: number }> | undefined;
-  const changed = (lines: Array<{ index: number }>) =>
-    !!changedLines && lines.some(({ index }) => changedLines.has(index + 1));
-  const marker = (isChanged: boolean) => (
-    <span className="markdown-change-marker" aria-hidden="true">
-      {isChanged ? (kind === 'removed' ? '−' : '+') : ''}
-    </span>
-  );
-  const lineActions = (line: number) => {
-    const anchor = anchors?.get(line);
-    if (!anchor) return null;
-    return (
-      <span className="rich-line-actions">
-        {canComment && (
-          <button
-            type="button"
-            className="rich-line-comment"
-            aria-label={`Comment on ${side} line ${line}`}
-            onClick={() => onComment?.(anchor.row, side)}
-            title="Add inline comment"
-          >
-            ＋
-          </button>
-        )}
-        {anchor.discussions.map((item) => (
-          <Fragment key={item.id}>{renderDiscussion?.(item)}</Fragment>
+      {file.change !== 'added' &&
+        (layout === 'unified' ? (
+          <details className="rich-previous-version">
+            <summary>View previous version</summary>
+            <section className="rich-side removed">
+              <div className="rich-version-label">− Previous version</div>
+              <SafeMarkdown
+                text={content.oldContent ?? ''}
+                changedLines={removed}
+                kind="removed"
+                anchors={oldLines}
+                side="old"
+                canComment={canComment}
+                onComment={onComment}
+              />
+            </section>
+          </details>
+        ) : (
+          <section className="rich-side removed">
+            <div className="rich-version-label">− Previous version</div>
+            <SafeMarkdown
+              text={content.oldContent ?? ''}
+              changedLines={removed}
+              kind="removed"
+              anchors={oldLines}
+              side="old"
+              canComment={canComment}
+              onComment={onComment}
+            />
+          </section>
         ))}
-      </span>
-    );
-  };
-  const flushParagraph = () => {
-    if (paragraph.length) {
-      const edited = changed(paragraph);
-      blocks.push(
-        <div className={edited ? `markdown-change ${kind}` : undefined} key={`p-${blocks.length}`}>
-          {marker(edited)}
-          <p>
-            {paragraph.map(({ line }, index) => (
-              <Fragment key={index}>
-                {index > 0 && <br />}
-                <InlineMarkdown text={line} />
-                {lineActions(paragraph[index]!.index + 1)}
-              </Fragment>
-            ))}
-          </p>
-        </div>,
-      );
-      paragraph = [];
-    }
-  };
-  const flushList = () => {
-    if (list.length) {
-      blocks.push(
-        <ul key={`l-${blocks.length}`}>
-          {list.map(({ line, index }) => {
-            const edited = changedLines?.has(index + 1);
-            return (
-              <li className={edited ? `markdown-change ${kind}` : undefined} key={index}>
-                {marker(!!edited)}
-                <InlineMarkdown text={line} />
-                {lineActions(index + 1)}
-              </li>
-            );
-          })}
-        </ul>,
-      );
-      list = [];
-    }
-  };
-  const sourceLines = text.split(/\r?\n/);
-  sourceLines.forEach((line, lineIndex) => {
-    if (line.startsWith('```')) {
-      flushParagraph();
-      flushList();
-      if (code) {
-        const edited = changed(code);
-        blocks.push(
-          <pre
-            className={edited ? `markdown-change ${kind}` : undefined}
-            key={`c-${blocks.length}`}
-          >
-            {marker(edited)}
-            <code>{code.map(({ line: text }) => text).join('\n')}</code>
-          </pre>,
-        );
-        code.forEach(({ index }) => {
-          const actions = lineActions(index + 1);
-          if (actions)
-            blocks.push(
-              <div className="rich-code-line-actions" key={`ca-${blocks.length}`}>
-                {actions}
-              </div>,
-            );
-        });
-        code = undefined;
-      } else code = [];
-      return;
-    }
-    if (code) {
-      code.push({ line, index: lineIndex });
-      return;
-    }
-    const heading = /^(#{1,6})\s+(.*)$/.exec(line);
-    if (heading) {
-      flushParagraph();
-      flushList();
-      const Tag = `h${heading[1]!.length}` as keyof React.JSX.IntrinsicElements;
-      blocks.push(
-        <div
-          className={changedLines?.has(lineIndex + 1) ? `markdown-change ${kind}` : undefined}
-          key={`h-${blocks.length}`}
-        >
-          <span className="markdown-change-marker" aria-hidden="true">
-            {changedLines?.has(lineIndex + 1) ? (kind === 'removed' ? '−' : '+') : ''}
-          </span>
-          <Tag>
-            <InlineMarkdown text={heading[2]!} />
-          </Tag>
-          {lineActions(lineIndex + 1)}
-        </div>,
-      );
-      return;
-    }
-    if (/^\s*[-*+]\s+/.test(line)) {
-      flushParagraph();
-      list.push({ line: line.replace(/^\s*[-*+]\s+/, ''), index: lineIndex });
-      return;
-    }
-    if (!line.trim()) {
-      flushParagraph();
-      flushList();
-      return;
-    }
-    flushList();
-    paragraph.push({ line, index: lineIndex });
-  });
-  if (code) {
-    const edited = changed(code);
-    blocks.push(
-      <pre className={edited ? `markdown-change ${kind}` : undefined} key={`c-${blocks.length}`}>
-        {marker(edited)}
-        <code>{code.map(({ line }) => line).join('\n')}</code>
-      </pre>,
-    );
-  }
-  flushParagraph();
-  flushList();
-  return <div className="safe-markdown">{blocks}</div>;
-}
-function InlineMarkdown({ text }: { text: string }) {
-  const tokens = text.split(/(`[^`]+`|\*\*[^*]+\*\*|\*[^*]+\*|\[[^\]]+\]\([^)]+\))/g);
-  return (
-    <>
-      {tokens.map((token, index) => {
-        if (token.startsWith('`') && token.endsWith('`'))
-          return <code key={index}>{token.slice(1, -1)}</code>;
-        if (token.startsWith('**') && token.endsWith('**'))
-          return <strong key={index}>{token.slice(2, -2)}</strong>;
-        if (token.startsWith('*') && token.endsWith('*'))
-          return <em key={index}>{token.slice(1, -1)}</em>;
-        const link = /^\[([^\]]+)\]\(([^)]+)\)$/.exec(token);
-        if (link) {
-          try {
-            const url = new URL(link[2]!, 'https://reviewdock.invalid');
-            if (['http:', 'https:', 'mailto:'].includes(url.protocol))
-              return (
-                <a key={index} href={link[2]} target="_blank" rel="noreferrer">
-                  {link[1]}
-                </a>
-              );
-          } catch {
-            /* Render malformed links as text. */
-          }
-        }
-        return <Fragment key={index}>{token}</Fragment>;
-      })}
-    </>
+      {file.change !== 'removed' && (
+        <section className="rich-side added">
+          <div className="rich-version-label">+ Current version</div>
+          <SafeMarkdown
+            text={content.newContent ?? ''}
+            changedLines={added}
+            kind="added"
+            anchors={newLines}
+            side="new"
+            canComment={canComment}
+            onComment={onComment}
+          />
+        </section>
+      )}
+      {[
+        ...new Set(
+          [...oldLines.values(), ...newLines.values()].flatMap((line) => line.discussions),
+        ),
+      ].length > 0 && (
+        <section className="rich-discussions" aria-label="Inline discussions">
+          {[
+            ...new Set(
+              [...oldLines.values(), ...newLines.values()].flatMap((line) => line.discussions),
+            ),
+          ].map((item) => (
+            <Fragment key={item.id}>{renderDiscussion(item)}</Fragment>
+          ))}
+        </section>
+      )}
+    </div>
   );
 }

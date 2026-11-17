@@ -1,3 +1,4 @@
+import { MarkdownPreview } from '../../webview-ui/src/components/MarkdownPreview';
 // @vitest-environment jsdom
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
@@ -123,7 +124,10 @@ describe('ChangesPanel', () => {
 
   it('renders rich Markdown from full blobs and safely treats HTML as text', () => {
     mount({
-      files: { ...files, items: [files.items[0]!] },
+      files: {
+        ...files,
+        items: [{ ...files.items[0]!, patch: '@@ -2 +2 @@\n-Old text\n+New text' }],
+      },
       contentByPath: {
         'docs/guide.md': {
           oldContent: '# Guide\nOld text',
@@ -175,6 +179,7 @@ describe('ChangesPanel', () => {
       onComment,
     });
 
+    act(() => host.querySelector<HTMLButtonElement>('.split-context-row button')?.click());
     act(() => host.querySelector<HTMLButtonElement>('.split-cell.context .line-comment')!.click());
     act(() =>
       host.querySelectorAll<HTMLButtonElement>('.split-cell.context .line-comment')[1]!.click(),
@@ -186,7 +191,10 @@ describe('ChangesPanel', () => {
     const onComment = vi.fn();
     const conversations = [makeDiscussion('visible', 2), makeDiscussion('outside', 90)];
     mount({
-      files: { ...files, items: [files.items[0]!] },
+      files: {
+        ...files,
+        items: [{ ...files.items[0]!, patch: '@@ -2 +2 @@\n-Old text\n+New text' }],
+      },
       conversations,
       canComment: true,
       onComment,
@@ -198,7 +206,9 @@ describe('ChangesPanel', () => {
     });
 
     expect(host.querySelector('[data-thread="visible"]')).not.toBeNull();
-    const comment = host.querySelector<HTMLButtonElement>('.rich-side.removed .rich-line-comment')!;
+    const comment = host.querySelector<HTMLButtonElement>(
+      '.rich-side.removed [aria-label="Comment on old line 2"]',
+    )!;
     expect(comment.getAttribute('aria-label')).toBe('Comment on old line 2');
     act(() => comment.click());
     expect(onComment).toHaveBeenCalledWith(expect.objectContaining({ side: 'old', oldLine: 2 }));
@@ -286,5 +296,201 @@ describe('ChangesPanel', () => {
     expect(host.textContent).toContain('Full file content unavailable');
     expect(onLoadContent).toHaveBeenCalledWith('docs/guide.md');
     expect(host.querySelector('.rich-diff')).toBeNull();
+  });
+
+  it('persists per-file collapse state and skips rendering its body while collapsed', () => {
+    const onStateChange = vi.fn();
+    mount({ files, onStateChange });
+    const button = host.querySelector<HTMLButtonElement>(
+      '[aria-label="Collapse diff for docs/guide.md"]',
+    )!;
+    expect(button.title).toBe('Collapse file');
+    expect(button.querySelector('.diff-collapse-icon')?.textContent).toBe('›');
+    expect(button.textContent).not.toMatch(/Expand|Collapse/);
+    act(() => button.click());
+    expect(
+      host
+        .querySelector('[aria-label="Expand diff for docs/guide.md"]')
+        ?.getAttribute('aria-expanded'),
+    ).toBe('false');
+    expect(host.querySelector('[aria-label="Diff for docs/guide.md"] .unified-diff')).toBeNull();
+    expect(onStateChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ collapsedPaths: ['docs/guide.md'] }),
+    );
+  });
+
+  it('renders the complete Markdown file and anchors unchanged lines beyond its patch', () => {
+    const onComment = vi.fn();
+    mount({
+      files: { ...files, items: [files.items[0]!] },
+      initialState: { view: 'rich', layout: 'split' },
+      canComment: true,
+      onComment,
+      contentByPath: {
+        'docs/guide.md': {
+          oldContent: '# Guide\nold\n\nUnchanged tail',
+          newContent: '# Guide\nnew\n\nUnchanged tail',
+        },
+      },
+    });
+    expect(host.querySelector('.rich-side.added')?.textContent).toContain('Unchanged tail');
+    expect(host.querySelector('.rich-side.removed')?.textContent).toContain('Unchanged tail');
+    const lastLine = host.querySelector<HTMLButtonElement>('[aria-label="Comment on new line 4"]')!;
+    act(() => lastLine.click());
+    expect(onComment).toHaveBeenCalledWith(
+      expect.objectContaining({ side: 'new', line: 4, oldLine: 4, newLine: 4 }),
+    );
+    expect(host.querySelector<HTMLDetailsElement>('.rich-other-lines')?.open).toBe(false);
+  });
+
+  it.each(['unified', 'split'] as const)(
+    'keeps unchanged patch context hidden until expanded in %s',
+    (layout) => {
+      mount({
+        files: {
+          ...files,
+          items: [
+            {
+              path: 'src/a.ts',
+              change: 'modified',
+              patch: '@@ -1,2 +1,2 @@\n unchanged context\n-old\n+new',
+            },
+          ],
+        },
+        initialState: { layout },
+        canComment: true,
+      });
+      expect(host.textContent).not.toContain('unchanged context');
+      const controls = host.querySelector<HTMLButtonElement>(
+        layout === 'split' ? '.split-context-row button' : '.context-expansion button',
+      )!;
+      expect(controls).not.toBeNull();
+      act(() => controls.click());
+      expect(host.textContent).toContain('unchanged context');
+    },
+  );
+
+  it('renders GFM structures and soft wraps without inserting line breaks into prose', () => {
+    const text =
+      '# Guide\n\n### Details\n\nFirst source line\ncontinues the paragraph.\n\n> A useful note\n\n1. First\n2. Second\n\n- [x] Reviewed\n- [ ] Pending\n\n| Name | Value |\n| --- | --- |\n| Status | **Ready** |\n\n~~Removed wording~~';
+    mount({
+      files: { ...files, items: [files.items[0]!] },
+      initialState: { view: 'rich' },
+      contentByPath: { 'docs/guide.md': { oldContent: text, newContent: text } },
+    });
+    const preview = host.querySelector('.rich-side.added')!;
+    expect(preview.querySelector('.safe-markdown h3')?.textContent).toBe('Details');
+    expect(preview.querySelector('blockquote')?.textContent).toContain('A useful note');
+    expect(preview.querySelectorAll('ol li')).toHaveLength(2);
+    expect(preview.querySelectorAll('input[type="checkbox"]')).toHaveLength(2);
+    expect(preview.querySelector('table strong')?.textContent).toBe('Ready');
+    expect(preview.querySelector('del')?.textContent).toBe('Removed wording');
+    expect(preview.querySelector('p br')).toBeNull();
+    expect(host.querySelector<HTMLDetailsElement>('.rich-previous-version')?.open).toBe(false);
+  });
+
+  it('keeps code readable while preserving exact comment positions', () => {
+    mount({ files });
+    const onComment = vi.fn();
+    act(() =>
+      root.render(
+        <MarkdownPreview
+          text={'```ts\nconst a = 1;\nconst b = 2;\n```'}
+          anchors={
+            new Map([
+              [2, { row: { newLine: 2 } }],
+              [3, { row: { newLine: 3 } }],
+            ])
+          }
+          side="new"
+          canComment
+          onComment={onComment}
+        />,
+      ),
+    );
+    expect(host.querySelector('pre code')?.textContent).toBe('const a = 1;\nconst b = 2;\n');
+    expect(host.querySelector('pre button')).toBeNull();
+    const menu = host.querySelector<HTMLElement>('.rich-comment-lines')!;
+    expect(menu.hidden).toBe(true);
+    act(() => host.querySelector<HTMLButtonElement>('.rich-comment-trigger')!.click());
+    expect(menu.hidden).toBe(false);
+    act(() =>
+      host.querySelector<HTMLButtonElement>('[aria-label="Comment on new line 3"]')!.click(),
+    );
+    expect(onComment).toHaveBeenCalledWith({ newLine: 3 }, 'new');
+  });
+
+  it('renders untrusted Markdown without executable HTML or remote image requests', () => {
+    mount({ files });
+    act(() =>
+      root.render(
+        <MarkdownPreview
+          text={
+            '[unsafe](javascript:alert(1))\n\n![Diagram](https://example.com/tracking.png)\n\n<script>alert(1)</script>'
+          }
+        />,
+      ),
+    );
+    expect(host.querySelector('script')).toBeNull();
+    expect(host.querySelector('img')).toBeNull();
+    expect(host.querySelector('a[href^="javascript:"]')).toBeNull();
+    expect(host.querySelector('.markdown-image-link')?.textContent).toContain('Diagram');
+  });
+
+  it('treats empty old and new blobs as valid content', () => {
+    mount({
+      files: {
+        ...files,
+        items: [{ path: 'docs/empty.md', change: 'modified', patch: '@@ -0,0 +0,0 @@' }],
+      },
+      initialState: { view: 'rich' },
+      contentByPath: { 'docs/empty.md': { oldContent: '', newContent: '' } },
+    });
+    expect(host.textContent).not.toContain('Full file content unavailable');
+    expect(host.querySelector('.rich-diff')).not.toBeNull();
+  });
+
+  it('loads full source context on demand and expands it in independent 20 line steps', () => {
+    const onLoadContent = vi.fn();
+    const oldLines = Array.from({ length: 21 }, (_, index) => `unchanged ${index + 1}`);
+    const newLines = [...oldLines];
+    oldLines.push('before');
+    newLines.push('after');
+    const sourceFile = {
+      path: 'src/example.ts',
+      change: 'modified' as const,
+      patch: '@@ -22 +22 @@\n-before\n+after',
+    };
+    mount({
+      files: { ...files, items: [sourceFile] },
+      initialState: { layout: 'split' },
+      canComment: true,
+      onLoadContent,
+    });
+    expect(host.querySelector('.split-headers')?.textContent).toContain('Previous version');
+    expect(host.querySelector('.split-headers')?.textContent).toContain('Current version');
+    act(() => host.querySelector<HTMLButtonElement>('.context-load-status button')?.click());
+    expect(onLoadContent).toHaveBeenCalledWith('src/example.ts');
+    act(() =>
+      root.render(
+        <ChangesPanel
+          files={{ ...files, items: [sourceFile] }}
+          initialState={{ layout: 'split' }}
+          canComment
+          onLoadContent={onLoadContent}
+          contentByPath={{
+            'src/example.ts': {
+              oldContent: oldLines.join('\n'),
+              newContent: newLines.join('\n'),
+            },
+          }}
+        />,
+      ),
+    );
+    expect(host.querySelectorAll('.split-cell.context .line-comment')).toHaveLength(0);
+    act(() => host.querySelector<HTMLButtonElement>('.split-context-row button')?.click());
+    expect(host.querySelectorAll('.split-cell.context .line-comment')).toHaveLength(40);
+    expect(host.querySelector('.split-headers')?.textContent).toContain('Previous version');
+    expect(host.querySelector('.split-headers')?.textContent).toContain('Current version');
   });
 });

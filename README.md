@@ -20,7 +20,7 @@ Requires VS Code desktop **1.140.0 or newer**. Install **ReviewDock** (`minhluu.
 ## Review a request
 
 - **Overview:** Choose **Edit review details** to change the title, description, assignees, reviewers, or labels, then select **Save details**.
-- **Changes:** Select a file in the tree to view its diff. Resize or hide the tree as needed. Use the file header icon to switch between Markdown Source and Rich views; use the global gear menu to choose Unified or Split layout.
+- **Changes:** Select a file in the tree to view its diff. Resize or hide the tree; use the chevron beside each filename to collapse or expand its diff. Choose **Load unchanged lines** to reveal more context. Use the file header icons for Markdown Source/Rich and the gear menu for Unified/Split.
 - **Comments:** Open **Conversations** to add a general comment, or use the **+** button beside a source line for an inline comment. For supported threads, choose **Reply**, write your response, and select **Send reply**. Use **Resolve thread** or **Delete comment** when available.
 - **Commits, Checks, and Approvals:** Open these tabs to review the information returned by your provider.
 - **Merge:** Choose **Merge** and confirm the action.

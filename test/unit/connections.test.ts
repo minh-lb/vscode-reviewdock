@@ -53,6 +53,37 @@ const makeService = (
 });
 
 describe('ConnectionService', () => {
+  it('persists sidebar repository choices independently and allows clearing them', async () => {
+    const { service, state, secrets } = makeService();
+    const first = await service.createConnection({
+      provider: 'github',
+      displayName: 'Work',
+      serverUrl: 'https://github.com',
+      token: 'one',
+    });
+    const second = await service.createConnection({
+      provider: 'gitlab',
+      displayName: 'Personal',
+      serverUrl: 'https://gitlab.com',
+      token: 'two',
+    });
+    const repo = {
+      id: '1',
+      name: 'app',
+      fullName: 'team/app',
+      owner: 'team',
+      webUrl: 'https://github.com/team/app',
+    };
+    await service.setSelectedRepositories(first.id, [repo, repo]);
+    const restored = makeService(state, secrets).service;
+    expect(restored.getConnection(first.id).selectedRepositories).toEqual([
+      { ...repo, connectionId: first.id, provider: 'github', serverUrl: 'https://github.com' },
+    ]);
+    expect(restored.getConnection(second.id).selectedRepositories ?? []).toEqual([]);
+    await restored.setSelectedRepositories(first.id, []);
+    expect(restored.getConnection(first.id).selectedRepositories).toEqual([]);
+  });
+
   it('validates before storing a new secret and persists non-secret connection metadata', async () => {
     let valid = false;
     const { service, state, secrets } = makeService(new State(), new Secrets(), async () => {

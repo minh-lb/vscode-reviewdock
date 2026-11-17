@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { Connection, ProviderType, ProviderUser } from '../domain/models';
+import type { Connection, ProviderType, ProviderUser, RepositoryRef } from '../domain/models';
 import { AppError, ConnectionDisabledError } from '../domain/errors';
 import type { SecretStore } from './ports';
 import {
@@ -152,6 +152,26 @@ export class ConnectionService {
     }
   }
 
+  async setSelectedRepositories(id: string, repositories: readonly RepositoryRef[]): Promise<void> {
+    await this.updateConnection(id, (connection) => ({
+      ...connection,
+      selectedRepositories: [
+        ...new Map(
+          repositories.map((repository) => [
+            repository.id,
+            {
+              ...repository,
+              connectionId: id,
+              provider: connection.provider,
+              serverUrl: connection.serverUrl,
+            },
+          ]),
+        ).values(),
+      ],
+      updatedAt: this.now().toISOString(),
+    }));
+  }
+
   async renameConnection(id: string, displayName: string): Promise<Connection> {
     const name = displayName.trim();
     if (!name) throw new AppError('Connection name is required', 'validation');
@@ -216,6 +236,7 @@ export class ConnectionService {
       await this.secrets.set(id, token);
       const updated: Connection = {
         ...current,
+        ...(current.accountId !== identity.id ? { selectedRepositories: [] } : {}),
         accountId: identity.id,
         accountLogin: identity.login,
         ...(identity.name ? { accountName: identity.name } : {}),

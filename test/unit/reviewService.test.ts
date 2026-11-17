@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { ReviewProvider } from '../../src/application/ports';
+import type { ReviewFileContentProvider, ReviewProvider } from '../../src/application/ports';
 import { ReviewService } from '../../src/application/reviewService';
 import { AppError } from '../../src/domain/errors';
 import type {
@@ -337,6 +337,129 @@ describe('ReviewService', () => {
       service.createInline(context, 'comment', { path: 'old.ts', side: 'new', line: 99 }),
     ).rejects.toMatchObject({ code: 'validation' });
     expect(p.createInlineComment).toHaveBeenCalledTimes(2);
+  });
+
+  it('expands exact pinned file content and canonicalizes an old-side GitHub context line', async () => {
+    const version = { baseSha: 'base-1', startSha: 'base-1', headSha: 'head-1' };
+    const getFileContent = vi.fn(async ({ side }: { side: 'old' | 'new' }) =>
+      side === 'old' ? 'one\ntwo\nlater' : 'one\ninserted\ntwo\nlater',
+    );
+    const p = provider({
+      listChangedFiles: vi.fn().mockResolvedValue({
+        ...files,
+        items: [
+          {
+            path: 'src/a.ts',
+            change: 'modified',
+            patch: '@@ -1,2 +1,3 @@\n one\n+inserted\n two',
+          },
+        ],
+        diffVersion: version,
+      }),
+    }) as ReviewProvider & ReviewFileContentProvider;
+    p.getFileContent = getFileContent as ReviewFileContentProvider['getFileContent'];
+
+    await new ReviewService(p).createInline(
+      { ...context, diffVersion: version },
+      'comment on unchanged context',
+      { path: 'src/a.ts', side: 'old', line: 3, oldLine: 3, newLine: 4 },
+    );
+
+    expect(getFileContent).toHaveBeenCalledTimes(2);
+    expect(
+      getFileContent.mock.calls.map(([input]) => [
+        input.path,
+        input.side,
+        input.diffVersion,
+        input.baseSha,
+      ]),
+    ).toEqual([
+      ['src/a.ts', 'old', version, 'base-1'],
+      ['src/a.ts', 'new', version, 'base-1'],
+    ]);
+    expect(p.createInlineComment).toHaveBeenCalledWith(
+      expect.objectContaining({
+        position: {
+          path: 'src/a.ts',
+          oldPath: 'src/a.ts',
+          newPath: 'src/a.ts',
+          side: 'new',
+          line: 4,
+          oldLine: 3,
+          newLine: 4,
+        },
+      }),
+    );
+  });
+
+  it('keeps both exact line numbers for an expanded GitLab context position', async () => {
+    const version = { baseSha: 'base-1', startSha: 'start-1', headSha: 'head-1' };
+    const p = provider({
+      provider: 'gitlab',
+      listChangedFiles: vi.fn().mockResolvedValue({
+        ...files,
+        items: [
+          {
+            path: 'src/a.ts',
+            change: 'modified',
+            patch: '@@ -1,2 +1,3 @@\n one\n+inserted\n two',
+          },
+        ],
+        diffVersion: version,
+      }),
+    }) as ReviewProvider & ReviewFileContentProvider;
+    p.getFileContent = vi.fn(async ({ side }) =>
+      side === 'old' ? 'one\ntwo\nlater' : 'one\ninserted\ntwo\nlater',
+    );
+
+    await new ReviewService(p).createInline(
+      { ...context, diffVersion: version },
+      'comment on unchanged context',
+      { path: 'src/a.ts', side: 'old', line: 3, oldLine: 3, newLine: 4 },
+    );
+
+    expect(p.createInlineComment).toHaveBeenCalledWith(
+      expect.objectContaining({
+        position: {
+          path: 'src/a.ts',
+          oldPath: 'src/a.ts',
+          newPath: 'src/a.ts',
+          side: 'old',
+          line: 3,
+          oldLine: 3,
+          newLine: 4,
+        },
+      }),
+    );
+  });
+
+  it('rejects expanded context positions when the exact full blobs do not match the current patch', async () => {
+    const version = { baseSha: 'base-1', startSha: 'base-1', headSha: 'head-1' };
+    const p = provider({
+      listChangedFiles: vi.fn().mockResolvedValue({
+        ...files,
+        items: [
+          {
+            path: 'src/a.ts',
+            change: 'modified',
+            patch: '@@ -1,1 +1,1 @@\n-old\n+new',
+          },
+        ],
+        diffVersion: version,
+      }),
+    }) as ReviewProvider & ReviewFileContentProvider;
+    p.getFileContent = vi.fn(async ({ side }) => (side === 'old' ? 'wrong old' : 'wrong new'));
+
+    await expect(
+      new ReviewService(p).createInline({ ...context, diffVersion: version }, 'comment', {
+        path: 'src/a.ts',
+        side: 'new',
+        line: 2,
+        oldLine: 2,
+        newLine: 2,
+      }),
+    ).rejects.toMatchObject({ code: 'validation' });
+    expect(p.createInlineComment).not.toHaveBeenCalled();
   });
 
   it('rejects files whose diff version changes between pages', async () => {
