@@ -108,13 +108,6 @@ function button(label: string): HTMLButtonElement {
   return found;
 }
 
-function modeButton(file: HTMLElement, mode: string): HTMLButtonElement {
-  const selector = `[data-mode="${mode}"]`;
-  const found = file.querySelector<HTMLButtonElement>(selector);
-  if (!found) throw new Error(`Mode button not found: ${mode}`);
-  return found;
-}
-
 function typeInto(element: HTMLInputElement | HTMLTextAreaElement, value: string) {
   act(() => {
     const setter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(element), 'value')?.set;
@@ -222,10 +215,10 @@ describe('ReviewDock webview entry point', () => {
 
     const firstFile = document.querySelector<HTMLElement>('#file-0')!;
     const secondFile = document.querySelector<HTMLElement>('#file-1')!;
-    const firstSource = modeButton(firstFile, 'source');
-    const firstRich = modeButton(firstFile, 'rich');
-    const secondSource = modeButton(secondFile, 'source');
-    const secondRich = modeButton(secondFile, 'rich');
+    const firstSource = firstFile.querySelector<HTMLButtonElement>('[data-mode=source]')!;
+    const firstRich = firstFile.querySelector<HTMLButtonElement>('[data-mode=rich]')!;
+    const secondSource = secondFile.querySelector<HTMLButtonElement>('[data-mode=source]')!;
+    const secondRich = secondFile.querySelector<HTMLButtonElement>('[data-mode=rich]')!;
 
     expect(firstSource.getAttribute('aria-pressed')).toBe('true');
     expect(secondSource.getAttribute('aria-pressed')).toBe('true');
@@ -253,8 +246,8 @@ describe('ReviewDock webview entry point', () => {
     act(() => button('Changes 2').click());
     const restoredFirstFile = document.querySelector<HTMLElement>('#file-0')!;
     const restoredSecondFile = document.querySelector<HTMLElement>('#file-1')!;
-    const restoredFirstSource = modeButton(restoredFirstFile, 'source');
-    const restoredSecondRich = modeButton(restoredSecondFile, 'rich');
+    const restoredFirstSource = restoredFirstFile.querySelector<HTMLButtonElement>('[data-mode=source]')!;
+    const restoredSecondRich = restoredSecondFile.querySelector<HTMLButtonElement>('[data-mode=rich]')!;
     expect(restoredFirstSource.classList.contains('active')).toBe(true);
     expect(restoredSecondRich.classList.contains('active')).toBe(true);
   });
