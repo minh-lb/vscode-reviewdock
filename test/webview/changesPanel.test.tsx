@@ -44,6 +44,64 @@ afterEach(() => {
 });
 
 describe('ChangesPanel', () => {
+  it('keeps Markdown display choices on each file header independently', () => {
+    const onStateChange = vi.fn();
+    const markdownFiles: DiffFilePage = {
+      ...files,
+      items: [files.items[0]!, { ...files.items[0]!, path: 'docs/second.md' }],
+    };
+    mount({
+      files: markdownFiles,
+      onStateChange,
+      contentByPath: {
+        'docs/guide.md': { oldContent: 'Old', newContent: 'New' },
+        'docs/second.md': { oldContent: 'Before', newContent: 'After' },
+      },
+    });
+    const cards = host.querySelectorAll<HTMLElement>('.diff-file-card');
+    act(() =>
+      cards[0]!.querySelector<HTMLButtonElement>('[aria-label="Display the rich diff"]')!.click(),
+    );
+    expect(cards[0]!.querySelector('.rich-diff')).not.toBeNull();
+    expect(cards[1]!.querySelector('.rich-diff')).toBeNull();
+    expect(
+      cards[1]!
+        .querySelector('[aria-label="Display the source diff"]')
+        ?.getAttribute('aria-pressed'),
+    ).toBe('true');
+    expect(onStateChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        viewsByPath: {
+          'docs/guide.md': 'rich',
+          'docs/second.md': 'source',
+        },
+      }),
+    );
+    expect(cards[0]!.querySelector('header [aria-label="Display the rich diff"]')).not.toBeNull();
+  });
+
+  it('opens the Layout menu, changes layout by keyboard, and restores focus on Escape', () => {
+    mount({ files });
+    const gear = host.querySelector<HTMLButtonElement>('[aria-label="Changes settings"]')!;
+    expect(host.querySelector('[role="radiogroup"]')).toBeNull();
+    act(() => gear.click());
+    const radios = host.querySelectorAll<HTMLButtonElement>('[role="radio"]');
+    expect(document.activeElement).toBe(radios[0]);
+    act(() =>
+      radios[0]!.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true })),
+    );
+    expect(host.querySelectorAll('[role="radio"]')[1]?.getAttribute('aria-checked')).toBe('true');
+    expect(host.querySelector('.split-diff')).not.toBeNull();
+    act(() =>
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })),
+    );
+    expect(host.querySelector('[role="radiogroup"]')).toBeNull();
+    expect(document.activeElement).toBe(gear);
+    act(() => gear.click());
+    act(() => document.body.dispatchEvent(new Event('pointerdown', { bubbles: true })));
+    expect(host.querySelector('[role="radiogroup"]')).toBeNull();
+  });
+
   it('groups files by directory and selects a file for navigation', () => {
     const onSelectFile = vi.fn();
     mount({ files, onSelectFile });

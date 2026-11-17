@@ -16,6 +16,7 @@ export type ChangesPanelState = {
   sidebarVisible: boolean;
   sidebarWidth: number;
   expandedDirectories: string[];
+  viewsByPath?: Record<string, 'source' | 'rich'>;
   selectedPath?: string;
 };
 export type MarkdownFileContent = {
@@ -68,6 +69,11 @@ export function ChangesPanel(props: ChangesPanelProps) {
     expandedDirectories: props.initialState?.expandedDirectories ?? defaults.expandedDirectories,
   }));
   const diffRef = useRef<HTMLDivElement>(null);
+  const layoutButtonRef = useRef<HTMLButtonElement>(null);
+  const unifiedRef = useRef<HTMLButtonElement>(null);
+  const splitRef = useRef<HTMLButtonElement>(null);
+  const layoutMenuRef = useRef<HTMLDivElement>(null);
+  const [layoutOpen, setLayoutOpen] = useState(false);
   const [dragWidth, setDragWidth] = useState<number>();
   const entries = files?.items ?? [];
   const selectedPath = entries.some((file) => file.path === state.selectedPath)
@@ -77,20 +83,73 @@ export function ChangesPanel(props: ChangesPanelProps) {
   useEffect(() => {
     onStateChange?.(state);
   }, [state, onStateChange]);
+  const markdownView = (path: string) => state.viewsByPath?.[path] ?? state.view;
   useEffect(() => {
-    if (state.view !== 'rich') return;
     const selected = entries.find((file) => file.path === selectedPath);
     if (
       selected &&
       /\.md(?:own)?$/i.test(selected.path) &&
+      markdownView(selected.path) === 'rich' &&
       !selected.binary &&
       !selected.tooLarge &&
       !props.contentByPath?.[selected.path]
     )
       props.onLoadContent?.(selected.path);
-  }, [state.view, selectedPath, props.contentByPath, props.onLoadContent]);
+  }, [
+    state.view,
+    state.viewsByPath,
+    selectedPath,
+    entries,
+    props.contentByPath,
+    props.onLoadContent,
+  ]);
+  useEffect(() => {
+    if (!layoutOpen) return;
+    const dismissOutside = (event: PointerEvent) => {
+      const target = event.target;
+      if (
+        target instanceof Node &&
+        !layoutMenuRef.current?.contains(target) &&
+        !layoutButtonRef.current?.contains(target)
+      )
+        setLayoutOpen(false);
+    };
+    const dismissEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      setLayoutOpen(false);
+      layoutButtonRef.current?.focus();
+    };
+    document.addEventListener('pointerdown', dismissOutside);
+    document.addEventListener('keydown', dismissEscape);
+    (state.layout === 'unified' ? unifiedRef : splitRef).current?.focus();
+    return () => {
+      document.removeEventListener('pointerdown', dismissOutside);
+      document.removeEventListener('keydown', dismissEscape);
+    };
+  }, [layoutOpen, state.layout]);
   const update = (patch: Partial<ChangesPanelState>) =>
     setState((current) => ({ ...current, ...patch }));
+  const setMarkdownView = (path: string, view: 'source' | 'rich') => {
+    const existing =
+      state.viewsByPath ??
+      Object.fromEntries(
+        entries
+          .filter((file) => /\.md(?:own)?$/i.test(file.path))
+          .map((file) => [file.path, state.view]),
+      );
+    update({ viewsByPath: { ...existing, [path]: view }, selectedPath: path });
+    if (view === 'rich' && !props.contentByPath?.[path]) props.onLoadContent?.(path);
+  };
+  const selectLayout = (layout: 'unified' | 'split') => {
+    update({ layout });
+    setLayoutOpen(false);
+    layoutButtonRef.current?.focus();
+  };
+  const moveLayoutFocus = (layout: 'unified' | 'split') => {
+    update({ layout });
+    (layout === 'unified' ? unifiedRef : splitRef).current?.focus();
+  };
   const toggleDirectory = (path: string) =>
     update({
       expandedDirectories: state.expandedDirectories.includes(path)
@@ -217,32 +276,59 @@ export function ChangesPanel(props: ChangesPanelProps) {
               Files
             </button>
           )}
-          <div className="changes-mode" role="group" aria-label="Diff layout">
-            {(['unified', 'split'] as const).map((layout) => (
-              <button
-                type="button"
-                key={layout}
-                aria-pressed={state.layout === layout}
-                onClick={() => update({ layout })}
-              >
-                {layout === 'split' ? 'Split' : 'Unified'}
-              </button>
-            ))}
+          <div className="changes-layout-control">
+            <button
+              ref={layoutButtonRef}
+              type="button"
+              className="changes-gear-button"
+              aria-label="Changes settings"
+              title="Changes settings"
+              aria-haspopup="true"
+              aria-expanded={layoutOpen}
+              onClick={() => setLayoutOpen((open) => !open)}
+            >
+              ⚙
+            </button>
+            {layoutOpen && (
+              <div className="changes-layout-popover" ref={layoutMenuRef}>
+                <strong>Layout</strong>
+                <div role="radiogroup" aria-label="Layout">
+                  <button
+                    ref={unifiedRef}
+                    type="button"
+                    role="radio"
+                    aria-checked={state.layout === 'unified'}
+                    tabIndex={state.layout === 'unified' ? 0 : -1}
+                    onClick={() => selectLayout('unified')}
+                    onKeyDown={(event) => {
+                      if (event.key === 'ArrowDown' || event.key === 'ArrowRight') {
+                        event.preventDefault();
+                        moveLayoutFocus('split');
+                      }
+                    }}
+                  >
+                    <span aria-hidden="true">{state.layout === 'unified' ? '✓' : ''}</span> Unified
+                  </button>
+                  <button
+                    ref={splitRef}
+                    type="button"
+                    role="radio"
+                    aria-checked={state.layout === 'split'}
+                    tabIndex={state.layout === 'split' ? 0 : -1}
+                    onClick={() => selectLayout('split')}
+                    onKeyDown={(event) => {
+                      if (event.key === 'ArrowUp' || event.key === 'ArrowLeft') {
+                        event.preventDefault();
+                        moveLayoutFocus('unified');
+                      }
+                    }}
+                  >
+                    <span aria-hidden="true">{state.layout === 'split' ? '✓' : ''}</span> Split
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
-          {selectedPath && /\.md(?:own)?$/i.test(selectedPath) && (
-            <div className="changes-mode" role="group" aria-label="Markdown view">
-              {(['source', 'rich'] as const).map((view) => (
-                <button
-                  type="button"
-                  key={view}
-                  aria-pressed={state.view === view}
-                  onClick={() => update({ view })}
-                >
-                  {view === 'rich' ? 'Rich' : 'Source'}
-                </button>
-              ))}
-            </div>
-          )}
           <button type="button" onClick={props.onRefresh}>
             Refresh
           </button>
@@ -256,11 +342,9 @@ export function ChangesPanel(props: ChangesPanelProps) {
               file={file}
               selected={file.path === selectedPath}
               layout={state.layout}
-              rich={
-                state.view === 'rich' &&
-                file.path === selectedPath &&
-                /\.md(?:own)?$/i.test(file.path)
-              }
+              rich={markdownView(file.path) === 'rich' && /\.md(?:own)?$/i.test(file.path)}
+              markdownView={markdownView(file.path)}
+              onMarkdownViewChange={(view) => setMarkdownView(file.path, view)}
               content={props.contentByPath?.[file.path]}
               conversations={props.conversations ?? []}
               canComment={props.canComment ?? false}
@@ -384,6 +468,8 @@ function DiffFileView({
   selected,
   layout,
   rich,
+  markdownView,
+  onMarkdownViewChange,
   content,
   conversations,
   canComment,
@@ -396,6 +482,8 @@ function DiffFileView({
   selected: boolean;
   layout: 'unified' | 'split';
   rich: boolean;
+  markdownView: 'source' | 'rich';
+  onMarkdownViewChange: (view: 'source' | 'rich') => void;
   content?: MarkdownFileContent | undefined;
   conversations: ReviewConversation[];
   canComment: boolean;
@@ -470,7 +558,42 @@ function DiffFileView({
     >
       <header>
         <strong>{file.path}</strong>
-        <span>{file.change}</span>
+        <div className="diff-file-actions">
+          <span>{file.change}</span>
+          {/\.md(?:own)?$/i.test(file.path) && (
+            <div
+              className="markdown-view-toggle"
+              role="group"
+              aria-label={`Markdown display for ${file.path}`}
+            >
+              <button
+                type="button"
+                aria-label="Display the source diff"
+                title="Display the source diff"
+                aria-pressed={markdownView === 'source'}
+                onClick={() => onMarkdownViewChange('source')}
+              >
+                <span aria-hidden="true">&lt;&gt;</span>
+              </button>
+              <button
+                type="button"
+                aria-label="Display the rich diff"
+                title="Display the rich diff"
+                aria-pressed={markdownView === 'rich'}
+                onClick={() => {
+                  setShowSource(false);
+                  onMarkdownViewChange('rich');
+                }}
+              >
+                <svg aria-hidden="true" viewBox="0 0 16 16" focusable="false">
+                  <path d="M3 1.5h6.5L13 5v9.5H3z" />
+                  <path d="M9.5 1.5V5H13" />
+                  <path d="M5.5 8h5M5.5 10.5h5" />
+                </svg>
+              </button>
+            </div>
+          )}
+        </div>
       </header>
       {rich && !showSource ? (
         <RichContent
