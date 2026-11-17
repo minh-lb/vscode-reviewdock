@@ -246,8 +246,12 @@ describe('ReviewDock webview entry point', () => {
     act(() => button('Changes 2').click());
     const restoredFirstFile = document.querySelector<HTMLElement>('#file-0')!;
     const restoredSecondFile = document.querySelector<HTMLElement>('#file-1')!;
-    const restoredFirstSource = restoredFirstFile.querySelector<HTMLButtonElement>('[data-mode=source]')!;
-    const restoredSecondRich = restoredSecondFile.querySelector<HTMLButtonElement>('[data-mode=rich]')!;
+    const restoredFirstSource = restoredFirstFile.querySelector<HTMLButtonElement>(
+      '[data-mode=source]',
+    )!;
+    const restoredSecondRich = restoredSecondFile.querySelector<HTMLButtonElement>(
+      '[data-mode=rich]',
+    )!;
     expect(restoredFirstSource.classList.contains('active')).toBe(true);
     expect(restoredSecondRich.classList.contains('active')).toBe(true);
   });
