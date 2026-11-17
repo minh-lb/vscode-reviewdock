@@ -20,8 +20,16 @@ After the publishing workflow is merged to `main`:
 ## Release checklist
 
 1. Confirm the implementation, package contents, and Marketplace listing are ready for the public. Existing automated tests do not prove live GitHub/GitLab provider behavior or full Marketplace readiness.
-2. On a pull request, update **both** `package.json` and `package-lock.json` to the desired version. Merge only after CI succeeds.
-3. From `main`, create and **publish a non-prerelease GitHub Release** with tag `v<version>`. For the current manifest version `0.1.0`, use tag `v0.1.0`.
+2. On a pull request, bump the version with the matching npm script. Use patch for a fix, minor for a backward-compatible feature, or major for a breaking change:
+
+   ```sh
+   npm run version:patch
+   # or: npm run version:minor
+   # or: npm run version:major
+   ```
+
+   These scripts update `package.json` and `package-lock.json` through npm. They do not create a Git commit or tag. Review and commit both changed files with the release preparation, then merge only after CI succeeds.
+3. From `main`, create and **publish a non-prerelease GitHub Release** with tag `v<version>`. For example, manifest version `0.1.1` uses tag `v0.1.1`.
 4. The [publish workflow](../.github/workflows/publish.yml) checks out that tag, verifies its version and publisher, runs source checks and tests, builds and packages the VSIX, validates the archive contents, then publishes that exact VSIX using `@vscode/vsce@4.1.0 publish --oidc --packagePath <file>`.
 5. Check the workflow run and the `minhluu.reviewdock` extension in Marketplace. If the version has already been published, increment the version before publishing again.
 

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.1
+
+- Shorten the Marketplace README and add practical setup and review instructions.
+- Add patch, minor and major version commands that keep the manifest and lockfile synchronized without creating commits or tags.
+
 ## 0.1.0
 
 Initial preview of ReviewDock for VS Code desktop.
