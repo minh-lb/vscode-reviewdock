@@ -108,7 +108,7 @@ function button(label: string): HTMLButtonElement {
   return found;
 }
 
-function modeButton(file: HTMLElement, mode: 'source' | 'rich'): HTMLButtonElement {
+function modeButton(file: HTMLElement, mode: string): HTMLButtonElement {
   const selector = `[data-mode="${mode}"]`;
   const found = file.querySelector<HTMLButtonElement>(selector);
   if (!found) throw new Error(`Mode button not found: ${mode}`);
@@ -253,8 +253,10 @@ describe('ReviewDock webview entry point', () => {
     act(() => button('Changes 2').click());
     const restoredFirstFile = document.querySelector<HTMLElement>('#file-0')!;
     const restoredSecondFile = document.querySelector<HTMLElement>('#file-1')!;
-    expect(modeButton(restoredFirstFile, 'source').classList.contains('active')).toBe(true);
-    expect(modeButton(restoredSecondFile, 'rich').classList.contains('active')).toBe(true);
+    const restoredFirstSource = modeButton(restoredFirstFile, 'source');
+    const restoredSecondRich = modeButton(restoredSecondFile, 'rich');
+    expect(restoredFirstSource.classList.contains('active')).toBe(true);
+    expect(restoredSecondRich.classList.contains('active')).toBe(true);
   });
 
   it('does not offer Rich mode for non-Markdown files', () => {
