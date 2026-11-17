@@ -6,7 +6,7 @@
 > **Phiên bản:** 1.0.5-draft  
 > **Trạng thái:** Draft — chờ Product Owner xác nhận  
 > **Repository:** [minh-lb/vscode-reviewdock](https://github.com/minh-lb/vscode-reviewdock)  
-> **Ngày:** 2026-11-16
+> **Ngày:** 2026-11-17
 
 ---
 
