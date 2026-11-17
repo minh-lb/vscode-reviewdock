@@ -62,4 +62,6 @@ jobs:
           npm run package
 
       - name: Publish to Marketplace (OIDC)
-        run: npx --yes @vscode/vsce@4.1.0 publish --oidc
+        run: |
+          VSIX_PATH="reviewdock-$(node -p 'require("./package.json").version').vsix"
+          npx --yes @vscode/vsce@4.1.0 publish --oidc --packagePath "$VSIX_PATH"

@@ -4,7 +4,16 @@
   "description": "GitHub Pull Request and GitLab Merge Request reviews in VS Code",
   "version": "0.1.0",
   "publisher": "minhluu",
-  "license": "UNLICENSED",
+  "license": "SEE LICENSE IN LICENSE",
+  "icon": "resources/icon.png",
+  "preview": true,
+  "keywords": [
+    "github",
+    "gitlab",
+    "pull request",
+    "merge request",
+    "code review"
+  ],
   "repository": {
     "type": "git",
     "url": "https://github.com/minh-lb/vscode-reviewdock.git"
@@ -18,8 +27,17 @@
     "node": ">=20 <25"
   },
   "categories": [
+    "SCM Providers",
     "Other"
   ],
+  "extensionKind": [
+    "workspace"
+  ],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": true
+    }
+  },
   "activationEvents": [
     "onCommand:reviewdock.addConnection",
     "onCommand:reviewdock.manageConnections",
@@ -37,6 +55,7 @@
   "main": "./dist/extension.js",
   "scripts": {
     "build": "node scripts/build.mjs",
+    "vscode:prepublish": "npm run build",
     "watch": "node scripts/build.mjs --watch",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.webview.json --noEmit",
     "lint": "eslint .",
@@ -45,7 +64,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:extension": "node scripts/test-extension.mjs",
-    "package": "vsce package",
+    "package": "vsce package && node scripts/validate-package.mjs",
     "build:webview": "node scripts/build-webview.mjs",
     "test:api": "npm run test:integration",
     "test:integration": "vitest run test/integration",
@@ -192,6 +211,10 @@
     "webview-ui/dist/**/*.js",
     "webview-ui/dist/**/*.css",
     "resources/**",
-    "README.md"
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md",
+    "PRIVACY.md",
+    "THIRD-PARTY-NOTICES.txt"
   ]
 }
