@@ -284,6 +284,10 @@ dd {
   scroll-margin-top: 12px;
 }
 .diff-file-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
   padding: 10px 12px;
   border-bottom: 1px solid var(--border);
   overflow-wrap: anywhere;
@@ -312,13 +316,20 @@ dd {
   background: var(--vscode-editor-background);
 }
 .diff-mode-button {
-  padding: 3px 9px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 28px;
+  padding: 0;
   border: 1px solid transparent;
   border-radius: 2px;
   color: var(--muted);
   background: transparent;
-  font-size: 11px;
-  font-weight: 500;
+}
+.diff-mode-button:focus-visible {
+  outline: 2px solid var(--vscode-focusBorder);
+  outline-offset: 2px;
 }
 .diff-mode-button:hover:not(.active) {
   color: var(--vscode-foreground);
