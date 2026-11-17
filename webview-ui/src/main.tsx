@@ -661,7 +661,7 @@ function DiffView({
               hunks.push({ index: row.hunkIndex, before: [], after: [] });
               return hunks;
             }
-            const hunk = hunks.find((item) => item.index === row.hunkIndex);
+            const hunk = hunks[hunks.length - 1];
             if (!hunk) return hunks;
             if (row.kind !== 'added') hunk.before.push(row.text);
             if (row.kind !== 'removed') hunk.after.push(row.text);
