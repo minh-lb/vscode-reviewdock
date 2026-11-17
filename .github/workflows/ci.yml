@@ -18,6 +18,7 @@ jobs:
       - run: npm test
       - run: npm run build
       - run: npm run package
+      - run: npx prettier test/webview/main.test.tsx | diff -u test/webview/main.test.tsx - || true
       - run: npm run format:check
   extension-host:
     strategy:
