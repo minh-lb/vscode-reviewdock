@@ -234,9 +234,7 @@ describe('ReviewDock webview entry point', () => {
     act(() => firstRich.click());
     expect(firstRich.classList.contains('active')).toBe(true);
     expect(firstRich.getAttribute('aria-pressed')).toBe('true');
-    expect(
-      firstFile.querySelector('.rich-diff-side.added strong')?.textContent,
-    ).toBe('text');
+    expect(firstFile.querySelector('.rich-diff-side.added strong')?.textContent).toBe('text');
     expect(firstFile.querySelector('.diff-row')).toBeNull();
     expect(secondSource.classList.contains('active')).toBe(true);
     expect(secondFile.querySelector('.diff-row')).not.toBeNull();
