@@ -222,6 +222,13 @@ describe('ReviewDock webview entry point', () => {
 
     expect(firstSource.getAttribute('aria-pressed')).toBe('true');
     expect(secondSource.getAttribute('aria-pressed')).toBe('true');
+    expect(firstSource.getAttribute('aria-label')).toBe('Source mode for docs/guide.md');
+    expect(firstRich.getAttribute('aria-label')).toBe('Rich mode for docs/guide.md');
+    expect(firstRich.getAttribute('title')).toBe('Rich (rendered Markdown)');
+    expect(firstSource.querySelector('svg[aria-hidden=true]')).not.toBeNull();
+    expect(firstRich.querySelector('svg[aria-hidden=true]')).not.toBeNull();
+    expect(firstSource.textContent?.trim()).toBe('');
+    expect(firstRich.textContent?.trim()).toBe('');
     expect(firstFile.querySelector('.diff-row')).not.toBeNull();
 
     act(() => firstRich.click());
