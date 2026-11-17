@@ -179,7 +179,7 @@ This document records recommended defaults needed to turn the SRS into an implem
 - Keep GitHub issue comments, GitHub inline review comments, GitHub review submissions and GitLab discussions/notes as distinct provider-native resource types.
 - GitHub general issue comments are standalone timeline comments; do not render a Reply action for them.
 - GitHub inline review comments support a reply to a top-level comment only. Do not allow a reply to a reply.
-- GitHub REST adapter does not expose GitLab-style resolve/reopen for review threads; do not show that action.
+- GitHub REST adapter does not expose GitLab-style resolve/reopen for review threads. The separately approved enhancement adds native GraphQL resolution for supported review threads; do not infer REST support or show the action without a GraphQL capability and permission.
 - GitLab general and inline discussions can receive reply notes. Resolve/reopen is exposed only when the endpoint and current user's permission allow it.
 - Preserve thread IDs, note/comment IDs, parent relationships, system-note flags and resolution state without synthesizing missing values.
 
@@ -206,6 +206,21 @@ This document records recommended defaults needed to turn the SRS into an implem
 - Do not declare compatibility with versions that have not been tested.
 
 **Rationale:** a bounded minimum makes the extension manifest, CI matrix and release support statement implementable. The proposal is based on the 2026-11 compatibility review and must be rechecked before release.
+
+## Approved enhancement baseline (implemented locally)
+
+The owner approved the following enhancement scope, which is now implemented locally. Local implementation is not live-provider acceptance:
+
+- Use a hierarchical connection → repository/project → PR/MR tree with lazy child loading and pagination. Apply the selected-connection enabled/auth guard before each page request; permission errors remain errors, not empty results.
+- Support unified and split diffs with line selections anchored to actual base/head paths and source line numbers. Keep provider-specific comment-position rules; rows without a valid provider position are not commentable.
+- Markdown source and rich-rendered views use exact base/head content at the diff's immutable revision IDs and correct old/new paths. Never reconstruct full content from a partial patch. Rich rendering treats provider content as untrusted and follows Webview security requirements.
+- Keep the comment composer in an opaque, keyboard-operable modal with its PR/MR and optional file/line/side context.
+- Implement deletion only for supported native comment resources and resolve/reopen only for supported native threads. GitHub resolution uses the GraphQL review-thread mutation; GitLab uses its Discussions API. GitHub REST's lack of thread resolution remains unchanged. Preserve native thread/comment IDs and enforce provider capability, ownership and permission rules.
+- Allow title, description, assignee, reviewer and label edits. Keep provider-native identities in the application model and translate only at the adapter boundary to the value required by the native API. Send field-scoped updates or explicit set deltas so untouched metadata stays intact. Surface unsupported fields and permission failures.
+- Provide a paginated Commits tab for PRs/MRs with subject, committer, committed time, short SHA and provider link, plus loading/empty/error states.
+- Keep inline reply composition within its thread, without a shared footer; place quick scroll at the lower-right of the Changes view; render status tags from provider-returned state.
+
+Provider API shape and current contract details are recorded in [API-SPEC.md](./API-SPEC.md); cross-provider scope/status is in [PROVIDER-CAPABILITY-MATRIX.md](./PROVIDER-CAPABILITY-MATRIX.md). The local verification snapshot and observed VS Code UI behavior are recorded in [REVIEW-ENHANCEMENTS.md](./REVIEW-ENHANCEMENTS.md). Live writes, full rich rendering and provider/host acceptance remain pending; mocks alone do not establish provider acceptance.
 
 ## Approval checklist
 

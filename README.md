@@ -6,11 +6,11 @@ Review GitHub Pull Requests and GitLab Merge Requests from Visual Studio Code. R
 
 - Add and manage multiple GitHub and GitLab connections. Tokens are stored in VS Code SecretStorage. Disabled connections are excluded from defaults, selection and request resolution; existing bindings stay blocked until the connection is enabled again.
 - Bind each workspace folder to a connection and repository/project. A single-root workspace can resolve its active folder automatically; ambiguous or multi-root choices are explicit.
-- Browse, filter and search pull/merge requests; open request details, changed files, diffs and conversations in ReviewDock.
-- Add general comments, single-line inline comments and supported replies. GitHub general issue comments are not replyable; GitHub REST review-thread resolution is unavailable.
+- Browse, filter and search pull/merge requests; open request details, changed-file tree, diffs, conversations and paginated Commits tab. Set Layout Unified/Split in the global gear menu; each Markdown file has its own Source/Rich toggle in the file header. Commits rows show subject, committer, committed time and short SHA.
+- Add general comments, single-line inline comments and supported replies. The inline reply composer stays with its thread. GitHub general issue comments are not replyable; supported GitHub thread resolution uses GraphQL because the REST workflow does not expose it.
 - Review current check, pipeline/job and approval/review state when returned by the provider. Merge is an explicit, SHA-guarded operation; the provider remains authoritative.
 
-OAuth, multiline comments, comment edit/delete, GitHub thread resolution, approval submission, auto-merge and merge queues are not part of the current feature set. Enterprise and self-managed host compatibility has not been established.
+Hierarchical navigation, anchored diff modes, Markdown source/rich views, supported native thread actions, metadata editing, lazy connection-to-PR/MR loading, quick scroll and status tags are implemented locally. local implementation does not establish live mutation acceptance, and full rich rendering has not been verified. See [Review Enhancements](docs/REVIEW-ENHANCEMENTS.md) and the [Provider Capability Matrix](docs/PROVIDER-CAPABILITY-MATRIX.md). OAuth, multiline comments, approval submission, auto-merge and merge queues remain outside this enhancement scope. Enterprise and self-managed host compatibility has not been established.
 
 ## Install and develop
 

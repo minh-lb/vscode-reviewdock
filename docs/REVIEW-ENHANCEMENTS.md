@@ -1,14 +1,14 @@
-# Kế hoạch nâng cấp ReviewDock
+# Nâng cấp ReviewDock: triển khai và bằng chứng
 
-**Trạng thái:** Kế hoạch; chưa triển khai hoặc xác minh.
+**Trạng thái:** Đã triển khai cục bộ, gồm tinh chỉnh UI theo ảnh tham chiếu; chấp nhận provider còn chờ.
 
-**Phạm vi:** Cải thiện điều hướng, đọc diff, quản lý thảo luận, sửa metadata và khám phá PR/MR.
+**Phạm vi:** Cải thiện điều hướng, đọc diff, quản lý thảo luận, sửa metadata, khám phá PR/MR và xem commit.
 
 ## Mục tiêu và phạm vi
 
 Mở rộng ReviewDock để người dùng điều hướng cây kết nối đến PR/MR, xem diff có neo dòng chính xác, và thao tác với thảo luận/metadata trong VS Code. Duy trì khác biệt API và quyền của GitHub, GitLab; không giả lập tính năng mà provider không hỗ trợ.
 
-Bao gồm năm năng lực: cây tệp phân cấp; chế độ diff unified/split với neo nguồn; diff Markdown an toàn; thao tác thảo luận và metadata; cây kết nối → repository → PR/MR có tải trang lười và kiểm tra quyền.
+Phạm vi đã triển khai cục bộ gồm: cây tệp phân cấp; unified/split diff với neo nguồn; Markdown source/rich; thao tác thảo luận và metadata; cây kết nối → repository → PR/MR tải lười; tab Commits; composer trả lời inline; quick scroll; status tags.
 
 ## Hành vi dự kiến
 
@@ -16,27 +16,43 @@ Bao gồm năm năng lực: cây tệp phân cấp; chế độ diff unified/spl
 
 - Hiển thị file thay đổi theo cây thư mục phân cấp, giữ phân biệt thư mục/file và trạng thái thêm, sửa, xóa, đổi tên.
 - Cho phép kéo thanh chia để đổi chiều rộng vùng cây, ẩn/hiện cây; mọi thao tác có thể thực hiện bằng bàn phím. Kéo không thay đổi thứ tự file.
-- Hỗ trợ unified và split diff. Mỗi dòng hiển thị liên kết đến đúng đường dẫn và số dòng ở base hoặc head tương ứng; lựa chọn dòng phải dùng cùng ánh xạ vị trí mà thao tác comment yêu cầu.
-- Diff Markdown có chế độ source và rich rendered. Cả hai lấy chính xác nội dung base và head từ nguồn tương ứng; không dựng nội dung đầy đủ bằng cách ghép patch. Nội dung không tin cậy phải được render an toàn, không thực thi HTML/script nhúng.
+- Chọn Layout Unified/Split toàn cục trong gear menu. Mỗi dòng hiển thị liên kết đến đúng đường dẫn và số dòng ở base hoặc head tương ứng; lựa chọn dòng phải dùng cùng ánh xạ vị trí mà thao tác comment yêu cầu.
+- Mỗi file Markdown có icon segmented toggle Source/Rich ở header file. Cả hai lấy chính xác nội dung base và head từ nguồn tương ứng; không dựng nội dung đầy đủ bằng cách ghép patch. Nội dung không tin cậy phải được render an toàn, không thực thi HTML/script nhúng.
 
 ### Thảo luận và metadata
 
 - Composer comment mở trong modal opaque (nền modal che nội dung phía sau), giữ ngữ cảnh PR/MR, file, dòng/side nếu là comment inline; modal hỗ trợ bàn phím và không làm mất nội dung khi lỗi gửi.
 - Cho phép xóa comment và resolve thread chỉ khi loại thread/API của provider hỗ trợ. GitHub dùng GraphQL cho thao tác thread native được hỗ trợ; GitLab dùng REST. Giữ native thread/comment ID, quyền sở hữu/quyền thao tác và trạng thái kết quả; không đổi comment inline thành comment chung khi vị trí không hợp lệ.
 - Cho phép sửa title, description, assignees, reviewers và labels. Gửi ID native của provider cho assignee/reviewer/label; giữ các lựa chọn hiện tại khi cập nhật một trường riêng lẻ. Báo rõ lỗi quyền hoặc trường hợp provider không hỗ trợ.
+- Reply composer hiển thị ngay trong thread inline, không đặt trong footer chung.
+- Quick scroll nằm ở góc dưới bên phải vùng diff để chuyển nhanh trong danh sách file.
+- Hiển thị status tags dựa trên trạng thái provider; không suy diễn trạng thái khi dữ liệu thiếu.
 
 ### Khám phá kết nối
 
 - Hiển thị cây lồng nhau: connection → repository/project → PR/MR. Chỉ tải nhánh con khi người dùng mở node; các danh sách phân trang theo adapter.
 - Mỗi yêu cầu tải và thao tác phải gắn với connection đã chọn và qua guard xác thực/quyền trước khi truy cập credential hoặc gọi provider. Lỗi 401/403 và quyền thiếu hiển thị tại node/hoạt động tương ứng; không coi lỗi là danh sách rỗng.
 
-## Trình tự triển khai
+### Tab Commits
 
-1. **Hợp đồng dữ liệu và nguồn:** rà soát model/port/adapter hiện tại; xác định nguồn lấy nội dung base/head, native IDs, diff position và capability từng provider. Bổ sung contract có kiểu rõ ràng trước khi nối UI.
-2. **Cây và diff:** triển khai cây file, trạng thái layout/keyboard, unified/split anchors; sau đó tích hợp lấy nội dung Markdown chính xác và renderer an toàn.
-3. **Thảo luận và metadata:** thêm các mutation theo capability provider, UI modal/forms, preservation semantics và lỗi permission; không gửi mutation khi thiếu native ID hoặc quyền.
-4. **Cây khám phá:** thêm phân cấp và lazy pagination; áp guard trước mọi lần nạp dữ liệu và kiểm tra lỗi theo từng connection.
-5. **Tích hợp và xác nhận:** chạy unit, adapter contract, webview và extension checks liên quan; cập nhật capability/traceability và bổ sung bằng chứng provider riêng. Mock không thay thế kiểm tra host thật.
+- Thêm tab Commits cho PR/MR với danh sách phân trang. Mỗi hàng chỉ hiển thị subject, committer, committed time và short SHA; giữ native commit identity cho liên kết mở commit trên provider.
+- Dùng GitHub Pull Request commits API hoặc GitLab Merge Request commits API tương ứng với request hiện tại. Chỉ tải trang tiếp theo theo hợp đồng phân trang của provider.
+- Hiển thị trạng thái loading, empty và error riêng. Ưu tiên committer và committed time; khi provider thiếu dữ liệu này, dùng author/authored time làm dự phòng. Link chỉ xuất hiện khi provider cung cấp hợp lệ.
+
+## Các phần đã triển khai cục bộ
+
+- Cây file, resize/ẩn/hiện, bàn phím, unified/split anchors và Markdown source/rich.
+- Composer comment opaque và reply composer nằm trong thread inline; xóa/resolve native theo capability.
+- Chỉnh sửa metadata bằng ID native, giữ set hiện tại và phân biệt lỗi quyền/unsupported.
+- Cây kết nối/repository/PR-MR tải lười và phân trang qua auth guard.
+- Tab Commits phân trang; quick scroll phía dưới bên phải; status tags theo trạng thái provider.
+
+## Bằng chứng xác minh
+
+- **Kiểm tra tự động (snapshot):** 126 tests; typecheck, lint, format check và traceability check đều pass theo xác minh của owner. Số lượng là snapshot và có thể thay đổi khi code tiếp tục đổi.
+- **VS Code UI (quan sát interim, chưa phải UI acceptance cuối):** VSIX interim được cài đặt và cửa sổ reload; trạng thái Connected còn giữ, PR hiển thị tag Merged, tab Changes hiển thị 13 file cùng cây, mode controls và quick scroll; tab Commits hiển thị 30 mục dữ liệu từ provider. Bản VSIX cuối đã được cài lại; lần thử reload để quan sát UI cuối bị chặn bởi lỗi điều khiển cửa sổ `noWindowsAvailable`, nên chưa có xác nhận trực quan cuối cho icon toggle và gear menu. Các controls này đã được kiểm tra qua component tests.
+- **Rà soát an toàn:** backend safety review sạch sau khi pin revisions và sửa `rootCommentId` cho GitLab.
+- **Giới hạn:** chưa thử live writes; rich Markdown chưa được xác minh đầy đủ trên host/provider thật. UI và API snapshots này không chứng minh chấp nhận GitHub/GitLab writes.
 
 ## Tiêu chí chấp nhận
 
@@ -46,12 +62,15 @@ Bao gồm năm năng lực: cây tệp phân cấp; chế độ diff unified/spl
 - Modal comment giữ nội dung/ngữ cảnh khi lỗi; xóa/resolve chỉ xuất hiện và chạy với thread/API được hỗ trợ và quyền hợp lệ.
 - Sửa từng metadata field gửi đúng native IDs, giữ nguyên trường không sửa, và hiển thị permission/unsupported thay vì báo thành công.
 - Cây connection/repository/PR-MR tải khi mở node, phân trang đến hết; request không thể dùng credential của connection khác và lỗi quyền không bị hiển thị thành empty state.
+- Gear menu điều khiển Layout Unified/Split toàn cục; mỗi file Markdown có Source/Rich segmented toggle tại header; các dòng comment giữ neo nguồn hợp lệ.
+- Tab Commits tải đúng danh sách theo trang, chỉ hiển thị subject/committer/committed time/short SHA và liên kết provider; empty, loading và error có trạng thái riêng.
 
 ## Kế hoạch kiểm tra tối thiểu
 
 - **Unit:** ánh xạ cây đường dẫn; vị trí base/head qua hunk/rename/delete; vệ sinh và render Markdown; bảo toàn metadata chưa sửa; policy khả năng xóa/resolve theo provider.
 - **Adapter contract:** đúng endpoint/method/payload/native IDs cho GitHub GraphQL và GitLab REST; phân trang; 401/403/unsupported; không retry mù mutation có kết quả không rõ.
-- **Webview:** unified/split anchors, thao tác cây bằng bàn phím, modal submit/error, metadata preservation, trạng thái empty/loading/error.
+- **Webview:** global Layout menu, per-file Markdown mode toggle, unified/split anchors, thao tác cây bằng bàn phím, modal submit/error, metadata preservation, trạng thái empty/loading/error.
+- **Commits:** adapter contracts cho GitHub/GitLab pagination và mapping; webview kiểm tra loading, empty, error, và bốn trường hiển thị subject/committer/committed time/short SHA.
 - **Extension/integration:** lazy load theo node, connection isolation và auth guard trước credential/provider call.
 - **Provider acceptance:** xác minh trên GitHub và GitLab với tài nguyên thử nghiệm, gồm quyền thiếu, resolve/delete được hỗ trợ và nội dung Markdown khác nhau giữa base/head. Ghi rõ host/phiên bản; test giả lập không được xem là live acceptance.
 
@@ -59,9 +78,9 @@ Bao gồm năm năng lực: cây tệp phân cấp; chế độ diff unified/spl
 
 - Giữ nguyên provider-neutral application ports; adapter sở hữu endpoint, native IDs và khác biệt vị trí diff/thread.
 - Danh sách assignee/reviewer/label và chi tiết capability cần lấy từ provider; không giả định tên hiển thị có thể thay cho ID.
-- “Resolve native supported threads” chỉ áp dụng cho loại thread có API native tương ứng; capability matrix hiện tại đánh dấu resolve GitHub/GitLab deferred, vì vậy cần kiểm chứng hợp đồng và cập nhật matrix trong lúc triển khai.
+- “Resolve native supported threads” chỉ áp dụng cho loại thread có API native tương ứng; triển khai cục bộ không hàm ý mọi loại thread đều hỗ trợ.
 - Chưa quy định cách lưu kích thước/ẩn cây qua phiên VS Code, giới hạn kích thước nội dung Markdown, hay danh sách loại thread cụ thể ngoài hợp đồng provider. Chốt các chi tiết này khi khảo sát component/API liên quan, không mở rộng phạm vi.
 
 ## Theo dõi triển khai
 
-Kế hoạch này chưa phải bằng chứng hoàn thành. Sau triển khai, bổ sung liên kết mã nguồn, kiểm tra đã chạy và trạng thái chấp nhận provider tại đây hoặc tài liệu traceability; không đánh dấu tiêu chí đạt chỉ dựa trên thiết kế hay mock.
+Các tính năng trên đã có triển khai cục bộ; việc mutation live, chấp nhận provider, rich rendering đầy đủ, accessibility và tương thích Enterprise/Self-Managed vẫn là acceptance gates. Không đánh dấu các cổng này đạt chỉ dựa trên mock hoặc VS Code UI smoke.

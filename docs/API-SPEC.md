@@ -163,6 +163,29 @@ GET /repos/{owner}/{repo}
 
 Use the authenticated connection's repository list only. Normalize numeric repository ID, owner, full_name, private, archived, default_branch and html_url. GitHub HTTPS and SSH remotes must be parsed independently of GitLab remote formats. Match host first, then repository owner/name; require an explicit account choice when multiple connections on the same host can access the repository.
 
+### 4.5. Lazy connection-to-request navigation
+
+The navigation tree is connection → repository/project → PR/MR. Load repository children only when their connection node is expanded, and load request children only when a repository/project node is expanded. Use the existing provider list endpoints and pagination rules above; retain the selected connection ID and provider-native repository/request IDs for every continuation. Run the enabled-connection guard before credential lookup for each page. Authorization failures remain operation-level errors and must not become an empty child list. This UI/data-flow contract is implemented locally; it does not add a new provider endpoint. Live provider acceptance remains pending.
+
+### 4.6. PR/MR commit list (implemented locally; final host observation pending)
+
+~~~http
+GET /repos/{owner}/{repo}/pulls/{pull_number}/commits?per_page=100&page=1
+GET /projects/:project_id/merge_requests/:merge_request_iid/commits?page=1&per_page=100
+~~~
+
+The Commits tab loads the selected PR/MR's commits using the common pagination and selected-connection guard rules. Map the provider's native fields without inference:
+
+| UI field | GitHub | GitLab |
+|---|---|---|
+| Subject | First line of `commit.message` | `title` |
+| Committer | `commit.committer.name`; account login when top-level `committer` is present | `committer_name` |
+| Committed time | `commit.committer.date` | `committed_date` |
+| Short SHA | Short form of `sha` | Short form of `id` |
+| Provider link target | `html_url` | `web_url` |
+
+Show only subject, committer, committed time and short SHA in each row. The short SHA opens the provider commit URL; keep the full SHA as identity. Prefer committer and committed time, falling back to author and authored time when missing. The tab has distinct loading, empty, and error states; a successful empty page is not a provider error. Follow the provider's pagination response until exhausted. Local UI evidence exists, but live provider acceptance remains pending.
+
 ## 5. GitLab Merge Request API
 
 ### 5.1. List project merge requests
@@ -333,7 +356,7 @@ Expected success: 201 Created.
 
 ### 6.5. Resolve or reopen a discussion
 
-P1 operation:
+Implemented locally. The GitLab Discussions REST operation remains the provider-native contract; live GitLab mutation acceptance remains pending:
 
 ~~~http
 PUT /projects/:project_id/merge_requests/:iid/discussions/:discussion_id
@@ -346,11 +369,11 @@ Only expose the action if the API and current user permissions allow it. A locke
 
 ### 6.6. Edit/delete a note
 
-P1 only:
+Deletion is implemented locally for supported resources and permissions; editing remains deferred. Live mutation acceptance remains pending:
 - PUT /projects/:project_id/merge_requests/:iid/discussions/:discussion_id/notes/:note_id with body to edit.
 - DELETE /projects/:project_id/merge_requests/:iid/discussions/:discussion_id/notes/:note_id to delete.
 
-Only allow operations on notes owned by the current user and only when GitLab accepts the operation. Do not include edit/delete in MVP UI.
+Only allow operations when the provider accepts the operation and ownership/permission policy permits it. Keep the discussion ID and note ID distinct. Live GitLab acceptance remains pending.
 
 ## 7. GitLab Approval API — P1
 
@@ -480,12 +503,14 @@ Client-side checks improve UX only; GitLab enforces all approvals, pipelines, br
 | PR/MR detail | Single Merge Request API | Single Pull Request API | P0 |
 | Changed files and diff | MR Diffs API | PR Files API (max 3,000 files) | P0 |
 | Diff version / comment position | MR Versions API | Current PR head SHA + diff line/side | P0 |
+| PR/MR commit history | Merge Request Commits API | Pull Request Commits API | Implemented locally; final host observation pending |
 | General timeline comment | Discussions API | Issues Comments API | P0 |
 | General comment reply | Discussion Notes API | Not supported by selected REST workflow | Conditional / unavailable |
 | Inline comment | Discussions API with position | Pull Request Review Comments API | P0 |
 | Inline thread reply | Discussion Notes API | Review Comment Replies API (top-level only) | P0 |
-| Thread resolve/reopen | Discussions API | Not supported by selected REST adapter | GitLab P1 only |
-| Edit/delete own comment | Discussion Notes API | Issue Comments + Review Comments APIs | P1 |
+| Thread resolve/reopen | Discussions API | REST unsupported; GraphQL native mutation | Implemented locally; per-resource capability |
+| Delete own comment (edit deferred) | Discussion Notes API | REST resource delete APIs; comment editing remains deferred | Implemented locally; ownership and permission required |
+| PR/MR metadata edit | Merge Requests API | REST/GraphQL metadata mutations | Implemented locally; provider-native IDs and set preservation |
 | Approval/review state | Merge Request Approvals API | Pull Request Reviews API | P1 |
 | Pipeline/check status | MR Pipelines + Jobs APIs | Commit Status + Check Runs + Actions APIs | P1 |
 | Merge | Merge Requests API | Pull Requests Merge API | P0 |
@@ -659,7 +684,7 @@ GitHub PR conversations contain different resource types:
 | General timeline comment | Issues Comments API | No reply-thread operation in this REST workflow |
 | Inline review comment | Pull Request Review Comments API | One-level reply to a top-level review comment |
 | Review submission | Pull Request Reviews API | A review event, not a general comment |
-| Review thread resolution | Not exposed by the selected REST adapter | Do not show resolve/reopen |
+| Review thread resolution | Not exposed by the selected REST adapter | GraphQL native operation is implemented locally; show only when capability and permission permit |
 
 The UI and domain mapper must preserve these distinctions. A GitHub issue comment must never be converted into a synthetic review-comment thread.
 
@@ -696,7 +721,7 @@ Content-Type: application/json
 
 The endpoint does not support replies to replies. A general issue comment cannot be replied to through the selected REST workflow.
 
-P1 edit/delete endpoints, only for comments owned by the authenticated user and when permissions allow:
+REST edit/delete endpoints for supported comments owned by the authenticated user when permissions allow:
 
 ~~~http
 PATCH /repos/{owner}/{repo}/issues/comments/{comment_id}
@@ -705,7 +730,23 @@ PATCH /repos/{owner}/{repo}/pulls/comments/{comment_id}
 DELETE /repos/{owner}/{repo}/pulls/comments/{comment_id}
 ~~~
 
-GitHub REST thread resolution is not included. Do not simulate it or infer resolved state from missing data.
+GitHub REST thread resolution remains unsupported. Do not simulate it or infer resolved state from missing data. The approved enhancement adds native GraphQL operations for resolving supported review threads; deletion uses the REST endpoints above; live permission and host acceptance is pending.
+
+### 13.3B. Native GraphQL thread actions and metadata
+
+The approved enhancement uses GitHub GraphQL as a supplement to the REST conversation flow:
+
+- Resolve/reopen a review thread with the native `resolveReviewThread`/`unresolveReviewThread` mutations and the thread's GraphQL node ID. Do not infer thread IDs from comment IDs.
+- Delete supported issue/review comments through their resource-specific REST endpoints. Apply ownership/permission checks and refresh afterward.
+- Update title/body and issue assignees/labels through REST endpoints. Resolve numeric user IDs to current provider logins at the adapter boundary; apply requested-reviewer add/remove deltas while preserving team reviewers. Send only changed fields.
+
+Mutation availability and accepted permissions can vary by host/version/resource. Check API errors and refreshed provider state; do not claim success from a locally accepted request alone. These GraphQL capabilities are implemented locally and live GitHub.com/GHES acceptance remains pending. See [GitHub GraphQL Pull Requests](https://docs.github.com/en/graphql/reference/pulls), [GitHub GraphQL Issues](https://docs.github.com/en/graphql/reference/issues) and [GitHub GraphQL mutations](https://docs.github.com/en/graphql/reference/mutations).
+
+### 13.3C. PR/MR metadata edits
+
+The approved metadata form covers title, description, assignees, reviewers and labels. Keep provider-native user/team/label identifiers in the application contract, and send the identifier or provider-required value accepted by each native endpoint. A single-field edit must preserve current values for every field not edited; set-valued fields use explicit add/remove deltas or a refreshed complete set, never an accidental empty replacement. GitLab `PUT /projects/:id/merge_requests/:iid` accepts `assignee_ids`, `reviewer_ids`, `labels`, `title` and `description`; its labels parameter is name-based, so retain the provider label identity in the UI and use the exact selected label value required by that API. GitHub uses the Pull Request update and native assignment, label and reviewer-request operations.
+
+Do not report success for 403/unsupported fields; preserve other metadata and refresh after ambiguous mutation outcomes. This contract is implemented locally; live mutation acceptance remains pending.
 
 ### 13.4. Review decision — P1
 
@@ -774,6 +815,7 @@ For fine-grained PATs, the merge endpoint requires the repository `Contents: wri
 - [GitHub REST API authentication](https://docs.github.com/en/rest/authentication/authenticating-to-the-rest-api)
 - [GitHub repository API](https://docs.github.com/en/rest/repos/repos)
 - [GitHub Pull Requests API](https://docs.github.com/en/rest/pulls/pulls)
+- [GitHub Pull Request commits API](https://docs.github.com/en/rest/pulls/pulls#list-commits-on-a-pull-request)
 - [GitHub pull request review comments API](https://docs.github.com/en/rest/pulls/comments)
 - [GitHub pull request reviews API](https://docs.github.com/en/rest/pulls/reviews)
 - [GitHub fine-grained PAT permissions](https://docs.github.com/en/rest/authentication/permissions-required-for-fine-grained-personal-access-tokens)
@@ -786,6 +828,7 @@ For fine-grained PATs, the merge endpoint requires the repository `Contents: wri
 - [REST API overview, authentication and pagination](https://docs.gitlab.com/api/rest/)
 - [Projects API](https://docs.gitlab.com/api/projects/)
 - [Merge Requests API](https://docs.gitlab.com/api/merge_requests/)
+- [GitLab Merge Request commits API](https://docs.gitlab.com/api/merge_requests/#list-merge-request-commits)
 - [Discussions API](https://docs.gitlab.com/api/discussions/)
 - [Notes API](https://docs.gitlab.com/api/notes/)
 - [Merge Request Approvals API](https://docs.gitlab.com/api/merge_request_approvals/)
@@ -798,10 +841,18 @@ For fine-grained PATs, the merge endpoint requires the repository `Contents: wri
 
 Endpoint sections define adapter contracts, not direct application-service APIs. Application services call provider-neutral ports and consume normalized models. Adapters preserve native IDs, comment resource types, review-request identity, diff position/version metadata and server URLs. GitHub review threads and GitLab discussions do not have assumed identical resolution semantics. Missing approval, pipeline or mergeability fields must not be inferred. See [PROVIDER-CAPABILITY-MATRIX.md](./PROVIDER-CAPABILITY-MATRIX.md).
 
-### 15.1. GitHub Enterprise compatibility
+### 15.1. Review UI data contract (implemented locally; final host observation pending)
+
+The global gear menu selects Layout Unified or Split. Every selectable line retains its actual provider file path and base/head line identity, not a line derived from the rendered row index. Reuse the provider-specific position rules in sections 6.3 and 13.3 when creating inline comments; if a displayed row has no valid provider position, it is not commentable.
+
+Each Markdown file has a Source/Rich icon segmented toggle in its file header. Both modes use the same exact base/head content pair. Fetch each side by the exact revision identifiers for the displayed diff (GitLab diff version SHAs; GitHub base and head commit SHAs), resolving old/new paths separately for rename and add/delete cases. Do not reconstruct a full file by applying a partial/collapsed patch. If an exact revision or content is unavailable, show an unavailable state instead of current branch content. Source mode displays text; rich mode renders untrusted Markdown under the Webview security policy and must not execute embedded HTML or scripts. See the [GitHub Repository contents API](https://docs.github.com/en/rest/repos/contents), [GitLab Repository files API](https://docs.gitlab.com/api/repository_files/) and [VS Code Webview security](https://code.visualstudio.com/api/extension-guides/webview#security).
+
+Reply composers remain inline with their thread (without a shared footer), and quick scroll is positioned at the lower-right of the Changes view. Provider status tags reflect returned state. These contracts are implemented locally; component/UI refinement is ongoing. GitHub.com and GitLab.com acceptance for content retrieval, mapping, rendering and mutations remains pending, and full rich rendering has not been verified.
+
+### 15.2. GitHub Enterprise compatibility
 
 GitHub.com and GHES may differ in REST API versions and supported headers. Configure API version per host compatibility policy; do not send GitHub.com-only headers to unsupported GHES releases. Vendor-supported release status can guide candidate test versions, but does not establish ReviewDock compatibility. Select and live-test the minimum GHES version before claiming compatibility; publish only exact versions actually tested.
 
-### 15.2. Mutation outcome
+### 15.3. Mutation outcome
 
 A transport timeout after dispatch means outcome unknown, not failure. Refresh the relevant resource before enabling another mutation. Read-only retries may follow bounded rate-limit policy; mutations are never automatically retried.
