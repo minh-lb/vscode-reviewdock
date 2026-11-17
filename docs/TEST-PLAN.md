@@ -317,7 +317,7 @@ Fixtures must contain no real user secrets, private code or production project i
 | WEB-DIFF-004 | Switch one file back to Source | Other files retain their selected mode |
 | WEB-DIFF-005 | Navigate to another tab and return to Changes | Per-file mode selections are preserved in the same review panel |
 | WEB-DIFF-006 | Open a non-Markdown file or unavailable patch | Rich control is not offered; Source fallback remains available |
-| WEB-DIFF-007 | Inspect the selected mode control | Active control has distinct foreground/background, border and aria-pressed=true |
+| WEB-DIFF-007 | Inspect the mode icon controls | Each mode has an SVG icon, accessible label and tooltip; the active control has distinct foreground/background, focus styling and aria-pressed=true |
 | WEB-DIFF-008 | View a Rich diff with existing discussions | Discussions remain visible; inline comment creation is available in Source mode |
 
 ## 10. Manual end-to-end scenarios
