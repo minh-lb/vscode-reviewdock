@@ -698,19 +698,51 @@ function DiffView({
               type="button"
               data-mode="source"
               className={`diff-mode-button ${mode === 'source' ? 'active' : ''}`}
+              aria-label={`Source mode for ${file.path}`}
+              title="Source (unified diff)"
               aria-pressed={mode === 'source'}
               onClick={() => onModeChange('source')}
             >
-              Source
+              <svg
+                aria-hidden="true"
+                focusable="false"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <polyline points="8 6 2 12 8 18" />
+                <polyline points="16 6 22 12 16 18" />
+              </svg>
             </button>
             <button
               type="button"
               data-mode="rich"
               className={`diff-mode-button ${mode === 'rich' ? 'active' : ''}`}
+              aria-label={`Rich mode for ${file.path}`}
+              title="Rich (rendered Markdown)"
               aria-pressed={mode === 'rich'}
               onClick={() => onModeChange('rich')}
             >
-              Rich
+              <svg
+                aria-hidden="true"
+                focusable="false"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z" />
+                <circle cx="12" cy="12" r="3" />
+              </svg>
             </button>
           </div>
         )}
