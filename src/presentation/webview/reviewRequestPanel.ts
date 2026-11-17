@@ -223,7 +223,7 @@ export function openReviewRequestPanel(
       return;
     }
     if (message.type === 'selectTab') {
-      if (message.tab === 'changes') await loadFiles();
+      if (message.tab === 'changes') await Promise.all([loadFiles(), loadConversations()]);
       if (message.tab === 'conversations') await loadConversations();
       if (message.tab === 'checks') await loadChecks();
       if (message.tab === 'approvals') await loadApprovals();
