@@ -109,9 +109,8 @@ function button(label: string): HTMLButtonElement {
 }
 
 function tabButton(label: string): HTMLButtonElement {
-  const found = [...document.querySelectorAll<HTMLButtonElement>('.tabs button')].find(
-    (item) => item.textContent?.trim().startsWith(label),
-  );
+  const tabs = document.querySelectorAll<HTMLButtonElement>('.tabs button');
+  const found = [...tabs].find((item) => item.textContent?.trim().startsWith(label));
   if (!found) throw new Error(`Tab not found: ${label}`);
   return found;
 }
@@ -235,7 +234,9 @@ describe('ReviewDock webview entry point', () => {
     act(() => firstRich.click());
     expect(firstRich.classList.contains('active')).toBe(true);
     expect(firstRich.getAttribute('aria-pressed')).toBe('true');
-    expect(firstFile.querySelector('.rich-diff-side.added strong')?.textContent).toBe('text');
+    expect(
+      firstFile.querySelector('.rich-diff-side.added strong')?.textContent,
+    ).toBe('text');
     expect(firstFile.querySelector('.diff-row')).toBeNull();
     expect(secondSource.classList.contains('active')).toBe(true);
     expect(secondFile.querySelector('.diff-row')).not.toBeNull();
