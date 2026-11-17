@@ -108,6 +108,14 @@ function button(label: string): HTMLButtonElement {
   return found;
 }
 
+function tabButton(label: string): HTMLButtonElement {
+  const found = [...document.querySelectorAll<HTMLButtonElement>('.tabs button')].find(
+    (item) => item.textContent?.trim().startsWith(label),
+  );
+  if (!found) throw new Error(`Tab not found: ${label}`);
+  return found;
+}
+
 function typeInto(element: HTMLInputElement | HTMLTextAreaElement, value: string) {
   act(() => {
     const setter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(element), 'value')?.set;
@@ -210,7 +218,7 @@ describe('ReviewDock webview entry point', () => {
 
   it('keeps Source/Rich selection independent for each Markdown file', () => {
     send(initialize);
-    act(() => button('Changes').click());
+    act(() => tabButton('Changes').click());
     send(markdownFiles);
 
     const firstFile = document.querySelector<HTMLElement>('#file-0')!;
@@ -241,8 +249,8 @@ describe('ReviewDock webview entry point', () => {
     expect(firstRich.classList.contains('active')).toBe(false);
     expect(secondRich.classList.contains('active')).toBe(true);
 
-    act(() => button('Conversations').click());
-    act(() => button('Changes').click());
+    act(() => tabButton('Conversations').click());
+    act(() => tabButton('Changes').click());
     expect(
       document.querySelector('#file-0 [data-mode="source"]')?.classList.contains('active'),
     ).toBe(true);
