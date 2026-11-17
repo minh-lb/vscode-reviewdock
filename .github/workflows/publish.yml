@@ -1,0 +1,65 @@
+name: Publish to VS Code Marketplace
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: Publish stable release
+    if: ${{ !github.event.release.prerelease }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Check out release tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name }}
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify release tag and publisher
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          node <<'NODE'
+          const manifest = require('./package.json');
+          const expectedTag = `v${manifest.version}`;
+          if (process.env.RELEASE_TAG !== expectedTag) {
+            console.error(`Release tag must be ${expectedTag}, got ${process.env.RELEASE_TAG}`);
+            process.exit(1);
+          }
+          if (manifest.publisher !== 'minhluu') {
+            console.error('Marketplace publisher must be minhluu');
+            process.exit(1);
+          }
+          NODE
+
+      - name: Validate extension
+        run: |
+          npm run test:traceability
+          npm run typecheck
+          npm run lint
+          npm test
+          npm run format:check
+
+      - name: Build and package extension
+        run: |
+          npm run build
+          npm run package
+
+      - name: Publish to Marketplace (OIDC)
+        run: npx --yes @vscode/vsce@4.1.0 publish --oidc
