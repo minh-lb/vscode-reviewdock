@@ -22,6 +22,12 @@ A bounded live read-only probe through the actual `GitHubAdapter` and `ProviderH
 
 On 2026-11-17, manual testing in the real macOS `/Applications` VS Code UI with a user-entered PAT verified the connection as Connected, detected and bound the remote to `minh-lb/vscode-reviewdock`, and opened merged PR #1. The UI showed 13 file diffs, the inline composer Tab trap/Escape/focus restore without submitting, and the Approvals unavailable message. The connection and repository binding survived Developer: Reload Window. Checks finished loading but rendered blank for the successful zero-result response; an explicit empty state was added with regression coverage. The rebuilt 105.88 KB VSIX was installed and reloaded; the live Checks tab then displayed “No checks reported”. The resulting local suite passed 90/90 tests; typecheck, lint and build passed. No external comment, reply or merge was attempted.
 
+## Review enhancements snapshot (2026-11-17)
+
+The locally implemented enhancements add file-tree resize/hide controls, per-file Markdown Source/Rich icon toggles, a global gear menu for Unified/Split, inline reply composition, supported comment deletion/native thread resolution, metadata editing, connection/repository/request navigation, compact commit rows, quick scroll and status tags. Changes loads conversations alongside files. See [Review Enhancements](REVIEW-ENHANCEMENTS.md) for behavior and limits.
+
+The current suite passed 126/126 tests across 15 files. Typecheck, lint, format, traceability, build and packaging passed; the rebuilt 120.03 KB VSIX installed successfully. Final-source activation/contributed-metadata smoke passed on macOS VS Code 1.146.0. These checks do not establish live write acceptance. The latest attempt to reload/inspect the installed UI returned native automation errors (`noWindowsAvailable` and `AXError.invalidUIElement`); the final controls have component coverage but lack final installed-host visual confirmation. Earlier observations above remain historical evidence only.
+
 ## Open acceptance gates
 
 - Live GitHub.com and GitLab.com acceptance for connection permissions, diffs/inline positions, comments/replies, and disposable-resource merges.
@@ -30,4 +36,4 @@ On 2026-11-17, manual testing in the real macOS `/Applications` VS Code UI with 
 - Manual screen-reader, high-contrast and complete keyboard workflow review, plus Marketplace/release readiness. The inline modal keyboard regression is automated evidence only.
 - Live-provider permission behavior. PAT scope guidance is documented, but the application does not inspect granted permissions.
 
-OAuth, multiline inline comments, comment edit/delete, GitHub REST thread resolution, approval submission, auto-merge, merge queues and implicit source-branch deletion remain deferred or unsupported. See [Provider Capability Matrix](PROVIDER-CAPABILITY-MATRIX.md) and [Requirement Traceability](REQUIREMENT-TRACEABILITY.md).
+OAuth, multiline inline comments, comment editing, GitHub REST thread resolution, approval submission, auto-merge, merge queues and implicit source-branch deletion remain deferred or unsupported. See [Provider Capability Matrix](PROVIDER-CAPABILITY-MATRIX.md) and [Requirement Traceability](REQUIREMENT-TRACEABILITY.md).
