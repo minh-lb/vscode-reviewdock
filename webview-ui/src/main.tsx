@@ -689,7 +689,11 @@ function DiffView({
           <span>{file.change}</span>
         </div>
         {supportsRichMode && (
-          <div className="diff-mode-switch" role="group" aria-label={`Display mode for ${file.path}`}>
+          <div
+            className="diff-mode-switch"
+            role="group"
+            aria-label={`Display mode for ${file.path}`}
+          >
             <button
               type="button"
               data-mode="source"
