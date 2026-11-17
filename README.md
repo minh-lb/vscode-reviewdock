@@ -42,6 +42,10 @@ Use the Command Palette and search `ReviewDock:` for Add Connection, Manage Conn
 
 ## Verification snapshot
 
-The local test suite passed 87/87 tests across 12 files; typecheck and lint passed after the recovery regression fix. Formatting and traceability checks passed after the cosmetic test-file adjustment. VS Code extension activation and command/view metadata passed on macOS with VS Code 1.140 and stable 1.146 (which resolved to 1.146.0) after the recovery fix. The final production VSIX was built, packaged, installed into an isolated VS Code profile and listed by the CLI as `reviewdock.reviewdock@0.1.0`.
+The local test suite passed 87/87 tests across 12 files; typecheck and lint passed after the recovery regression fix. Formatting and traceability checks passed after the cosmetic test-file adjustment. VS Code extension activation and command/view metadata passed on macOS with VS Code 1.140 and stable 1.146 (which resolved to 1.146.0) after the recovery fix. The final production VSIX was built, packaged, installed into an isolated VS Code profile and listed by the CLI as `reviewdock.reviewdock@0.1.0` (before the publisher ID was updated to `minhluu`).
 
 These checks do not establish live GitHub.com/GitLab.com mutation behavior, GHES or GitLab Self-Managed compatibility, Windows/Linux behavior, accessibility acceptance or Marketplace readiness. See [Implementation Status](docs/IMPLEMENTATION-STATUS.md), [Test Plan](docs/TEST-PLAN.md), and [Provider Capability Matrix](docs/PROVIDER-CAPABILITY-MATRIX.md).
+
+## Publish to the VS Code Marketplace
+
+ReviewDock uses Marketplace publisher `minhluu`. Publishing a stable GitHub Release (for example, `v0.1.0`) triggers the OIDC-based Marketplace workflow after its one-time Trusted Publishing policy is configured. See the [Publishing Guide](docs/PUBLISHING.md) for setup, versioning, release steps, and manual VSIX upload. Publishing remains a separate decision from the development/verification snapshot above.
