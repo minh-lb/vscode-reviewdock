@@ -3,6 +3,12 @@ name: Publish to VS Code Marketplace
 on:
   release:
     types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag to publish
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -10,7 +16,7 @@ permissions:
 jobs:
   publish:
     name: Publish stable release
-    if: ${{ !github.event.release.prerelease }}
+    if: github.event_name == 'workflow_dispatch' || !github.event.release.prerelease
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -19,7 +25,7 @@ jobs:
       - name: Check out release tag
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.release.tag_name }}
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.event.release.tag_name }}
           persist-credentials: false
 
       - name: Set up Node.js
@@ -33,7 +39,7 @@ jobs:
 
       - name: Verify release tag and publisher
         env:
-          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.event.release.tag_name }}
         run: |
           node <<'NODE'
           const manifest = require('./package.json');
