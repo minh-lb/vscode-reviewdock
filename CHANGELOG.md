@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.1
+
+- Expand Markdown Rich Preview to the full available width in Unified and Split layouts.
+- Add regression coverage for Markdown Preview width and layout behavior.
+
 ## 1.0.0
 
 - Select and save the repositories shown under each connection in the sidebar.
